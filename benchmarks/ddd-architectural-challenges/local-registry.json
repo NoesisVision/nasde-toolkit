@@ -1,0 +1,26 @@
+[
+  {
+    "name": "ddd-architectural-challenges",
+    "description": "Dataset testing AI agent's ability to extend complex Domain-Driven Design codebases with new features requiring architectural decisions",
+    "version": "1.0.0",
+    "difficulty": "advanced",
+    "tasks": [
+      {
+        "name": "ddd-threshold-discount",
+        "path": "./benchmarks/ddd-architectural-challenges/tasks/ddd-threshold-discount"
+      }
+    ],
+    "metadata": {
+      "domain": "Domain-Driven Design",
+      "technologies": [".NET 8", "C#", "Hexagonal Architecture", "CQRS", "xUnit"],
+      "skills_tested": [
+        "DDD tactical patterns understanding",
+        "Hexagonal Architecture (Ports & Adapters)",
+        "Architectural refactoring",
+        "External API integration in domain layer",
+        "Extensibility design",
+        "Unit and integration testing"
+      ]
+    }
+  }
+]

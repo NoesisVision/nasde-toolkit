@@ -1,37 +1,40 @@
-"""Benchmark runner — Harbor wrapper.
+"""Benchmark runner — Harbor Python API.
 
-Merges variant configuration with task registry, launches Harbor via
-subprocess, and optionally triggers post-hoc assessment evaluation.
+Merges variant configuration with task registry, launches Harbor Job
+directly via Python API, and triggers post-hoc assessment evaluation.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 from rich.console import Console
+from rich.table import Table
 
 from sdlc_eval_kit.config import ProjectConfig
 
 console = Console()
 
 
-def run_benchmark(
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+async def run_benchmark(
     config: ProjectConfig,
     variant: str,
     model: str = "claude-sonnet-4-6",
     timeout_sec: int = 720,
     tasks_filter: list[str] | None = None,
     with_opik: bool = False,
-    with_eval: bool = False,
+    with_eval: bool = True,
 ) -> None:
     """Run a benchmark variant against configured tasks via Harbor."""
-    _ensure_harbor_installed()
     _load_env_file(config.project_dir)
     _ensure_auth()
 
@@ -42,7 +45,7 @@ def run_benchmark(
         _generate_harbor_config(variant_dir, variant)
         harbor_config_path = variant_dir / "harbor_config.json"
 
-    merged_config_path = _build_merged_config(
+    merged_config = _build_merged_config(
         config=config,
         variant_config_path=harbor_config_path,
         model=model,
@@ -50,15 +53,18 @@ def run_benchmark(
         tasks_filter=tasks_filter,
     )
 
-    try:
-        _run_harbor(merged_config_path, with_opik)
-    finally:
-        merged_config_path.unlink(missing_ok=True)
+    result = await _run_job(
+        merged_config,
+        with_opik=with_opik,
+        project_name=config.reporting.project_name or config.name,
+        project_dir=config.project_dir,
+    )
+    _print_job_summary(result)
 
     console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
     if with_eval:
-        _run_post_hoc_assessment(config, with_opik)
+        await _run_post_hoc_assessment(config, with_opik)
 
 
 # ---------------------------------------------------------------------------
@@ -71,17 +77,6 @@ def _ensure_auth() -> None:
         return
     console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
     raise SystemExit(1)
-
-
-def _ensure_harbor_installed() -> None:
-    result = subprocess.run(
-        [sys.executable, "-c", "import harbor"],
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        console.print("[red]ERROR: Harbor is not installed.[/red]")
-        console.print("  pip install harbor-ai")
-        raise SystemExit(1)
 
 
 def _load_env_file(project_dir: Path) -> None:
@@ -98,7 +93,7 @@ def _parse_env_file(env_path: Path) -> None:
             continue
         if "=" in line:
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +155,7 @@ def _build_merged_config(
     model: str,
     timeout_sec: int,
     tasks_filter: list[str] | None,
-) -> Path:
+) -> dict:
     with open(variant_config_path) as f:
         variant = json.load(f)
 
@@ -171,10 +166,10 @@ def _build_merged_config(
     registry = _build_registry(config, tasks_filter)
     registry_path = _write_temp_json(registry, prefix="sdlc-eval-registry-")
 
-    jobs_dir = _resolve_jobs_dir(config.project_dir)
+    jobs_dir = _resolve_jobs_dir(config.project_dir).resolve()
     jobs_dir.mkdir(parents=True, exist_ok=True)
 
-    merged = {
+    return {
         "jobs_dir": str(jobs_dir),
         "n_attempts": 1,
         "agents": variant["agents"],
@@ -184,10 +179,8 @@ def _build_merged_config(
                 "registry": {"path": registry_path},
             }
         ],
-        "artifacts": [{"source": "/app/src", "destination": "workspace"}],
+        "artifacts": [{"source": "/app", "destination": "workspace"}],
     }
-
-    return Path(_write_temp_json(merged, prefix="sdlc-eval-config-"))
 
 
 def _build_registry(config: ProjectConfig, tasks_filter: list[str] | None) -> list[dict]:
@@ -202,7 +195,7 @@ def _build_registry(config: ProjectConfig, tasks_filter: list[str] | None) -> li
             "description": f"Benchmark: {config.name}",
             "version": config.version,
             "tasks": [
-                {"name": t.name, "path": str(t.path)}
+                {"name": t.name, "path": str(t.path.resolve())}
                 for t in tasks
             ],
         }
@@ -224,41 +217,69 @@ def _resolve_jobs_dir(project_dir: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Harbor execution
+# Job execution
 # ---------------------------------------------------------------------------
 
 
-def _run_harbor(config_path: Path, with_opik: bool) -> None:
-    console.print("\n[bold]Running benchmark...[/bold]\n")
+async def _run_job(
+    config_dict: dict,
+    with_opik: bool,
+    project_name: str,
+    project_dir: Path | None = None,
+) -> "JobResult":
+    """Run a Harbor job via Python API.
 
-    harbor_bin = _find_cli_binary("harbor")
+    Args:
+        config_dict: Merged Harbor config as a dict.
+        with_opik: Enable Opik tracking.
+        project_name: Opik project name.
+        project_dir: Project directory to chdir into before running.
+            Harbor resolves task paths and agent import_path relative to
+            CWD, so we must be in the project directory.
+    """
+    from harbor.job import Job
+    from harbor.models.job.config import JobConfig
 
     if with_opik:
+        from opik.integrations.harbor import track_harbor
         console.print("Opik tracking enabled\n")
-        opik_bin = _find_cli_binary("opik")
-        cmd = [opik_bin, "harbor", "run", "--config", str(config_path)]
-    else:
-        cmd = [harbor_bin, "run", "--config", str(config_path)]
+        track_harbor(project_name=project_name)
 
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        console.print("[red]Harbor run failed[/red]")
-        raise SystemExit(1)
+    saved_cwd = Path.cwd()
+    if project_dir:
+        os.chdir(project_dir)
+        if str(project_dir) not in sys.path:
+            sys.path.insert(0, str(project_dir))
+
+    try:
+        job_config = JobConfig.model_validate(config_dict)
+        job = Job(job_config)
+        return await job.run()
+    finally:
+        os.chdir(saved_cwd)
 
 
-def _find_cli_binary(name: str) -> str:
-    """Find a CLI binary in the same venv as the current Python interpreter."""
-    venv_bin = Path(sys.executable).parent / name
-    if venv_bin.exists():
-        return str(venv_bin)
+def _print_job_summary(result: "JobResult") -> None:
+    console.print()
+    console.print("[bold]Job completed[/bold]")
+    console.print(f"  Trials: {result.stats.n_trials}")
+    console.print(f"  Errors: {result.stats.n_errors}")
 
-    import shutil
-    system_bin = shutil.which(name)
-    if system_bin:
-        return system_bin
+    table = Table(title="Results by agent/dataset")
+    table.add_column("Agent / Dataset", style="cyan")
+    table.add_column("Trials", justify="right")
+    table.add_column("Errors", justify="right")
 
-    console.print(f"[red]ERROR: '{name}' CLI not found. Install it: pip install {name}[/red]")
-    raise SystemExit(1)
+    for eval_key, stats in result.stats.evals.items():
+        table.add_row(
+            eval_key,
+            str(stats.n_trials),
+            str(stats.n_errors),
+        )
+
+    if result.stats.evals:
+        console.print(table)
+    console.print()
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +287,7 @@ def _find_cli_binary(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _run_post_hoc_assessment(config: ProjectConfig, with_opik: bool) -> None:
+async def _run_post_hoc_assessment(config: ProjectConfig, with_opik: bool) -> None:
     latest_job = _find_latest_job(config.project_dir)
     if not latest_job:
         console.print("[yellow]WARN: No job directory found for assessment[/yellow]")
@@ -278,12 +299,12 @@ def _run_post_hoc_assessment(config: ProjectConfig, with_opik: bool) -> None:
 
     from sdlc_eval_kit.evaluator import evaluate_job
 
-    asyncio.run(evaluate_job(
+    await evaluate_job(
         job_dir=latest_job,
         project_root=config.project_dir,
         project_name=config.reporting.project_name,
         with_opik=with_opik,
-    ))
+    )
 
 
 def _find_latest_job(project_dir: Path) -> Path | None:

@@ -1,45 +1,95 @@
 # sdlc-eval-kit
 
-AI coding agent evaluation toolkit. Provides a CLI (`sdlc-eval`) for scaffolding benchmark projects, running AI agents against coding tasks via [Harbor](https://github.com/cased/harbor), and scoring their output with a Claude-based post-hoc evaluator.
+CLI toolkit for evaluating AI coding agents. Wraps [Harbor](https://github.com/cased/harbor) (agent execution in sandboxed environments) and [Opik](https://github.com/comet-ml/opik) (observability) into a single `sdlc-eval` command with two-stage evaluation: functional tests + LLM-as-a-Judge architecture assessment.
 
 ## Installation
 
 ```bash
-# From GitHub
-uv tool install git+https://github.com/<org>/sdlc-eval-kit.git
+# As a global tool (recommended)
+uv tool install .
 
 # For development
-git clone https://github.com/<org>/sdlc-eval-kit.git
+git clone https://github.com/NoesisVision/sdlc-eval-kit.git
 cd sdlc-eval-kit
-uv tool install -e ".[all]"
-
-# As a project dependency
-uv add git+https://github.com/<org>/sdlc-eval-kit.git
+uv sync
 ```
 
-After installation the `sdlc-eval` command is available globally.
+After installation, only `sdlc-eval` appears on PATH. Harbor, Opik, and Claude Code SDK are bundled as core dependencies — no separate installation needed.
 
-## Quick Start
+## Quick start
 
 ```bash
+# Set authentication (one of)
+export ANTHROPIC_API_KEY=sk-ant-...
+export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+
 # 1. Scaffold a new evaluation project
 sdlc-eval init my-benchmark
 
-# 2. Configure tasks — edit tasks/*/task.json (set source.git + source.ref)
-#    Write instruction.md, assessment_criteria.md, and tests/test.sh per task
-#    Create variant prompt files in variants/*/CLAUDE.md
+# 2. Run benchmark (assessment evaluation runs by default)
+sdlc-eval run --variant vanilla -C my-benchmark
 
-# 3. Run a benchmark
-sdlc-eval run --variant vanilla --tasks my-task
+# 3. Run specific tasks with Opik tracing
+sdlc-eval run --variant vanilla --tasks my-task -C my-benchmark --with-opik
 
-# 4. Run with Opik tracing and post-hoc evaluation
-sdlc-eval run --with-opik --with-eval
+# 4. Skip assessment evaluation (Harbor only)
+sdlc-eval run --variant vanilla -C my-benchmark --without-eval
 
-# 5. Evaluate an existing job directory
-sdlc-eval eval jobs/2026-03-13__14-30-00 --with-opik
+# 5. Re-evaluate an existing job directory
+sdlc-eval eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 ```
 
-## Project Structure
+## Two-stage evaluation pipeline
+
+```
+sdlc-eval run
+    |
+    v
+  Stage 1: Harbor trial (sandboxed Docker environment)
+    - Agent (Claude Code) solves a coding task
+    - test.sh runs functional tests -> reward 0.0 or 1.0
+    - Artifacts copied to host (jobs/<ts>/<trial>/artifacts/workspace/)
+    |
+    v
+  Stage 2: Assessment evaluation (host, Claude Code SDK)
+    - LLM-as-a-Judge analyzes artifacts against rubric
+    - Scores N dimensions x 0-25 points each
+    - Writes assessment_eval.json
+    - Uploads feedback scores to Opik (if --with-opik)
+```
+
+Assessment evaluation runs by default because it's the core value of this tool. Use `--without-eval` to skip it when you only need functional test results.
+
+## Commands
+
+### Core
+
+| Command | Description |
+|---------|-------------|
+| `sdlc-eval run` | Run benchmark: Harbor trial + assessment evaluation (default) |
+| `sdlc-eval eval <JOB_DIR>` | Re-run assessment evaluation on an existing job |
+| `sdlc-eval init [DIR]` | Scaffold a new evaluation project |
+
+### Pass-through
+
+| Command | Description |
+|---------|-------------|
+| `sdlc-eval harbor ...` | Full Harbor CLI (view, jobs resume, trials, datasets, etc.) |
+| `sdlc-eval opik ...` | Opik CLI (configure, usage-report, export, etc.) |
+
+### `sdlc-eval run` options
+
+| Flag | Description |
+|------|-------------|
+| `--variant` | Variant to run (defaults to config default) |
+| `--tasks` | Comma-separated task names to run |
+| `--model` | Model override (e.g. `claude-sonnet-4-6`) |
+| `--timeout` | Agent timeout in seconds |
+| `--with-opik` | Enable Opik tracing |
+| `--without-eval` | Skip assessment evaluation |
+| `--project-dir`, `-C` | Path to evaluation project |
+
+## Project structure
 
 A scaffolded project has the following layout:
 
@@ -54,25 +104,15 @@ my-benchmark/
       assessment_criteria.md   # Rubric for post-hoc evaluator
       tests/
         test.sh                # Harbor verification script
-    feature-b/
-      ...
   variants/
     vanilla/
       CLAUDE.md                # Agent system prompt for this variant
     guided/
       CLAUDE.md
   jobs/                        # Trial output (gitignored)
-    2026-03-13__14-30-00/
-      trial-001/
-        result.json
-        config.json
-        artifacts/workspace/
-        assessment_eval.json
 ```
 
 ### `sdlc-eval.toml`
-
-Top-level configuration file. Defines project name, default variant, model, timeout, Docker base image, evaluation model, and reporting settings (Opik project name).
 
 ```toml
 [project]
@@ -97,101 +137,52 @@ platform = "opik"
 project_name = "my-benchmark"
 ```
 
-## Task Configuration
+## Architecture
 
-Each task lives in `tasks/<task-name>/` and must contain a `task.json`:
+See [docs/adr/](docs/adr/) for architectural decision records.
 
-```json
-{
-  "name": "feature-a",
-  "source": {
-    "git": "https://github.com/org/repo.git",
-    "ref": "abc1234"
-  },
-  "instruction": "./instruction.md",
-  "evaluation": {
-    "type": "script",
-    "script": "./tests/test.sh",
-    "timeout_seconds": 300
-  }
-}
+Key design: `sdlc-eval` is a **thin integration layer** over Harbor and Opik, not a replacement. Core flow uses their Python APIs directly; utility commands pass through to their CLIs unchanged.
+
+## Authentication
+
+The tool checks for auth tokens in this order:
+1. `ANTHROPIC_API_KEY` environment variable
+2. `CLAUDE_CODE_OAUTH_TOKEN` environment variable
+
+For Opik tracing, set credentials in `.env` (in project dir or parent):
 ```
-
-- **`source.git`** -- Git repository URL for the codebase the agent works on.
-- **`source.ref`** -- A specific commit, tag, or branch. Always pin to a concrete ref for reproducibility.
-- **`instruction`** -- Path to the Markdown file describing the task for the agent.
-- **`evaluation.script`** -- Harbor verification script. Must write a reward value (0 or 1) to `/logs/verifier/reward.txt`.
-
-Each task should also include:
-- `assessment_criteria.md` -- Rubric used by the post-hoc Claude evaluator.
-- Optionally `ground_truth_decisions.json` -- Reference data for evaluator accuracy checks.
-
-## Variant Matrix
-
-Variants let you test different agent prompts and configurations against the same tasks.
-
-Each variant lives in `variants/<variant-name>/` and contains at minimum a `CLAUDE.md` file. This file is injected into the agent's sandbox as `/app/CLAUDE.md` at runtime, giving the agent variant-specific instructions.
-
-Additional files in the variant directory can be injected via `sandbox_files` in `harbor_config.json`. If no `harbor_config.json` exists, one is generated automatically from the `CLAUDE.md`.
-
-Run a specific variant:
-
-```bash
-sdlc-eval run --variant guided
+OPIK_API_KEY=...
+OPIK_WORKSPACE=...
+OPIK_PROJECT_NAME=...
 ```
-
-## CLI Reference
-
-### `sdlc-eval init [PROJECT_DIR]`
-
-Scaffold a new evaluation project with example task, variant, and configuration files.
-
-| Flag | Description |
-|------|-------------|
-| `--name`, `-n` | Project name (defaults to directory name) |
-
-### `sdlc-eval run`
-
-Run benchmark tasks via Harbor.
-
-| Flag | Description |
-|------|-------------|
-| `--variant` | Variant to run (defaults to config default) |
-| `--tasks` | Comma-separated task names to run |
-| `--model` | Model override (e.g. `claude-sonnet-4-6`) |
-| `--timeout` | Agent timeout in seconds |
-| `--with-opik` | Enable Opik tracing |
-| `--with-eval` | Run post-hoc assessment after benchmark |
-| `--project-dir`, `-C` | Path to evaluation project |
-
-### `sdlc-eval eval <JOB_DIR>`
-
-Run post-hoc assessment evaluation on existing trial artifacts.
-
-| Flag | Description |
-|------|-------------|
-| `--with-opik` | Upload scores to Opik |
-| `--project-dir`, `-C` | Path to evaluation project |
-
-### `sdlc-eval --version`
-
-Print version and exit.
 
 ## Prerequisites
 
-- **Python 3.11+**
-- **Docker** -- Harbor runs agents in Docker containers
-- **uv** -- Package manager
-- **harbor-ai** -- Agent runner (`pip install harbor-ai` or install with `.[harbor]`)
+- **Python 3.12+**
+- **Docker** — Harbor runs agents in Docker containers
+- **uv** — Package manager
+- **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** — Required for agent and evaluator execution
 
-Optional, depending on features used:
+## Verifying Opik results
 
-- **opik** -- Tracing and score reporting (`.[opik]`)
-- **claude-code-sdk** -- Post-hoc evaluator (`.[eval]`)
-- **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** -- Required for agent and evaluator execution
+```python
+import urllib.request, json
 
-Install all optional dependencies at once:
-
-```bash
-uv tool install -e ".[all]"
+req = urllib.request.Request(
+    "https://www.comet.com/opik/api/v1/private/traces?project_name=<PROJECT>&limit=1",
+    headers={
+        "authorization": "<OPIK_API_KEY>",
+        "Comet-Workspace": "<WORKSPACE>",
+    },
+)
+resp = json.loads(urllib.request.urlopen(req).read())
+scores = resp["content"][0].get("feedback_scores", [])
+for s in sorted(scores, key=lambda x: x["name"]):
+    print(f"  {s['name']}: {s['value']}")
 ```
+
+Expected feedback scores after a full run with `--with-opik`:
+- `arch_<dimension>` (e.g. `arch_domain_modeling`) — normalized 0.0-1.0
+- `arch_total` — overall architecture score
+- `reward` — Harbor functional test result (0.0 or 1.0)
+- `duration_sec` — trial duration

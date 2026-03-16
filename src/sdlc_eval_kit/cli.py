@@ -1,13 +1,12 @@
 """CLI entry point for sdlc-eval.
 
-Commands:
-    sdlc-eval init    — Scaffold a new evaluation project
-    sdlc-eval run     — Run benchmark tasks via Harbor
-    sdlc-eval eval    — Post-hoc assessment of trial artifacts
+Core commands (run, eval, init) use Harbor/Opik Python APIs directly.
+Pass-through commands (harbor, opik) delegate to the respective CLIs.
 """
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -93,10 +92,10 @@ def run(
         "--with-opik",
         help="Enable Opik tracing.",
     ),
-    with_eval: bool = typer.Option(
+    without_eval: bool = typer.Option(
         False,
-        "--with-eval",
-        help="Run post-hoc assessment after benchmark.",
+        "--without-eval",
+        help="Skip assessment evaluation after benchmark.",
     ),
     project_dir: Path = typer.Option(
         Path("."),
@@ -119,22 +118,22 @@ def run(
         timeout=timeout or config.default_timeout_sec,
         tasks_filter=tasks_filter,
         with_opik=with_opik,
-        with_eval=with_eval,
+        with_eval=not without_eval,
     )
 
-    run_benchmark(
+    asyncio.run(run_benchmark(
         config=config,
         variant=variant or config.default_variant,
         model=model or config.default_model,
         timeout_sec=timeout or config.default_timeout_sec,
         tasks_filter=tasks_filter,
         with_opik=with_opik,
-        with_eval=with_eval,
-    )
+        with_eval=not without_eval,
+    ))
 
 
-@app.command()
-def eval(
+@app.command(name="eval")
+def eval_command(
     job_dir: Path = typer.Argument(
         ...,
         help="Path to job directory to evaluate.",
@@ -152,8 +151,6 @@ def eval(
     ),
 ) -> None:
     """Run post-hoc assessment of trial artifacts."""
-    import asyncio
-
     from sdlc_eval_kit.config import load_project_config
     from sdlc_eval_kit.evaluator import evaluate_job
 
@@ -174,6 +171,36 @@ def eval(
     ))
 
 
+# ---------------------------------------------------------------------------
+# Harbor pass-through (Typer → Typer)
+# ---------------------------------------------------------------------------
+
+from harbor.cli.main import app as harbor_app
+
+app.add_typer(harbor_app, name="harbor", help="Harbor CLI (pass-through).")
+
+
+# ---------------------------------------------------------------------------
+# Opik pass-through (Click → Typer via ctx.args)
+# ---------------------------------------------------------------------------
+
+
+@app.command(
+    name="opik",
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+)
+def opik_passthrough(ctx: typer.Context) -> None:
+    """Opik CLI commands (pass-through)."""
+    from opik.cli.main import cli as opik_cli
+
+    opik_cli(ctx.args, standalone_mode=False)
+
+
+# ---------------------------------------------------------------------------
+# Display helpers
+# ---------------------------------------------------------------------------
+
+
 def _print_run_header(
     variant: str,
     model: str,
@@ -183,6 +210,7 @@ def _print_run_header(
     with_eval: bool,
 ) -> None:
     tasks_str = ", ".join(tasks_filter) if tasks_filter else "all"
+    eval_str = "enabled" if with_eval else "[yellow]disabled[/yellow]"
     console.print(Panel(
         f"[bold]Benchmark Runner[/bold]\n"
         f"Variant: {variant}\n"
@@ -190,6 +218,6 @@ def _print_run_header(
         f"Timeout: {timeout}s\n"
         f"Tasks: {tasks_str}\n"
         f"Opik: {'enabled' if with_opik else 'disabled'}\n"
-        f"Assessment: {'enabled' if with_eval else 'disabled'}",
+        f"Assessment: {eval_str}",
         title="sdlc-eval",
     ))

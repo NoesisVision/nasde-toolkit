@@ -2,12 +2,12 @@
 
 AI coding agent evaluation toolkit. CLI entry point: `sdlc-eval`.
 
-## Project Structure
+## Package structure
 
 ```
 src/sdlc_eval_kit/
   __init__.py              # Package version
-  cli.py                   # Typer CLI (init, run, eval commands)
+  cli.py                   # Typer CLI (init, run, eval + harbor/opik pass-through)
   config.py                # sdlc-eval.toml + task.json parsing into dataclasses
   runner.py                # Harbor Python API — variant resolution, config merging, Job execution
   evaluator.py             # Post-hoc assessment via Claude Code SDK
@@ -16,15 +16,15 @@ src/sdlc_eval_kit/
     __init__.py            # Project scaffolding templates and file creation
   agents/
     __init__.py
-    configurable_claude.py # Harbor-compatible agent class
+    configurable_claude.py # Harbor-compatible agent with sandbox file injection
 tests/
 pyproject.toml
 ```
 
-## How to Run
+## How to run
 
 ```bash
-uv tool install -e ".[all]"
+uv tool install .
 sdlc-eval --version
 ```
 
@@ -34,7 +34,7 @@ sdlc-eval --version
 uv run pytest
 ```
 
-## Code Style
+## Code style
 
 1. PEP 8 with type hints on all public functions.
 2. `@dataclass` for internal data models (see `config.py`, `evaluator.py`).
@@ -44,7 +44,7 @@ uv run pytest
 6. Structure functions: public first (alphabetical), then private helpers ordered by dependency (caller before callee).
 7. Snake_case for file and directory names.
 
-## Architecture Decisions
+## Architecture decisions
 
 - **CLI framework**: Typer with Rich markup mode. The `app` object in `cli.py` is the entry point registered in `pyproject.toml` as `sdlc-eval`.
 - **Configuration**: Two-layer config — `sdlc-eval.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.sdlc-eval/tasks/`) automatically.
@@ -53,3 +53,147 @@ uv run pytest
 - **Variant system**: Each variant is a directory under `variants/`. The `CLAUDE.md` inside is injected into the Harbor sandbox. If no `harbor_config.json` exists, one is auto-generated.
 - **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
 - **Pass-through CLI**: `sdlc-eval harbor ...` delegates to Harbor's Typer app via `add_typer()`. `sdlc-eval opik ...` forwards args to Opik's Click CLI via `ctx.args`.
+- See `docs/adr/` for detailed decision records.
+
+## CLI reference
+
+```
+sdlc-eval run [OPTIONS]              # Run benchmark (Harbor trial + assessment eval)
+  --variant TEXT                     # Variant name (default: from sdlc-eval.toml)
+  --tasks TEXT                       # Comma-separated task names (default: all)
+  --model TEXT                       # Model override
+  --timeout INT                      # Agent timeout in seconds
+  --with-opik                        # Enable Opik tracing
+  --without-eval                     # Skip assessment evaluation
+  -C, --project-dir PATH             # Path to benchmark project
+
+sdlc-eval eval JOB_DIR [OPTIONS]     # Re-run assessment on existing job
+  --with-opik                        # Upload scores to Opik
+  -C, --project-dir PATH
+
+sdlc-eval init [PROJECT_DIR]         # Scaffold new benchmark project
+  -n, --name TEXT
+
+sdlc-eval harbor ...                 # Harbor CLI pass-through (view, jobs, trials, etc.)
+sdlc-eval opik ...                   # Opik CLI pass-through (configure, usage-report, etc.)
+```
+
+## Benchmark project structure
+
+A benchmark project managed by `sdlc-eval` has this layout:
+
+```
+my-benchmark/
+  sdlc-eval.toml                # Project config (name, defaults, docker, evaluation, reporting)
+  assessment_dimensions.json    # Scoring dimensions (benchmark-wide, 3-5 dimensions, sum to 100)
+  tasks/
+    <task-name>/
+      task.json                 # Task metadata (name, source.git, source.ref, evaluation script)
+      instruction.md            # Agent-facing task description
+      assessment_criteria.md    # Per-task rubric for LLM-as-a-Judge
+      environment/Dockerfile    # Docker container setup
+      tests/test.sh             # Harbor verifier (writes 0/1 to /logs/verifier/reward.txt)
+      solution/solve.sh         # Optional reference solution
+  variants/
+    <variant-name>/
+      CLAUDE.md                 # Agent instructions (injected into /app/CLAUDE.md in sandbox)
+      harbor_config.json        # Optional: agent import path + sandbox_files mapping
+      claude_config.json        # Optional: MCP server configuration
+  jobs/                         # Trial output (gitignored)
+```
+
+## Key file formats
+
+### sdlc-eval.toml
+
+```toml
+[project]
+name = "my-benchmark"
+version = "1.0.0"
+
+[defaults]
+variant = "vanilla"
+model = "claude-sonnet-4-6"
+timeout_sec = 720
+
+[docker]
+base_image = "ubuntu:22.04"
+build_commands = []
+
+[evaluation]
+model = "claude-sonnet-4-6"
+dimensions_file = "assessment_dimensions.json"
+
+[reporting]
+platform = "opik"
+project_name = "my-benchmark"
+```
+
+### assessment_dimensions.json
+
+```json
+{
+  "dimensions": [
+    {
+      "name": "snake_case_name",
+      "title": "Human-Readable Title",
+      "max_score": 25,
+      "description": "What this dimension measures"
+    }
+  ]
+}
+```
+
+Dimensions are benchmark-specific. Total scores should sum to 100. Typically 3-5 dimensions.
+
+### task.json
+
+```json
+{
+  "name": "task-name",
+  "source": {
+    "git": "https://github.com/org/repo.git",
+    "ref": "main"
+  },
+  "instruction": "./instruction.md",
+  "evaluation": {
+    "type": "script",
+    "script": "./tests/test.sh",
+    "timeout_seconds": 300
+  }
+}
+```
+
+### harbor_config.json (per variant)
+
+```json
+{
+  "agents": [
+    {
+      "import_path": "sdlc_eval_kit.agents.configurable_claude:ConfigurableClaude",
+      "name": "variant-name",
+      "kwargs": {
+        "sandbox_files": {
+          "/app/CLAUDE.md": "/absolute/path/to/variants/variant-name/CLAUDE.md"
+        }
+      }
+    }
+  ]
+}
+```
+
+Critical: `"name"` field is REQUIRED — without it, Opik tagging breaks.
+If `harbor_config.json` is absent, `sdlc-eval` auto-generates one from `CLAUDE.md`.
+
+### tests/test.sh (Harbor verifier)
+
+Every failure path must `echo 0 > /logs/verifier/reward.txt && exit 1`.
+Final success must `echo 1 > /logs/verifier/reward.txt && exit 0`.
+
+## Known issues and workarounds
+
+- **claude-code-sdk 0.0.25**: crashes on `rate_limit_event` — runtime monkeypatch in `evaluator.py`. Remove when SDK handles unknown message types.
+- **opik 1.10.x**: token usage=None for Harbor spans — file patch in `patches/`. Re-apply after `uv sync`.
+- **Nested Claude Code sessions**: SDK detects `CLAUDECODE` env var. Runner unsets it before assessment eval.
+- **Opik REST API auth**: use `authorization: <OPIK_API_KEY>` header (not `Comet-Api-Key`), plus `Comet-Workspace` header.
+- **Opik verification**: always use Python `urllib.request`, not curl (curl drops the `Comet-Workspace` header).

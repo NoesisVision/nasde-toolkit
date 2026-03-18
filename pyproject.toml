@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sdlc-eval-kit"
+name = "nasde-toolkit"
 version = "0.1.0"
-description = "AI coding agent evaluation toolkit"
+description = "Noesis Agentic Software Development Evals Toolkit"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-sdlc-eval = "sdlc_eval_kit.cli:app"
+nasde = "nasde_toolkit.cli:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sdlc_eval_kit"]
+packages = ["src/nasde_toolkit"]

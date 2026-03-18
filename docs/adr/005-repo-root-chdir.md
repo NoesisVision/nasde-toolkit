@@ -10,7 +10,7 @@ Harbor resolves paths from its config relative to the current working directory.
 1. **Task paths** in `local-registry.json`: `"./evals/ddd-architectural-challenges/tasks/ddd-threshold-discount"`
 2. **Agent import path** in `harbor_config.json`: `"evals.claude_custom_agents:ConfigurableClaude"`
 
-When `sdlc-eval` is installed as a global tool and invoked from an arbitrary directory, both break.
+When `nasde` is installed as a global tool and invoked from an arbitrary directory, both break.
 
 ## Decision
 
@@ -35,7 +35,7 @@ finally:
 
 ## Consequences
 
-- `sdlc-eval` works from any directory as long as `-C` points to a benchmark inside a git repo
+- `nasde` works from any directory as long as `-C` points to a benchmark inside a git repo
 - Temporary CWD change is scoped to `_run_job()` — no side effects on other code
 - `sys.path` modification is permanent (intentional — agent import paths may be needed later during Harbor's trial execution)
 - Alternative considered: rewrite all paths in config to absolute. Rejected because Harbor's `Task` class calls `Path(task_dir).resolve()` internally, and the registry JSON format is shared with other tools

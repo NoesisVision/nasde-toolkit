@@ -1,7 +1,7 @@
 ---
 name: benchmark-creator
 description: |
-  Create coding agent benchmarks for evaluation with sdlc-eval. Use this skill when the user wants to:
+  Create coding agent benchmarks for evaluation with nasde. Use this skill when the user wants to:
   - Create a new benchmark project (set of tasks for evaluating coding agents)
   - Add tasks to an existing benchmark
   - Create or modify agent variants (configurations that control agent behavior)
@@ -12,7 +12,7 @@ description: |
 
 # Benchmark Creator
 
-Create and configure coding agent benchmarks for evaluation with `sdlc-eval`. A benchmark is a set of coding tasks that AI agents solve inside isolated Docker containers, scored both by functional tests (pass/fail) and by an LLM-as-a-Judge architecture assessment.
+Create and configure coding agent benchmarks for evaluation with `nasde`. A benchmark is a set of coding tasks that AI agents solve inside isolated Docker containers, scored both by functional tests (pass/fail) and by an LLM-as-a-Judge architecture assessment.
 
 ## Step 1: Understand what to evaluate
 
@@ -28,7 +28,7 @@ Before creating files, clarify with the user:
 For a new benchmark, run:
 
 ```bash
-sdlc-eval init my-benchmark --name my-benchmark
+nasde init my-benchmark --name my-benchmark
 ```
 
 This creates the base structure. Then customize the generated files.
@@ -197,13 +197,13 @@ Reference solution for verifying test.sh works. Not executed by Harbor.
 
 Each variant is a directory under `variants/<variant-name>/`. At minimum it contains `CLAUDE.md` — the instructions injected into the agent's sandbox.
 
-If no `harbor_config.json` exists, `sdlc-eval` auto-generates one. To customize (e.g., add MCP servers), create it explicitly:
+If no `harbor_config.json` exists, `nasde` auto-generates one. To customize (e.g., add MCP servers), create it explicitly:
 
 ```json
 {
   "agents": [
     {
-      "import_path": "sdlc_eval_kit.agents.configurable_claude:ConfigurableClaude",
+      "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
       "name": "<variant-name>",
       "kwargs": {
         "sandbox_files": {
@@ -248,5 +248,5 @@ Before running with a real agent:
 
 3. **Dry run** on a single task:
    ```bash
-   sdlc-eval run --variant vanilla --tasks <task-name> --without-eval -C .
+   nasde run --variant vanilla --tasks <task-name> --without-eval -C .
    ```

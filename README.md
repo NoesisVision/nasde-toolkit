@@ -1,6 +1,68 @@
-# sdlc-eval-kit
+<div align="center">
+  <img src="nasde-toolkit-logo.png" alt="NASDE Toolkit" width="400">
 
-CLI toolkit for evaluating AI coding agents. Wraps [Harbor](https://github.com/cased/harbor) (agent execution in sandboxed environments) and [Opik](https://github.com/comet-ml/opik) (observability) into a single `sdlc-eval` command with two-stage evaluation: functional tests + LLM-as-a-Judge architecture assessment.
+  <h3>Noesis Agentic Software Development Evals Toolkit</h3>
+
+  <p>CLI toolkit for evaluating AI coding agents with multi-dimensional, agentic code review.</p>
+</div>
+
+---
+
+## What is NASDE?
+
+NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (agent execution in sandboxed Docker environments) and [Opik](https://github.com/comet-ml/opik) (observability & experiment tracking). The toolkit can be extended in the future with alternative backends — different execution engines instead of Harbor, or different observability platforms instead of Opik.
+
+What NASDE adds on top is an **agentic code review stage**. After a coding agent (e.g. Claude Code running inside Harbor) completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** — powered by Claude Code SDK — that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. Think of it as a "nasty" code reviewer who checks not just whether the code works, but *how well* it's written according to custom criteria.
+
+## Standard vs NASDE evaluation flow
+
+### Without NASDE (Harbor + Opik only)
+
+```mermaid
+flowchart LR
+    A["Task definition"] --> B["Harbor: Agent solves task\nin Docker sandbox"]
+    B --> C["test.sh:\nFunctional tests"]
+    C --> D["Binary reward\n0 or 1"]
+    D --> E["Opik:\nLog trace + reward"]
+```
+
+The standard flow gives you a **binary pass/fail** — the code either works or it doesn't. No insight into *how* the agent solved the problem.
+
+### With NASDE (agentic code review)
+
+```mermaid
+flowchart LR
+    A["Task definition\n+ assessment criteria\n+ scoring dimensions"] --> B["Harbor: Agent solves task\nin Docker sandbox"]
+    B --> C["test.sh:\nFunctional tests"]
+    C --> D["Binary reward\n0 or 1"]
+    D --> E["NASDE Reviewer Agent\nnavigates the codebase"]
+    E --> F["Multi-dimensional scores\nN dimensions × 0-25 pts"]
+    F --> G["Opik:\nLog trace + reward\n+ dimension scores"]
+
+    style E fill:#c0392b,color:#fff
+```
+
+NASDE adds **Stage 2** — the reviewer agent analyzes the produced code against a rubric and returns scores across custom dimensions. This gives you a **multi-dimensional quality assessment**, not just pass/fail.
+
+### Who defines the review criteria?
+
+The **benchmark author** controls what the reviewer evaluates:
+
+- **`assessment_dimensions.json`** — defines the scoring dimensions (e.g. *domain modeling*, *error handling*, *code quality*), each with a max score, typically summing to 100
+- **`assessment_criteria.md`** (per task) — a detailed rubric describing what the reviewer should look for in each task
+
+The reviewer agent freely navigates the workspace, reads source files, analyzes architecture, and returns structured scores for each dimension.
+
+## Claude Code skills
+
+NASDE ships with built-in [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that guide you through creating and running benchmarks interactively. When you open the project in Claude Code, these skills are available automatically:
+
+| Skill | What it does |
+|-------|-------------|
+| **benchmark-creator** | Walks you through creating a new benchmark — from scaffolding the project, adding tasks with Docker environments and test scripts, to defining assessment dimensions and scoring criteria. A good starting point if you want to build your own eval benchmark. |
+| **benchmark-runner** | Guides running benchmarks, re-evaluating results, verifying Opik traces, and troubleshooting failures. Includes automatic Opik verification after each run. |
+
+To get started, open the project directory in Claude Code and describe what you want to evaluate — the skills will take it from there.
 
 ## Installation
 
@@ -9,12 +71,12 @@ CLI toolkit for evaluating AI coding agents. Wraps [Harbor](https://github.com/c
 uv tool install .
 
 # For development
-git clone https://github.com/NoesisVision/sdlc-eval-kit.git
-cd sdlc-eval-kit
+git clone git@github.com:NoesisVision/nasde-toolkit.git
+cd nasde-toolkit
 uv sync
 ```
 
-After installation, only `sdlc-eval` appears on PATH. Harbor, Opik, and Claude Code SDK are bundled as core dependencies — no separate installation needed.
+After installation, only `nasde` appears on PATH. Harbor, Opik, and Claude Code SDK are bundled as core dependencies — no separate installation needed.
 
 ## Quick start
 
@@ -24,41 +86,20 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
 
 # 1. Scaffold a new evaluation project
-sdlc-eval init my-benchmark
+nasde init my-benchmark
 
 # 2. Run benchmark (assessment evaluation runs by default)
-sdlc-eval run --variant vanilla -C my-benchmark
+nasde run --variant vanilla -C my-benchmark
 
 # 3. Run specific tasks with Opik tracing
-sdlc-eval run --variant vanilla --tasks my-task -C my-benchmark --with-opik
+nasde run --variant vanilla --tasks my-task -C my-benchmark --with-opik
 
 # 4. Skip assessment evaluation (Harbor only)
-sdlc-eval run --variant vanilla -C my-benchmark --without-eval
+nasde run --variant vanilla -C my-benchmark --without-eval
 
 # 5. Re-evaluate an existing job directory
-sdlc-eval eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
+nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 ```
-
-## Two-stage evaluation pipeline
-
-```
-sdlc-eval run
-    |
-    v
-  Stage 1: Harbor trial (sandboxed Docker environment)
-    - Agent (Claude Code) solves a coding task
-    - test.sh runs functional tests -> reward 0.0 or 1.0
-    - Artifacts copied to host (jobs/<ts>/<trial>/artifacts/workspace/)
-    |
-    v
-  Stage 2: Assessment evaluation (host, Claude Code SDK)
-    - LLM-as-a-Judge analyzes artifacts against rubric
-    - Scores N dimensions x 0-25 points each
-    - Writes assessment_eval.json
-    - Uploads feedback scores to Opik (if --with-opik)
-```
-
-Assessment evaluation runs by default because it's the core value of this tool. Use `--without-eval` to skip it when you only need functional test results.
 
 ## Commands
 
@@ -66,18 +107,18 @@ Assessment evaluation runs by default because it's the core value of this tool. 
 
 | Command | Description |
 |---------|-------------|
-| `sdlc-eval run` | Run benchmark: Harbor trial + assessment evaluation (default) |
-| `sdlc-eval eval <JOB_DIR>` | Re-run assessment evaluation on an existing job |
-| `sdlc-eval init [DIR]` | Scaffold a new evaluation project |
+| `nasde run` | Run benchmark: Harbor trial + assessment evaluation (default) |
+| `nasde eval <JOB_DIR>` | Re-run assessment evaluation on an existing job |
+| `nasde init [DIR]` | Scaffold a new evaluation project |
 
 ### Pass-through
 
 | Command | Description |
 |---------|-------------|
-| `sdlc-eval harbor ...` | Full Harbor CLI (view, jobs resume, trials, datasets, etc.) |
-| `sdlc-eval opik ...` | Opik CLI (configure, usage-report, export, etc.) |
+| `nasde harbor ...` | Full Harbor CLI (view, jobs resume, trials, datasets, etc.) |
+| `nasde opik ...` | Opik CLI (configure, usage-report, export, etc.) |
 
-### `sdlc-eval run` options
+### `nasde run` options
 
 | Flag | Description |
 |------|-------------|
@@ -95,7 +136,7 @@ A scaffolded project has the following layout:
 
 ```
 my-benchmark/
-  sdlc-eval.toml              # Project configuration
+  nasde.toml                  # Project configuration
   assessment_dimensions.json   # Scoring dimensions (shared across tasks)
   tasks/
     feature-a/
@@ -112,7 +153,7 @@ my-benchmark/
   jobs/                        # Trial output (gitignored)
 ```
 
-### `sdlc-eval.toml`
+### `nasde.toml`
 
 ```toml
 [project]
@@ -141,13 +182,22 @@ project_name = "my-benchmark"
 
 See [docs/adr/](docs/adr/) for architectural decision records.
 
-Key design: `sdlc-eval` is a **thin integration layer** over Harbor and Opik, not a replacement. Core flow uses their Python APIs directly; utility commands pass through to their CLIs unchanged.
+Key design: `nasde` is a **thin integration layer** over Harbor and Opik, not a replacement. Core flow uses their Python APIs directly; utility commands pass through to their CLIs unchanged. The underlying tools can be swapped in the future without changing the evaluation workflow.
 
 ## Authentication
 
 The tool checks for auth tokens in this order:
 1. `ANTHROPIC_API_KEY` environment variable
 2. `CLAUDE_CODE_OAUTH_TOKEN` environment variable
+
+On macOS, you can extract the OAuth token from your Claude Code keychain entry (created when you log in via `claude` CLI):
+
+```bash
+source scripts/export_oauth_token.sh
+# ✓ CLAUDE_CODE_OAUTH_TOKEN exported (sk-ant-oat01-...)
+```
+
+This lets you use your Claude Pro/Max subscription instead of an API key.
 
 For Opik tracing, set credentials in `.env` (in project dir or parent):
 ```

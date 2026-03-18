@@ -1,14 +1,14 @@
-# sdlc-eval-kit
+# nasde-toolkit
 
-AI coding agent evaluation toolkit. CLI entry point: `sdlc-eval`.
+AI coding agent evaluation toolkit. CLI entry point: `nasde`.
 
 ## Package structure
 
 ```
-src/sdlc_eval_kit/
+src/nasde_toolkit/
   __init__.py              # Package version
   cli.py                   # Typer CLI (init, run, eval + harbor/opik pass-through)
-  config.py                # sdlc-eval.toml + task.json parsing into dataclasses
+  config.py                # nasde.toml + task.json parsing into dataclasses
   runner.py                # Harbor Python API — variant resolution, config merging, Job execution
   evaluator.py             # Post-hoc assessment via Claude Code SDK
   docker.py                # Docker environment helpers
@@ -25,7 +25,7 @@ pyproject.toml
 
 ```bash
 uv tool install .
-sdlc-eval --version
+nasde --version
 ```
 
 ## Testing
@@ -46,20 +46,20 @@ uv run pytest
 
 ## Architecture decisions
 
-- **CLI framework**: Typer with Rich markup mode. The `app` object in `cli.py` is the entry point registered in `pyproject.toml` as `sdlc-eval`.
-- **Configuration**: Two-layer config — `sdlc-eval.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.sdlc-eval/tasks/`) automatically.
+- **CLI framework**: Typer with Rich markup mode. The `app` object in `cli.py` is the entry point registered in `pyproject.toml` as `nasde`.
+- **Configuration**: Two-layer config — `nasde.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.nasde/tasks/`) automatically.
 - **Benchmark runner**: Uses Harbor Python API (`Job`, `JobConfig`) directly instead of subprocess. The runner merges variant config with task registry into a dict, passes it to `JobConfig.model_validate()`, then runs `await job.run()`. Opik tracking via `track_harbor()` (monkey-patches Harbor at runtime).
 - **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
 - **Variant system**: Each variant is a directory under `variants/`. The `CLAUDE.md` inside is injected into the Harbor sandbox. If no `harbor_config.json` exists, one is auto-generated.
 - **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
-- **Pass-through CLI**: `sdlc-eval harbor ...` delegates to Harbor's Typer app via `add_typer()`. `sdlc-eval opik ...` forwards args to Opik's Click CLI via `ctx.args`.
+- **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
 - See `docs/adr/` for detailed decision records.
 
 ## CLI reference
 
 ```
-sdlc-eval run [OPTIONS]              # Run benchmark (Harbor trial + assessment eval)
-  --variant TEXT                     # Variant name (default: from sdlc-eval.toml)
+nasde run [OPTIONS]              # Run benchmark (Harbor trial + assessment eval)
+  --variant TEXT                     # Variant name (default: from nasde.toml)
   --tasks TEXT                       # Comma-separated task names (default: all)
   --model TEXT                       # Model override
   --timeout INT                      # Agent timeout in seconds
@@ -67,24 +67,24 @@ sdlc-eval run [OPTIONS]              # Run benchmark (Harbor trial + assessment 
   --without-eval                     # Skip assessment evaluation
   -C, --project-dir PATH             # Path to benchmark project
 
-sdlc-eval eval JOB_DIR [OPTIONS]     # Re-run assessment on existing job
+nasde eval JOB_DIR [OPTIONS]     # Re-run assessment on existing job
   --with-opik                        # Upload scores to Opik
   -C, --project-dir PATH
 
-sdlc-eval init [PROJECT_DIR]         # Scaffold new benchmark project
+nasde init [PROJECT_DIR]         # Scaffold new benchmark project
   -n, --name TEXT
 
-sdlc-eval harbor ...                 # Harbor CLI pass-through (view, jobs, trials, etc.)
-sdlc-eval opik ...                   # Opik CLI pass-through (configure, usage-report, etc.)
+nasde harbor ...                 # Harbor CLI pass-through (view, jobs, trials, etc.)
+nasde opik ...                   # Opik CLI pass-through (configure, usage-report, etc.)
 ```
 
 ## Benchmark project structure
 
-A benchmark project managed by `sdlc-eval` has this layout:
+A benchmark project managed by `nasde` has this layout:
 
 ```
 my-benchmark/
-  sdlc-eval.toml                # Project config (name, defaults, docker, evaluation, reporting)
+  nasde.toml                # Project config (name, defaults, docker, evaluation, reporting)
   assessment_dimensions.json    # Scoring dimensions (benchmark-wide, 3-5 dimensions, sum to 100)
   tasks/
     <task-name>/
@@ -104,7 +104,7 @@ my-benchmark/
 
 ## Key file formats
 
-### sdlc-eval.toml
+### nasde.toml
 
 ```toml
 [project]
@@ -170,7 +170,7 @@ Dimensions are benchmark-specific. Total scores should sum to 100. Typically 3-5
 {
   "agents": [
     {
-      "import_path": "sdlc_eval_kit.agents.configurable_claude:ConfigurableClaude",
+      "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
       "name": "variant-name",
       "kwargs": {
         "sandbox_files": {
@@ -183,7 +183,7 @@ Dimensions are benchmark-specific. Total scores should sum to 100. Typically 3-5
 ```
 
 Critical: `"name"` field is REQUIRED — without it, Opik tagging breaks.
-If `harbor_config.json` is absent, `sdlc-eval` auto-generates one from `CLAUDE.md`.
+If `harbor_config.json` is absent, `nasde` auto-generates one from `CLAUDE.md`.
 
 ### tests/test.sh (Harbor verifier)
 

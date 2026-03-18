@@ -19,11 +19,11 @@ Three approaches were considered:
 
 - **Core flow** (`run`, `eval`) uses Harbor and Opik Python APIs directly (`Job`, `JobConfig`, `track_harbor()`, `evaluate_trial()`)
 - **Utility commands** (`harbor view`, `harbor jobs resume`, `opik configure`) pass through to the original CLIs unchanged
-- All three libraries are core dependencies — `uv tool install .` gives full functionality with only `sdlc-eval` on PATH
+- All three libraries are core dependencies — `uv tool install .` gives full functionality with only `nasde` on PATH
 
 ## Consequences
 
 - No subprocess calls or `uv run` prefix needed — Python imports guarantee package availability
 - Harbor and Opik CLI updates are immediately available via pass-through (zero maintenance)
 - We depend on their internal Python APIs (e.g. `Job`, `JobConfig`), which may change between versions — pin ranges in pyproject.toml
-- Single `sdlc-eval` entry point replaces `run-benchmark.sh` + `uv run harbor` + `uv run opik` trifecta
+- Single `nasde` entry point replaces `run-benchmark.sh` + `uv run harbor` + `uv run opik` trifecta

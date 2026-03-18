@@ -1,7 +1,7 @@
 ---
 name: benchmark-runner
 description: |
-  Run coding agent benchmarks and verify results with sdlc-eval. Use this skill when the user wants to:
+  Run coding agent benchmarks and verify results with nasde. Use this skill when the user wants to:
   - Run a benchmark (all tasks, single task, specific variant)
   - Re-run assessment evaluation on existing trial results
   - Check or verify results in Opik (traces, feedback scores, experiments)
@@ -13,7 +13,7 @@ description: |
 
 # Benchmark Runner
 
-Run coding agent benchmarks with `sdlc-eval` and verify results. The two-stage pipeline: Harbor runs agents in Docker containers (functional test → reward 0/1), then an LLM-as-a-Judge scores architecture quality across multiple dimensions.
+Run coding agent benchmarks with `nasde` and verify results. The two-stage pipeline: Harbor runs agents in Docker containers (functional test → reward 0/1), then an LLM-as-a-Judge scores architecture quality across multiple dimensions.
 
 ## Running benchmarks
 
@@ -22,7 +22,7 @@ All commands assume `-C` points to the benchmark project directory.
 ### Basic run (all tasks, default variant)
 
 ```bash
-sdlc-eval run -C path/to/benchmark
+nasde run -C path/to/benchmark
 ```
 
 Assessment evaluation runs by default. This is the standard workflow.
@@ -31,16 +31,16 @@ Assessment evaluation runs by default. This is the standard workflow.
 
 ```bash
 # Single task, specific variant
-sdlc-eval run --variant guided --tasks my-task -C path/to/benchmark
+nasde run --variant guided --tasks my-task -C path/to/benchmark
 
 # Multiple tasks
-sdlc-eval run --variant baseline --tasks task-a,task-b -C path/to/benchmark
+nasde run --variant baseline --tasks task-a,task-b -C path/to/benchmark
 ```
 
 ### With Opik tracing
 
 ```bash
-sdlc-eval run --variant baseline --tasks my-task -C path/to/benchmark --with-opik
+nasde run --variant baseline --tasks my-task -C path/to/benchmark --with-opik
 ```
 
 After this completes, ALWAYS verify Opik results (see Opik verification below).
@@ -48,19 +48,19 @@ After this completes, ALWAYS verify Opik results (see Opik verification below).
 ### Harbor only (skip assessment)
 
 ```bash
-sdlc-eval run --variant baseline -C path/to/benchmark --without-eval
+nasde run --variant baseline -C path/to/benchmark --without-eval
 ```
 
 ### Custom model and timeout
 
 ```bash
-sdlc-eval run --variant baseline --model claude-opus-4-6 --timeout 1200 -C path/to/benchmark
+nasde run --variant baseline --model claude-opus-4-6 --timeout 1200 -C path/to/benchmark
 ```
 
 ### Re-evaluate existing results
 
 ```bash
-sdlc-eval eval path/to/benchmark/jobs/2026-03-16__14-05-58 --with-opik -C path/to/benchmark
+nasde eval path/to/benchmark/jobs/2026-03-16__14-05-58 --with-opik -C path/to/benchmark
 ```
 
 ## Token cost heuristic
@@ -92,7 +92,7 @@ cat jobs/<timestamp>/<trial-id>/assessment_eval.json | python3 -m json.tool
 ### Using Harbor CLI for viewing
 
 ```bash
-sdlc-eval harbor view path/to/benchmark/jobs/<timestamp>
+nasde harbor view path/to/benchmark/jobs/<timestamp>
 ```
 
 ## Opik verification
@@ -162,7 +162,7 @@ traces = client.search_traces(
 
 ### "No module named 'evals'" or import errors
 
-Harbor resolves `import_path` from `harbor_config.json` via `importlib`. If using the built-in agent (`sdlc_eval_kit.agents.configurable_claude:ConfigurableClaude`), this works when sdlc-eval-kit is installed. For custom agents, ensure the module is on `sys.path`.
+Harbor resolves `import_path` from `harbor_config.json` via `importlib`. If using the built-in agent (`nasde_toolkit.agents.configurable_claude:ConfigurableClaude`), this works when nasde-toolkit is installed. For custom agents, ensure the module is on `sys.path`.
 
 ### Docker build fails
 

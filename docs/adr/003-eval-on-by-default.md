@@ -5,7 +5,7 @@
 
 ## Context
 
-The tool has two stages: Harbor trial (functional tests) and assessment evaluation (LLM-as-a-Judge architecture scoring). Initially, evaluation was opt-in (`--with-eval`). This was wrong — the entire value proposition of `sdlc-eval` over raw `harbor run` is the two-stage pipeline with architecture assessment.
+The tool has two stages: Harbor trial (functional tests) and assessment evaluation (LLM-as-a-Judge architecture scoring). Initially, evaluation was opt-in (`--with-eval`). This was wrong — the entire value proposition of `nasde` over raw `harbor run` is the two-stage pipeline with architecture assessment.
 
 ## Decision
 
@@ -13,10 +13,10 @@ Assessment evaluation is **on by default**. The flag is `--without-eval` to skip
 
 ```bash
 # Full pipeline (default)
-sdlc-eval run baseline -C benchmarks/ddd-architectural-challenges
+nasde run baseline -C benchmarks/ddd-architectural-challenges
 
 # Harbor-only (explicit opt-out)
-sdlc-eval run baseline -C benchmarks/ddd-architectural-challenges --without-eval
+nasde run baseline -C benchmarks/ddd-architectural-challenges --without-eval
 ```
 
 ## Consequences

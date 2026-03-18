@@ -10,7 +10,7 @@
 
 ## What is NASDE?
 
-NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (agent execution in sandboxed Docker environments) and [Opik](https://github.com/comet-ml/opik) (observability & experiment tracking). The toolkit can be extended in the future with alternative backends — different execution engines instead of Harbor, or different observability platforms instead of Opik.
+NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (agent execution in sandboxed environments — Docker locally or cloud providers for scaling) and [Opik](https://github.com/comet-ml/opik) (observability & experiment tracking). The toolkit can be extended in the future with alternative backends — different execution engines instead of Harbor, or different observability platforms instead of Opik.
 
 What NASDE adds on top is an **agentic code review stage**. After a coding agent (e.g. Claude Code running inside Harbor) completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** — powered by Claude Code SDK — that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. Think of it as a "nasty" code reviewer who checks not just whether the code works, but *how well* it's written according to custom criteria.
 
@@ -20,7 +20,7 @@ What NASDE adds on top is an **agentic code review stage**. After a coding agent
 
 ```mermaid
 flowchart LR
-    A["Task definition"] --> B["Harbor: Agent solves task\nin Docker sandbox"]
+    A["Task definition"] --> B["Harbor: Agent solves task\nin sandbox (Docker / cloud)"]
     B --> C["test.sh:\nFunctional tests"]
     C --> D["Binary reward\n0 or 1"]
     D --> E["Opik:\nLog trace + reward"]
@@ -32,7 +32,7 @@ The standard flow gives you a **binary pass/fail** — the code either works or 
 
 ```mermaid
 flowchart LR
-    A["Task definition\n+ assessment criteria\n+ scoring dimensions"] --> B["Harbor: Agent solves task\nin Docker sandbox"]
+    A["Task definition\n+ assessment criteria\n+ scoring dimensions"] --> B["Harbor: Agent solves task\nin sandbox (Docker / cloud)"]
     B --> C["test.sh:\nFunctional tests"]
     C --> D["Binary reward\n0 or 1"]
     D --> E["NASDE Reviewer Agent\nnavigates the codebase"]
@@ -101,6 +101,43 @@ nasde run --variant vanilla -C my-benchmark --without-eval
 nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 ```
 
+## Cloud sandbox providers
+
+By default, Harbor runs agents in **local Docker containers**. For horizontal scaling, you can use a cloud sandbox provider — this shifts command execution to the cloud, making trials I/O bounded rather than compute bounded. You can typically parallelize far above your local CPU count.
+
+Supported providers (via Harbor):
+
+| Provider | Flag value | API key env var |
+|----------|-----------|-----------------|
+| Docker (default) | `docker` | — |
+| [Daytona](https://www.daytona.io/) | `daytona` | `DAYTONA_API_KEY` |
+| [Modal](https://modal.com/) | `modal` | `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` |
+| [E2B](https://e2b.dev/) | `e2b` | `E2B_API_KEY` |
+| [Runloop](https://www.runloop.ai/) | `runloop` | `RUNLOOP_API_KEY` |
+| [GKE](https://cloud.google.com/kubernetes-engine) | `gke` | GCP credentials |
+
+We recommend **Daytona** for its flexibility and scaling capabilities.
+
+```bash
+# Run with Daytona cloud sandbox
+export DAYTONA_API_KEY=...
+nasde run --variant vanilla --harbor-env daytona -C my-benchmark
+
+# Or use the Harbor pass-through for full control
+nasde harbor run --dataset my-benchmark@1.0 --agent claude-code --model claude-sonnet-4-6 --env daytona -n 32
+```
+
+The cloud sandbox provider affects **only the Harbor trial execution** (Stage 1). The assessment evaluation (Stage 2) always runs locally on the host machine.
+
+You can set a default provider in `nasde.toml`:
+
+```toml
+[defaults]
+harbor_env = "daytona"
+```
+
+See the [Harbor documentation](https://harborframework.com/docs/cloud) for detailed provider configuration.
+
 ## Commands
 
 ### Core
@@ -128,6 +165,7 @@ nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 | `--timeout` | Agent timeout in seconds |
 | `--with-opik` | Enable Opik tracing |
 | `--without-eval` | Skip assessment evaluation |
+| `--harbor-env` | Harbor execution environment (`docker`, `daytona`, `modal`, `e2b`, `runloop`, `gke`) |
 | `--project-dir`, `-C` | Path to evaluation project |
 
 ## Project structure
@@ -164,6 +202,7 @@ version = "1.0.0"
 variant = "vanilla"
 model = "claude-sonnet-4-6"
 timeout_sec = 720
+# harbor_env = "daytona"  # Optional: cloud sandbox provider
 
 [docker]
 base_image = "ubuntu:22.04"
@@ -180,7 +219,7 @@ project_name = "my-benchmark"
 
 ## Architecture
 
-See [docs/adr/](docs/adr/) for architectural decision records.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with diagrams, and [docs/adr/](docs/adr/) for architectural decision records.
 
 Key design: `nasde` is a **thin integration layer** over Harbor and Opik, not a replacement. Core flow uses their Python APIs directly; utility commands pass through to their CLIs unchanged. The underlying tools can be swapped in the future without changing the evaluation workflow.
 
@@ -209,7 +248,7 @@ OPIK_PROJECT_NAME=...
 ## Prerequisites
 
 - **Python 3.12+**
-- **Docker** — Harbor runs agents in Docker containers
+- **Docker** (default) or a cloud sandbox provider — Harbor runs agents in isolated environments
 - **uv** — Package manager
 - **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** — Required for agent and evaluator execution
 

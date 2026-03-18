@@ -44,6 +44,10 @@ uv run pytest
 6. Structure functions: public first (alphabetical), then private helpers ordered by dependency (caller before callee).
 7. Snake_case for file and directory names.
 
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with diagrams (end-to-end flow, trial lifecycle, cloud sandbox providers, assessment evaluation). Keep it in sync with code changes.
+
 ## Architecture decisions
 
 - **CLI framework**: Typer with Rich markup mode. The `app` object in `cli.py` is the entry point registered in `pyproject.toml` as `nasde`.
@@ -65,6 +69,7 @@ nasde run [OPTIONS]              # Run benchmark (Harbor trial + assessment eval
   --timeout INT                      # Agent timeout in seconds
   --with-opik                        # Enable Opik tracing
   --without-eval                     # Skip assessment evaluation
+  --harbor-env TEXT                  # Harbor execution environment (docker, daytona, modal, e2b, runloop, gke)
   -C, --project-dir PATH             # Path to benchmark project
 
 nasde eval JOB_DIR [OPTIONS]     # Re-run assessment on existing job
@@ -115,6 +120,7 @@ version = "1.0.0"
 variant = "vanilla"
 model = "claude-sonnet-4-6"
 timeout_sec = 720
+# harbor_env = "daytona"  # Optional: cloud sandbox provider
 
 [docker]
 base_image = "ubuntu:22.04"

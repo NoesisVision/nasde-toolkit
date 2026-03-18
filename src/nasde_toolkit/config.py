@@ -75,6 +75,7 @@ class ProjectConfig:
     default_variant: str = "vanilla"
     default_model: str = "claude-sonnet-4-6"
     default_timeout_sec: int = 720
+    default_harbor_env: str | None = None
     docker: DockerConfig = field(default_factory=DockerConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
@@ -120,6 +121,7 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
         default_variant=defaults.get("variant", "vanilla"),
         default_model=defaults.get("model", "claude-sonnet-4-6"),
         default_timeout_sec=defaults.get("timeout_sec", 720),
+        default_harbor_env=defaults.get("harbor_env"),
         docker=DockerConfig(
             base_image=docker_raw.get("base_image", "ubuntu:22.04"),
             build_commands=docker_raw.get("build_commands", []),

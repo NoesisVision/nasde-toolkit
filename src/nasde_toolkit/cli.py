@@ -97,6 +97,11 @@ def run(
         "--without-eval",
         help="Skip assessment evaluation after benchmark.",
     ),
+    harbor_env: Optional[str] = typer.Option(
+        None,
+        "--harbor-env",
+        help="Harbor execution environment (docker, daytona, modal, e2b, runloop, gke). Default: docker.",
+    ),
     project_dir: Path = typer.Option(
         Path("."),
         "--project-dir",
@@ -112,6 +117,8 @@ def run(
 
     tasks_filter = [t.strip() for t in tasks.split(",")] if tasks else None
 
+    resolved_harbor_env = harbor_env or config.default_harbor_env
+
     _print_run_header(
         variant=variant or config.default_variant,
         model=model or config.default_model,
@@ -119,6 +126,7 @@ def run(
         tasks_filter=tasks_filter,
         with_opik=with_opik,
         with_eval=not without_eval,
+        harbor_env=resolved_harbor_env,
     )
 
     asyncio.run(run_benchmark(
@@ -129,6 +137,7 @@ def run(
         tasks_filter=tasks_filter,
         with_opik=with_opik,
         with_eval=not without_eval,
+        harbor_env=resolved_harbor_env,
     ))
 
 
@@ -208,15 +217,18 @@ def _print_run_header(
     tasks_filter: list[str] | None,
     with_opik: bool,
     with_eval: bool,
+    harbor_env: str | None = None,
 ) -> None:
     tasks_str = ", ".join(tasks_filter) if tasks_filter else "all"
     eval_str = "enabled" if with_eval else "[yellow]disabled[/yellow]"
+    env_str = harbor_env or "docker"
     console.print(Panel(
         f"[bold]Benchmark Runner[/bold]\n"
         f"Variant: {variant}\n"
         f"Model: {model}\n"
         f"Timeout: {timeout}s\n"
         f"Tasks: {tasks_str}\n"
+        f"Environment: {env_str}\n"
         f"Opik: {'enabled' if with_opik else 'disabled'}\n"
         f"Assessment: {eval_str}",
         title="nasde",

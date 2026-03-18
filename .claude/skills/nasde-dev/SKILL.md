@@ -13,6 +13,8 @@ description: |
 
 Internal guidelines for developing nasde-toolkit itself.
 
+> **Important context:** `nasde-toolkit/` is the current production toolkit. The repository also contains `SDLC/evals/` which is the **legacy predecessor** — the original research/prototype that has been migrated into nasde-toolkit. Do NOT modify `SDLC/evals/` for new work. It will be removed once migration is confirmed complete.
+
 ## Post-change verification protocol
 
 After any significant change to the toolkit (new features, refactors, dependency updates, renamed identifiers), run the full verification pipeline before considering the work complete.
@@ -26,6 +28,13 @@ grep -r "sdlc.eval\|sdlc-eval\|sdlc_eval" src/ docs/ CLAUDE.md README.md .claude
 # Package installs cleanly
 uv sync
 ```
+
+### 1b. Documentation consistency
+
+After any change to the evaluation pipeline, CLI flags, configuration schema, or sandbox/environment handling, update **all** of these:
+- `ARCHITECTURE.md` — system architecture with mermaid diagrams (end-to-end flow, trial lifecycle, cloud sandbox providers, assessment evaluation)
+- `README.md` — user-facing documentation (CLI options table, nasde.toml example, prerequisites)
+- `CLAUDE.md` — agent instructions (CLI reference, nasde.toml example, architecture decisions)
 
 ### 2. CLI smoke test
 

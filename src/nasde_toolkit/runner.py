@@ -33,6 +33,7 @@ async def run_benchmark(
     tasks_filter: list[str] | None = None,
     with_opik: bool = False,
     with_eval: bool = True,
+    harbor_env: str | None = None,
 ) -> None:
     """Run a benchmark variant against configured tasks via Harbor."""
     _load_env_file(config.project_dir)
@@ -51,6 +52,7 @@ async def run_benchmark(
         model=model,
         timeout_sec=timeout_sec,
         tasks_filter=tasks_filter,
+        harbor_env=harbor_env,
     )
 
     result = await _run_job(
@@ -155,6 +157,7 @@ def _build_merged_config(
     model: str,
     timeout_sec: int,
     tasks_filter: list[str] | None,
+    harbor_env: str | None = None,
 ) -> dict:
     with open(variant_config_path) as f:
         variant = json.load(f)
@@ -169,7 +172,7 @@ def _build_merged_config(
     jobs_dir = _resolve_jobs_dir(config.project_dir).resolve()
     jobs_dir.mkdir(parents=True, exist_ok=True)
 
-    return {
+    merged = {
         "jobs_dir": str(jobs_dir),
         "n_attempts": 1,
         "agents": variant["agents"],
@@ -181,6 +184,11 @@ def _build_merged_config(
         ],
         "artifacts": [{"source": "/app", "destination": "workspace"}],
     }
+
+    if harbor_env:
+        merged["environment"] = {"type": harbor_env}
+
+    return merged
 
 
 def _build_registry(config: ProjectConfig, tasks_filter: list[str] | None) -> list[dict]:

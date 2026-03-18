@@ -53,13 +53,22 @@ The **benchmark author** controls what the reviewer evaluates:
 
 The reviewer agent freely navigates the workspace, reads source files, analyzes architecture, and returns structured scores for each dimension.
 
+## Use cases
+
+See **[Use Cases](docs/use-cases.md)** for detailed scenarios with workflows:
+
+- **Evaluating your team's AI coding skills** — mine your repo history for benchmark tasks, compare skill configurations, run regression tests when skills change
+- **Building and validating a universal skill** — curate diverse public repos, test one skill across many codebases and languages
+
 ## Claude Code skills
 
 NASDE ships with built-in [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that guide you through creating and running benchmarks interactively. When you open the project in Claude Code, these skills are available automatically:
 
 | Skill | What it does |
 |-------|-------------|
-| **benchmark-creator** | Walks you through creating a new benchmark — from scaffolding the project, adding tasks with Docker environments and test scripts, to defining assessment dimensions and scoring criteria. A good starting point if you want to build your own eval benchmark. |
+| **benchmark-creator** | Walks you through creating a new benchmark — from scaffolding the project, adding tasks with Docker environments and test scripts, to defining assessment dimensions and scoring criteria. |
+| **benchmark-from-history** | Generates benchmark tasks by mining git history. Point it at a commit range or set of PRs, and it proposes tasks based on real problems your team already solved. |
+| **benchmark-from-public-repos** | Curates diverse benchmark suites from public GitHub repositories. Describe the skill you're testing and it builds a diversity matrix, finds repos, and generates task scaffolding. |
 | **benchmark-runner** | Guides running benchmarks, re-evaluating results, verifying Opik traces, and troubleshooting failures. Includes automatic Opik verification after each run. |
 
 To get started, open the project directory in Claude Code and describe what you want to evaluate — the skills will take it from there.

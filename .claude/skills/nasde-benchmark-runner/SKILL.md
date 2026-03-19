@@ -1,5 +1,5 @@
 ---
-name: benchmark-runner
+name: nasde-benchmark-runner
 description: |
   Run coding agent benchmarks and verify results with nasde. Use this skill when the user wants to:
   - Run a benchmark (all tasks, single task, specific variant)
@@ -11,7 +11,7 @@ description: |
   After every run that uses --with-opik, ALWAYS verify results via Opik REST API — don't wait for the user to ask.
 ---
 
-# Benchmark Runner
+# NASDE Benchmark Runner
 
 Run coding agent benchmarks with `nasde` and verify results. The two-stage pipeline: Harbor runs agents in Docker containers (functional test → reward 0/1), then an LLM-as-a-Judge scores architecture quality across multiple dimensions.
 

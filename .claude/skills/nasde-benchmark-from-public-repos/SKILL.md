@@ -1,5 +1,5 @@
 ---
-name: benchmark-from-public-repos
+name: nasde-benchmark-from-public-repos
 description: |
   Build diverse benchmark task suites from public GitHub repositories for testing universal skills. Use this skill when the user wants to:
   - Create a benchmark that spans multiple public repositories and languages
@@ -9,13 +9,13 @@ description: |
   Even if the user doesn't say "benchmark" — if they're building a skill meant to work everywhere and want to validate it across many different projects, this skill applies.
 ---
 
-# Benchmark from Public Repos
+# NASDE Benchmark from Public Repos
 
 Build a diverse NASDE benchmark by curating tasks from multiple public GitHub repositories. Designed for validating universal skills — skills that should work across different languages, frameworks, project sizes, and architectural styles.
 
 ## Prerequisites
 
-- An existing NASDE benchmark project (run `nasde init` first, or use the `benchmark-creator` skill)
+- An existing NASDE benchmark project (run `nasde init` first, or use the `nasde-benchmark-creator` skill)
 - A clear description of the skill being evaluated (what it does, what kinds of tasks it helps with)
 - Internet access (to browse and clone public repositories)
 
@@ -85,7 +85,7 @@ For each approved repo+task pair, generate the full task directory. Work through
 
 ### 4a: Determine the "before" state
 
-Unlike `benchmark-from-history` (which uses a specific commit), here you choose a state of the repo that presents the problem to solve:
+Unlike `nasde-benchmark-from-history` (which uses a specific commit), here you choose a state of the repo that presents the problem to solve:
 
 - **Option A: Current main branch** — the repo as-is has the problem (e.g., a God class that should be split). Set `source.ref` to a specific commit hash on main for reproducibility.
 - **Option B: A tagged release** — use a specific version. More stable for long-lived benchmarks.
@@ -126,6 +126,30 @@ Always pin to a specific commit hash, not a branch name — branches move, hashe
 ```
 
 The `diversity_axes` metadata helps track coverage across the matrix.
+
+### 4b-bis: task.toml (required — Harbor config)
+
+Harbor reads `task.toml`, not `task.json`. Every task directory MUST have both files. Generate `task.toml` alongside `task.json`:
+
+```toml
+version = "1.0"
+
+[metadata]
+name = "<language>-<repo-slug>-<task-slug>"
+description = "<What the agent must do>"
+difficulty = "<easy|intermediate|hard>"
+language = "<language>"
+framework = "<framework>"
+source_repo = "https://github.com/<owner>/<repo>"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300
+```
+
+The `agent.timeout_sec` should be `estimated_time_minutes × 60`. The `verifier.timeout_sec` matches `evaluation.timeout_seconds` from task.json.
 
 ### 4c: instruction.md
 
@@ -302,4 +326,4 @@ Ask the user if they want to fill gaps or if current coverage is sufficient.
 - **Test the Dockerfiles early.** The most common failure is a Dockerfile that doesn't build because a dependency changed or a repo restructured. Build images as you create tasks, not all at the end.
 - **Keep instructions skill-agnostic.** The task instruction describes the problem. The skill is injected via the variant's `CLAUDE.md`. This separation lets you test the same tasks with and without the skill.
 - **Start with 5–8 tasks.** You can always add more. A smaller, well-curated benchmark is better than a large, noisy one.
-- **Combine with benchmark-creator.** This skill generates tasks from public repos; `benchmark-creator` handles project scaffold, dimensions, and variants. Use them together.
+- **Combine with nasde-benchmark-creator.** This skill generates tasks from public repos; `nasde-benchmark-creator` handles project scaffold, dimensions, and variants. Use them together.

@@ -66,10 +66,10 @@ NASDE ships with built-in [Claude Code skills](https://docs.anthropic.com/en/doc
 
 | Skill | What it does |
 |-------|-------------|
-| **benchmark-creator** | Walks you through creating a new benchmark — from scaffolding the project, adding tasks with Docker environments and test scripts, to defining assessment dimensions and scoring criteria. |
-| **benchmark-from-history** | Generates benchmark tasks by mining git history. Point it at a commit range or set of PRs, and it proposes tasks based on real problems your team already solved. |
-| **benchmark-from-public-repos** | Curates diverse benchmark suites from public GitHub repositories. Describe the skill you're testing and it builds a diversity matrix, finds repos, and generates task scaffolding. |
-| **benchmark-runner** | Guides running benchmarks, re-evaluating results, verifying Opik traces, and troubleshooting failures. Includes automatic Opik verification after each run. |
+| **nasde-benchmark-creator** | Walks you through creating a new benchmark — from scaffolding the project, adding tasks with Docker environments and test scripts, to defining assessment dimensions and scoring criteria. |
+| **nasde-benchmark-from-history** | Generates benchmark tasks by mining git history. Point it at a commit range or set of PRs, and it proposes tasks based on real problems your team already solved. |
+| **nasde-benchmark-from-public-repos** | Curates diverse benchmark suites from public GitHub repositories. Describe the skill you're testing and it builds a diversity matrix, finds repos, and generates task scaffolding. |
+| **nasde-benchmark-runner** | Guides running benchmarks, re-evaluating results, verifying Opik traces, and troubleshooting failures. Includes automatic Opik verification after each run. |
 
 To get started, open the project directory in Claude Code and describe what you want to evaluate — the skills will take it from there.
 

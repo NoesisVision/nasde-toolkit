@@ -1,5 +1,5 @@
 ---
-name: benchmark-creator
+name: nasde-benchmark-creator
 description: |
   Create coding agent benchmarks for evaluation with nasde. Use this skill when the user wants to:
   - Create a new benchmark project (set of tasks for evaluating coding agents)
@@ -10,7 +10,7 @@ description: |
   Even if the user doesn't say "benchmark" — if they're talking about creating coding challenges for AI agents or setting up evaluation criteria, this skill applies.
 ---
 
-# Benchmark Creator
+# NASDE Benchmark Creator
 
 Create and configure coding agent benchmarks for evaluation with `nasde`. A benchmark is a set of coding tasks that AI agents solve inside isolated Docker containers, scored both by functional tests (pass/fail) and by an LLM-as-a-Judge architecture assessment.
 
@@ -54,7 +54,7 @@ Rules:
 
 Each task lives in `tasks/<task-name>/` and needs these files:
 
-### task.json (required)
+### task.json (required — nasde config)
 
 ```json
 {
@@ -84,6 +84,29 @@ Each task lives in `tasks/<task-name>/` and needs these files:
   }
 }
 ```
+
+### task.toml (required — Harbor config)
+
+Harbor reads `task.toml`, not `task.json`. Every task directory MUST have both files. Generate `task.toml` alongside `task.json`:
+
+```toml
+version = "1.0"
+
+[metadata]
+name = "<task-name>"
+description = "Brief description"
+difficulty = "intermediate"
+language = "C#"
+framework = ".NET 8"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300
+```
+
+The `agent.timeout_sec` should be `estimated_time_minutes × 60`. The `verifier.timeout_sec` matches `evaluation.timeout_seconds` from task.json.
 
 ### instruction.md (required)
 

@@ -1,5 +1,5 @@
 ---
-name: benchmark-from-history
+name: nasde-benchmark-from-history
 description: |
   Generate benchmark tasks from git history of the current or specified repository. Use this skill when the user wants to:
   - Create benchmark tasks based on real problems their team already solved (closed PRs, past commits, resolved issues)
@@ -9,14 +9,14 @@ description: |
   Even if the user doesn't say "benchmark" — if they're talking about turning past work into evaluation tasks, or want to test AI agents against problems they've already solved, this skill applies.
 ---
 
-# Benchmark from Git History
+# NASDE Benchmark from Git History
 
 Generate NASDE benchmark tasks by mining git history. You analyze commits, diffs, and PR descriptions to identify self-contained changes that make good evaluation candidates, then generate task files with user approval.
 
 ## Prerequisites
 
 - A git repository with meaningful commit history (the repo you're currently in, or a path to another local repo)
-- An existing NASDE benchmark project (run `nasde init` first, or use the `benchmark-creator` skill)
+- An existing NASDE benchmark project (run `nasde init` first, or use the `nasde-benchmark-creator` skill)
 - If the benchmark project doesn't exist yet, create it first — this skill generates tasks, not the project scaffold
 
 ## Step 1: Identify the source repository and commit range
@@ -121,6 +121,30 @@ For `source.git`:
 - If the repo has a public remote: use the HTTPS clone URL
 - If the repo is local-only (no public remote): use the absolute local path
 - Ask the user if unsure
+
+### 4a-bis: task.toml (required — Harbor config)
+
+Harbor reads `task.toml`, not `task.json`. Every task directory MUST have both files. Generate `task.toml` alongside `task.json`:
+
+```toml
+version = "1.0"
+
+[metadata]
+name = "<slugified-commit-description>"
+description = "<commit message, cleaned up>"
+difficulty = "<estimated_difficulty>"
+language = "<detected-language>"
+framework = "<detected-framework>"
+source_commit = "<after_ref>"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300
+```
+
+The `agent.timeout_sec` should be `estimated_time_minutes × 60`. The `verifier.timeout_sec` matches `evaluation.timeout_seconds` from task.json.
 
 ### 4b: instruction.md
 
@@ -269,7 +293,7 @@ This is useful for verifying that `test.sh` passes on a known-good solution.
 
 After all selected tasks are generated:
 
-1. **Confirm the benchmark project has assessment dimensions** — if `assessment_dimensions.json` is missing or empty, prompt the user to define dimensions (delegate to `benchmark-creator` Step 3).
+1. **Confirm the benchmark project has assessment dimensions** — if `assessment_dimensions.json` is missing or empty, prompt the user to define dimensions (delegate to `nasde-benchmark-creator` Step 3).
 
 2. **Build and test each Docker image:**
    ```bash
@@ -297,4 +321,4 @@ After all selected tasks are generated:
 - **Prefer commits with tests.** Tasks with existing tests are much faster to set up — the verifier almost writes itself.
 - **Don't leak the solution.** The biggest risk in generating instructions from diffs is accidentally describing HOW the problem was solved. Describe the WHAT and WHY, not the HOW.
 - **Local repos work fine.** NASDE supports local git paths in `source.git`. No need to push to a public remote for company repos.
-- **Combine with benchmark-creator.** This skill generates tasks; `benchmark-creator` handles the project scaffold, dimensions, and variants. Use them together.
+- **Combine with nasde-benchmark-creator.** This skill generates tasks; `nasde-benchmark-creator` handles the project scaffold, dimensions, and variants. Use them together.

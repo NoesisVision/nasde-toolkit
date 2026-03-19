@@ -22,7 +22,7 @@ You turn real problems from your team's history into repeatable benchmark tasks,
 
 **Step 1 — Identify source tasks from git history**
 
-The **`benchmark-from-history`** skill automates this step. Tell it a commit range or set of PR numbers — e.g., *"create benchmark tasks from the last 20 commits on main"* — and it scans diffs, filters for good candidates, and presents them for your approval. See the [full skill description](#skill-benchmark-from-history) below.
+The **`nasde-benchmark-from-history`** skill automates this step. Tell it a commit range or set of PR numbers — e.g., *"create benchmark tasks from the last 20 commits on main"* — and it scans diffs, filters for good candidates, and presents them for your approval. See the [full skill description](#skill-nasde-benchmark-from-history) below.
 
 You can also do this manually. Browse your team's closed PRs, resolved issues, or notable commits. Look for changes that:
 - Are self-contained (clear before/after state)
@@ -63,7 +63,7 @@ For each selected problem, create a task directory under `tasks/`. Each task nee
 | `tests/test.sh` | Verifies the solution works — often adapted from your existing tests |
 | `assessment_criteria.md` | Rubric for the reviewer agent — what "good" looks like for this specific task |
 
-The `benchmark-creator` skill walks you through this interactively. If you used `benchmark-from-history` in Step 1, task files are generated automatically — you review and edit each one before it's written.
+The `nasde-benchmark-creator` skill walks you through this interactively. If you used `nasde-benchmark-from-history` in Step 1, task files are generated automatically — you review and edit each one before it's written.
 
 **Step 5 — Define variants**
 
@@ -114,9 +114,9 @@ The task files are committed to the benchmark project repo — they're stable, v
 ### Current constraints
 
 - NASDE supports local git repos and public remote repos. Private remote repos require local clones (not a practical limitation — you already have them).
-- Task creation from git history is manual when using `benchmark-creator` alone. The **`benchmark-from-history`** skill automates this — see below.
+- Task creation from git history is manual when using `nasde-benchmark-creator` alone. The **`nasde-benchmark-from-history`** skill automates this — see below.
 
-### Skill: `benchmark-from-history` {#skill-benchmark-from-history}
+### Skill: `nasde-benchmark-from-history` {#skill-nasde-benchmark-from-history}
 
 NASDE includes a dedicated skill that accelerates Phase 1 by mining git history for benchmark candidates. Instead of manually browsing PRs and writing task files from scratch, you point the skill at a commit range and it does the heavy lifting.
 
@@ -130,9 +130,9 @@ NASDE includes a dedicated skill that accelerates Phase 1 by mining git history 
 
 **What it won't do:** It doesn't generate instructions that leak the actual solution. The instruction describes the *problem to solve* (derived from the commit message and PR description), not the *implementation* (the diff). The agent must arrive at a solution independently.
 
-**Relationship to other skills:** `benchmark-from-history` is an alternative entry point into the benchmark creation workflow. Where `benchmark-creator` starts from scratch ("what do you want to evaluate?"), `benchmark-from-history` starts from evidence ("here's what your team already solved"). Both produce the same NASDE task structure.
+**Relationship to other skills:** `nasde-benchmark-from-history` is an alternative entry point into the benchmark creation workflow. Where `nasde-benchmark-creator` starts from scratch ("what do you want to evaluate?"), `nasde-benchmark-from-history` starts from evidence ("here's what your team already solved"). Both produce the same NASDE task structure.
 
-See the full skill reference: [`.claude/skills/benchmark-from-history/SKILL.md`](../.claude/skills/benchmark-from-history/SKILL.md)
+See the full skill reference: [`.claude/skills/nasde-benchmark-from-history/SKILL.md`](../.claude/skills/nasde-benchmark-from-history/SKILL.md)
 
 ---
 
@@ -156,7 +156,7 @@ A benchmark that spans multiple repositories, languages, and problem types. Defi
 
 **Step 1 — Select diverse source repositories**
 
-The **`benchmark-from-public-repos`** skill automates this step. Describe the skill you're building — e.g., *"I'm building a refactoring skill that should work across Python, TypeScript, Go, and Rust"* — and it builds a diversity matrix, suggests repos, and generates task scaffolding. See the [full skill description](#skill-benchmark-from-public-repos) below.
+The **`nasde-benchmark-from-public-repos`** skill automates this step. Describe the skill you're building — e.g., *"I'm building a refactoring skill that should work across Python, TypeScript, Go, and Rust"* — and it builds a diversity matrix, suggests repos, and generates task scaffolding. See the [full skill description](#skill-nasde-benchmark-from-public-repos) below.
 
 You can also curate manually. Pick public repos that test different axes of your skill's capabilities. For a refactoring skill:
 
@@ -238,9 +238,9 @@ As you discover edge cases (the skill fails on monorepos, or struggles with code
 
 - Curating tasks from diverse public repos is time-consuming — finding the right repos, understanding their structure, writing meaningful tasks.
 - Each repo needs its own Dockerfile with potentially different base images, dependencies, and build steps.
-- The **`benchmark-from-public-repos`** skill addresses both of these — see below.
+- The **`nasde-benchmark-from-public-repos`** skill addresses both of these — see below.
 
-### Skill: `benchmark-from-public-repos` {#skill-benchmark-from-public-repos}
+### Skill: `nasde-benchmark-from-public-repos` {#skill-nasde-benchmark-from-public-repos}
 
 NASDE includes a dedicated skill for curating diverse benchmark suites from public repositories. Instead of manually searching GitHub and scaffolding Dockerfiles for each language, you describe your skill and the tool guides the curation process.
 
@@ -254,6 +254,6 @@ NASDE includes a dedicated skill for curating diverse benchmark suites from publ
 
 **Key design principle:** Task instructions are written to be **skill-agnostic**. The instruction describes the raw problem; the skill being tested is injected via the variant's `CLAUDE.md`. This means the same benchmark can test "with skill" vs "without skill" by simply switching variants.
 
-**Relationship to other skills:** Like `benchmark-from-history`, this is an alternative entry point into the benchmark creation workflow — optimized for the "many repos, one skill" pattern (UC2) rather than the "one repo, many skills" pattern (UC1).
+**Relationship to other skills:** Like `nasde-benchmark-from-history`, this is an alternative entry point into the benchmark creation workflow — optimized for the "many repos, one skill" pattern (UC2) rather than the "one repo, many skills" pattern (UC1).
 
-See the full skill reference: [`.claude/skills/benchmark-from-public-repos/SKILL.md`](../.claude/skills/benchmark-from-public-repos/SKILL.md)
+See the full skill reference: [`.claude/skills/nasde-benchmark-from-public-repos/SKILL.md`](../.claude/skills/nasde-benchmark-from-public-repos/SKILL.md)

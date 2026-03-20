@@ -69,6 +69,7 @@ nasde run [OPTIONS]              # Run benchmark (Harbor trial + assessment eval
   --timeout INT                      # Agent timeout in seconds
   --with-opik                        # Enable Opik tracing
   --without-eval                     # Skip assessment evaluation
+  --job-suffix TEXT                  # Custom suffix for job directory (default: random 6-char hex)
   --harbor-env TEXT                  # Harbor execution environment (docker, daytona, modal, e2b, runloop, gke)
   -C, --project-dir PATH             # Path to benchmark project
 

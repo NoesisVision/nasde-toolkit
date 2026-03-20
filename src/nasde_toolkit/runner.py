@@ -11,6 +11,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from uuid import uuid4
 
 from rich.console import Console
 from rich.table import Table
@@ -47,6 +48,7 @@ async def run_benchmark(
     with_eval: bool = True,
     harbor_env: str | None = None,
     n_attempts: int = 1,
+    job_suffix: str | None = None,
 ) -> None:
     """Run a benchmark variant against configured tasks via Harbor."""
     _load_env_file(config.project_dir)
@@ -68,6 +70,7 @@ async def run_benchmark(
         tasks_filter=tasks_filter,
         harbor_env=harbor_env,
         n_attempts=n_attempts,
+        job_suffix=job_suffix,
     )
 
     result = await _run_job(
@@ -188,6 +191,7 @@ def _build_merged_config(
     tasks_filter: list[str] | None,
     harbor_env: str | None = None,
     n_attempts: int = 1,
+    job_suffix: str | None = None,
 ) -> dict:
     from datetime import datetime
 
@@ -204,7 +208,8 @@ def _build_merged_config(
     jobs_dir = _resolve_jobs_dir(config.project_dir).resolve()
     jobs_dir.mkdir(parents=True, exist_ok=True)
 
-    job_name = f"{datetime.now().strftime('%Y-%m-%d__%H-%M-%S')}__{variant_name}"
+    suffix = job_suffix or uuid4().hex[:6]
+    job_name = f"{datetime.now().strftime('%Y-%m-%d__%H-%M-%S')}__{variant_name}__{suffix}"
 
     merged = {
         "job_name": job_name,

@@ -108,6 +108,11 @@ def run(
         "--without-eval",
         help="Skip assessment evaluation after benchmark.",
     ),
+    job_suffix: Optional[str] = typer.Option(
+        None,
+        "--job-suffix",
+        help="Custom suffix for job directory name (default: random 6-char hex).",
+    ),
     harbor_env: Optional[str] = typer.Option(
         None,
         "--harbor-env",
@@ -163,6 +168,7 @@ def run(
             with_eval=not without_eval,
             harbor_env=resolved_harbor_env,
             n_attempts=attempts,
+            job_suffix=job_suffix,
         ))
     else:
         resolved_variant = variant
@@ -187,6 +193,7 @@ def run(
             with_eval=not without_eval,
             harbor_env=resolved_harbor_env,
             n_attempts=attempts,
+            job_suffix=job_suffix,
         ))
 
 
@@ -332,6 +339,7 @@ async def _run_all_variants(
     with_eval: bool,
     harbor_env: str | None,
     n_attempts: int,
+    job_suffix: str | None = None,
 ) -> None:
     from rich.table import Table
 
@@ -354,6 +362,7 @@ async def _run_all_variants(
                 with_eval=with_eval,
                 harbor_env=harbor_env,
                 n_attempts=n_attempts,
+                job_suffix=job_suffix,
             )
             results.append((variant_name, "[green]OK[/green]", ""))
         except SystemExit:

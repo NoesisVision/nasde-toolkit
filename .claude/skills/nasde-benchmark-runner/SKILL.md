@@ -51,6 +51,22 @@ After this completes, ALWAYS verify Opik results (see Opik verification below).
 nasde run --variant baseline -C path/to/benchmark --without-eval
 ```
 
+### Parallel runs (multiple variants)
+
+Running multiple variants simultaneously is safe — each job directory includes a unique random suffix to prevent collisions:
+
+```bash
+nasde run --variant vanilla --tasks my-task -C path/to/benchmark &
+nasde run --variant guided --tasks my-task -C path/to/benchmark &
+wait
+```
+
+For deterministic job names, use `--job-suffix`:
+
+```bash
+nasde run --variant vanilla --job-suffix run1 -C path/to/benchmark
+```
+
 ### Custom model and timeout
 
 ```bash

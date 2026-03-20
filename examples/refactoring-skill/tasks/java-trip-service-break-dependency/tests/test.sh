@@ -5,7 +5,7 @@ echo "Trip Service Break Dependency - Evaluation"
 echo "=========================================="
 echo ""
 
-cd /app/java
+cd /app
 
 echo "Step 1: Verifying project compiles..."
 echo "--------------------------------------"

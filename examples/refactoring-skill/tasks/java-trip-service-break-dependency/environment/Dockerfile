@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-RUN git clone https://github.com/sandromancuso/trip-service-kata.git . && git checkout master
+RUN git clone https://github.com/sandromancuso/trip-service-kata.git /tmp/kata && git -C /tmp/kata checkout master \
+    && cp -a /tmp/kata/java/trip-service-kata/. /app/ && rm -rf /tmp/kata
 
-WORKDIR /app/java
 RUN mvn compile -q
 
 CMD ["/bin/bash"]

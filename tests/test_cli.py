@@ -36,6 +36,15 @@ def benchmark_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def test_no_variant_flag_requires_one(benchmark_project: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["run", "-C", str(benchmark_project)],
+    )
+    assert result.exit_code != 0
+    assert "--variant" in result.output.lower() or "--all-variants" in result.output.lower()
+
+
 def test_variant_and_all_variants_mutually_exclusive(benchmark_project: Path) -> None:
     result = runner.invoke(
         app,

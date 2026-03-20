@@ -50,7 +50,7 @@ Run a single task from the existing benchmark with full eval and Opik tracing:
 ```bash
 source scripts/export_oauth_token.sh
 nasde run --variant baseline --tasks ddd-threshold-discount \
-  -C benchmarks/ddd-architectural-challenges --with-opik
+  -C examples/ddd-architectural-challenges --with-opik
 ```
 
 Expected output:

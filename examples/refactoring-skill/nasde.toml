@@ -1,0 +1,20 @@
+[project]
+name = "refactoring-skill"
+version = "1.0.0"
+
+[defaults]
+variant = "vanilla"
+model = "claude-sonnet-4-6"
+timeout_sec = 720
+
+[docker]
+base_image = "ubuntu:22.04"
+build_commands = []
+
+[evaluation]
+model = "claude-sonnet-4-6"
+dimensions_file = "assessment_dimensions.json"
+
+[reporting]
+platform = "opik"
+project_name = "refactoring-skill"

@@ -1,0 +1,16 @@
+version = "1.0"
+
+[metadata]
+language = "Python"
+framework = "pytest"
+source_repo = "https://github.com/emilybache/Theatrical-Players-Refactoring-Kata"
+diversity_axes = ["language:python", "size:small", "technique:extract-method"]
+name = "python-theatrical-players-extract-method"
+description = "Extract Method and Replace Conditional with Polymorphism on a statement rendering function"
+difficulty = "intermediate"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300

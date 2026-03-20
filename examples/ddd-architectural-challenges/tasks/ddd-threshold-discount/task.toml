@@ -1,0 +1,14 @@
+version = "1.0"
+
+[metadata]
+name = "ddd-threshold-discount"
+description = "Implement a threshold-based discount type in a complex DDD e-commerce system by extending an existing discriminated union"
+difficulty = "intermediate"
+language = "C#"
+framework = ".NET 8"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300

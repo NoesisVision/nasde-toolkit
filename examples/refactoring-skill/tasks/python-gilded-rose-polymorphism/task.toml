@@ -1,0 +1,16 @@
+version = "1.0"
+
+[metadata]
+language = "Python"
+framework = "pytest"
+source_repo = "https://github.com/emilybache/GildedRose-Refactoring-Kata"
+diversity_axes = ["language:python", "size:small", "technique:replace-conditional-with-polymorphism"]
+name = "python-gilded-rose-polymorphism"
+description = "Replace nested conditionals with polymorphism in the Gilded Rose kata and add Conjured items support"
+difficulty = "intermediate"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300

@@ -1,0 +1,34 @@
+{
+  "name": "ddd-weather-discount",
+  "description": "Implement a weather-based discount feature in a complex DDD e-commerce system using external API",
+  "difficulty": "advanced",
+  "estimated_time_minutes": 90,
+  "tags": [
+    "DDD",
+    "Hexagonal-Architecture",
+    "External-API",
+    "Refactoring",
+    "Extensibility"
+  ],
+  "source": {
+    "git": "https://github.com/itlibrium/DDD-starter-dotnet.git",
+    "ref": "main"
+  },
+  "environment": {
+    "type": "docker",
+    "dockerfile": "./environment/Dockerfile"
+  },
+  "instruction": "./instruction.md",
+  "evaluation": {
+    "type": "script",
+    "script": "./tests/test.sh",
+    "timeout_seconds": 300
+  },
+  "metadata": {
+    "language": "C#",
+    "framework": ".NET 8",
+    "architecture": "Hexagonal/Clean Architecture",
+    "domain": "E-Commerce Sales",
+    "source_repository": "https://github.com/itlibrium/DDD-starter-dotnet"
+  }
+}

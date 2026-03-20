@@ -1,0 +1,16 @@
+version = "1.0"
+
+[metadata]
+language = "Java"
+framework = "plain Java"
+source_repo = "https://github.com/gregorriegler/order-dispatch-refactoring-kata"
+diversity_axes = ["language:java", "difficulty:easy", "pattern:encapsulation"]
+name = "java-order-dispatch-domain-entities"
+description = "Move order dispatch logic from service layer into domain entities in a refactoring kata"
+difficulty = "easy"
+
+[agent]
+timeout_sec = 1200
+
+[verifier]
+timeout_sec = 300

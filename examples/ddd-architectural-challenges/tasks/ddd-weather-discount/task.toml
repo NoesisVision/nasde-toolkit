@@ -1,0 +1,14 @@
+version = "1.0"
+
+[metadata]
+name = "ddd-weather-discount"
+description = "Implement a weather-based discount feature in a complex DDD e-commerce system using external API"
+difficulty = "advanced"
+language = "C#"
+framework = ".NET 8"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300

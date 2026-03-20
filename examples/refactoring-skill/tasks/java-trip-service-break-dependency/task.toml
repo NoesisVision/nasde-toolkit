@@ -1,0 +1,16 @@
+version = "1.0"
+
+[metadata]
+language = "Java"
+framework = "JUnit"
+source_repo = "https://github.com/sandromancuso/trip-service-kata"
+diversity_axes = ["language:java", "size:small", "technique:dependency-injection"]
+name = "java-trip-service-break-dependency"
+description = "Break static dependency, Extract Method, and introduce dependency injection in a legacy service"
+difficulty = "hard"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300

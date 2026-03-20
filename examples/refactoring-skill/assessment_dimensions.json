@@ -1,0 +1,28 @@
+{
+  "dimensions": [
+    {
+      "name": "behavior_preservation",
+      "title": "Behavior Preservation",
+      "max_score": 30,
+      "description": "All existing tests still pass, no regressions, observable behavior unchanged"
+    },
+    {
+      "name": "code_clarity",
+      "title": "Code Clarity",
+      "max_score": 25,
+      "description": "Code is cleaner, more readable, and better organized after refactoring"
+    },
+    {
+      "name": "refactoring_technique",
+      "title": "Refactoring Technique",
+      "max_score": 25,
+      "description": "Correct application of refactoring patterns (Extract Method, Extract Class, Replace Conditional with Polymorphism, etc.)"
+    },
+    {
+      "name": "scope_discipline",
+      "title": "Scope Discipline",
+      "max_score": 20,
+      "description": "Changed only what was needed, no unnecessary modifications, no feature creep"
+    }
+  ]
+}

@@ -13,10 +13,10 @@ Assessment evaluation is **on by default**. The flag is `--without-eval` to skip
 
 ```bash
 # Full pipeline (default)
-nasde run baseline -C benchmarks/ddd-architectural-challenges
+nasde run baseline -C examples/ddd-architectural-challenges
 
 # Harbor-only (explicit opt-out)
-nasde run baseline -C benchmarks/ddd-architectural-challenges --without-eval
+nasde run baseline -C examples/ddd-architectural-challenges --without-eval
 ```
 
 ## Consequences

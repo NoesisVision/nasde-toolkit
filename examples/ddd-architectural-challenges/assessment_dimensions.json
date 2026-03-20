@@ -1,0 +1,34 @@
+{
+  "dimensions": [
+    {
+      "name": "domain_modeling",
+      "title": "Domain Modeling",
+      "max_score": 25,
+      "description": "Correct use of DDD building blocks: aggregates, value objects, entities, domain events, domain services, policies"
+    },
+    {
+      "name": "encapsulation",
+      "title": "Encapsulation",
+      "max_score": 20,
+      "description": "Business rules inside domain objects, not leaked to services/controllers. Domain objects protect their own invariants."
+    },
+    {
+      "name": "architecture_compliance",
+      "title": "Architecture Compliance",
+      "max_score": 20,
+      "description": "Respecting layer boundaries, project conventions, separation of concerns, dependency direction"
+    },
+    {
+      "name": "extensibility",
+      "title": "Extensibility",
+      "max_score": 15,
+      "description": "OCP, Strategy/Policy patterns, ease of adding similar features without modifying existing code"
+    },
+    {
+      "name": "test_quality",
+      "title": "Test Quality",
+      "max_score": 20,
+      "description": "Test coverage, isolation from externals, edge cases, matching existing test conventions"
+    }
+  ]
+}

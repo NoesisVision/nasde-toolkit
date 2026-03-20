@@ -2,7 +2,7 @@
 
 ---
 
-## UC1: Evaluating Skills Against Your Own Codebase
+## UC1: Evaluating Your Agent Configuration Against Your Own Codebase
 
 ### Persona
 
@@ -10,11 +10,11 @@
 
 ### Problem
 
-You've tuned how Claude Code operates in your codebase, but you have no way to measure whether the configuration actually helps. Skill changes are a leap of faith — maybe the new prompt improves refactoring but breaks the agent's ability to write tests. Without structured evaluation, you can't tell what's improving and what's regressing.
+You've tuned how Claude Code operates in your codebase, but you have no way to measure whether the full configuration actually helps. Built-in eval tools like Skill Creator can test individual skills in isolation, but they can't tell you whether your skills work well *together*, how your `CLAUDE.md` interacts with MCP server configurations, or how the same task set performs across different coding agents. Skill changes are a leap of faith — maybe the new prompt improves refactoring but breaks the agent's ability to write tests. Without structured evaluation of the complete configuration, you can't tell what's improving and what's regressing.
 
 ### What NASDE enables
 
-You turn real problems from your team's history into repeatable benchmark tasks, then run different skill configurations against them. Results are multi-dimensional scores — not just "did it work?" but "how well did it work across code quality, architecture, testing, and whatever else matters to you." Once the task set is established, it becomes a regression suite: re-run it every time the skill configuration changes.
+You turn real problems from your team's history into repeatable benchmark tasks, then run different agent configurations against them — not just individual skills, but the full combination of `CLAUDE.md`, skills, and MCP servers. You can also compare results across different coding agents (Claude Code, Codex, Cursor, etc.) on the same task set. Results are multi-dimensional scores — not just "did it work?" but "how well did it work across code quality, architecture, testing, and whatever else matters to you." Once the task set is established, it becomes a regression suite: re-run it every time the configuration changes.
 
 ### Workflow
 
@@ -92,6 +92,24 @@ nasde run --variant proposed-v2 --with-opik
 
 Results land in Opik. Compare variants across dimensions — see which configuration scores highest on domain modeling, which is best at test quality, whether the proposed change helps or hurts.
 
+**Comparing across coding agents:** Cross-agent comparison works through Harbor's variant system. Each variant can point to a different agent implementation via `harbor_config.json`:
+
+```
+variants/
+  claude-code-v1/
+    CLAUDE.md
+    harbor_config.json    # import_path → Claude Code agent
+  codex-v1/
+    harbor_config.json    # import_path → Codex agent
+```
+
+```bash
+nasde run --variant claude-code-v1 --with-opik
+nasde run --variant codex-v1 --with-opik
+```
+
+Both runs use the same tasks, dimensions, and assessment criteria — only the coding agent differs. This lets you answer "which agent produces better code for *our* problems?" with data, not anecdotes.
+
 #### Phase 3: Regression testing (ongoing)
 
 The task set in `tasks/` is now your regression suite. When someone proposes a skill change:
@@ -107,9 +125,9 @@ The task files are committed to the benchmark project repo — they're stable, v
 
 | Fixed | Varies |
 |-------|--------|
-| Source repository (your company repos) | Skill configurations (`CLAUDE.md`, MCP servers) |
+| Source repository (your company repos) | Agent configurations (`CLAUDE.md`, skills, MCP servers) |
 | Task set (frozen after Phase 1) | Agent models (Sonnet vs Opus) |
-| Assessment dimensions and criteria | Agent frameworks (via Harbor multi-agent support) |
+| Assessment dimensions and criteria | Coding agents (Claude Code, Codex, Cursor, etc. via Harbor) |
 
 ### Current constraints
 

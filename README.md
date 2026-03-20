@@ -14,6 +14,8 @@ NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (age
 
 What NASDE adds on top is an **agentic code review stage**. After a coding agent (e.g. Claude Code running inside Harbor) completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** — powered by Claude Code SDK — that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. Think of it as a "nasty" code reviewer who checks not just whether the code works, but *how well* it's written according to custom criteria.
 
+AI coding agents increasingly ship built-in eval tools that test individual skills with pass/fail assertions. NASDE operates at a different level: it evaluates your **complete agent configuration** — the combination of skills, `CLAUDE.md` files, MCP servers, and prompting strategies — in sandboxed environments, across **multiple coding agents**, and against **custom quality rubrics**. If built-in evals tell you whether a skill triggers correctly, NASDE tells you whether your setup produces better code.
+
 ## Standard vs NASDE evaluation flow
 
 ### Without NASDE (Harbor + Opik only)
@@ -57,8 +59,22 @@ The reviewer agent freely navigates the workspace, reads source files, analyzes 
 
 See **[Use Cases](docs/use-cases.md)** for detailed scenarios with workflows:
 
-- **Evaluating your team's AI coding skills** — mine your repo history for benchmark tasks, compare skill configurations, run regression tests when skills change
-- **Building and validating a universal skill** — curate diverse public repos, test one skill across many codebases and languages
+- **Evaluating your team's agent configuration** — mine your repo history for benchmark tasks, compare combinations of skills, `CLAUDE.md`, and MCP servers, run regression tests when configuration changes, compare results across different coding agents
+- **Building and validating a universal skill** — curate diverse public repos, test one skill across many codebases and languages, compare agent behavior across different coding agents
+
+## When to use NASDE vs built-in evals
+
+AI coding agents like Claude Code now ship built-in evaluation tools (e.g. Skill Creator evals) for testing individual skills. These are great for rapid iteration on a single skill. NASDE serves a different purpose:
+
+| | Built-in evals (e.g. Skill Creator) | NASDE |
+|---|---|---|
+| **What you test** | One skill at a time | Full configuration (skill sets + `CLAUDE.md` + MCP) |
+| **Agents supported** | The host agent only | Any agent via Harbor (Claude Code, Codex, Cursor, ...) |
+| **Scoring** | Pass/fail, time, tokens | Multi-dimensional rubric (0–100, custom dimensions) |
+| **Execution** | Agent's own session | Isolated Docker or cloud sandbox per trial |
+| **Primary question** | "Does this skill trigger correctly?" | "Does this configuration produce better code?" |
+
+Use built-in evals for rapid iteration on individual skills. Use NASDE when you need to evaluate complete configurations, compare across agents, or measure quality beyond pass/fail.
 
 ## Claude Code skills
 

@@ -25,6 +25,18 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
+def collect_available_variants(project_dir: Path) -> list[str]:
+    """Discover all variant directories in a benchmark project."""
+    variants: set[str] = set()
+    for base in [project_dir / ".nasde", project_dir]:
+        variants_parent = base / "variants"
+        if variants_parent.exists():
+            variants.update(
+                d.name for d in variants_parent.iterdir() if d.is_dir()
+            )
+    return sorted(variants)
+
+
 async def run_benchmark(
     config: ProjectConfig,
     variant: str,

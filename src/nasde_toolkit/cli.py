@@ -72,6 +72,11 @@ def run(
         "--variant",
         help="Variant to run (defaults to config default).",
     ),
+    all_variants: bool = typer.Option(
+        False,
+        "--all-variants",
+        help="Run all available variants (Cartesian product with tasks).",
+    ),
     tasks: Optional[str] = typer.Option(
         None,
         "--tasks",
@@ -116,37 +121,69 @@ def run(
     ),
 ) -> None:
     """Run benchmark tasks via Harbor."""
+    if variant and all_variants:
+        console.print("[red]ERROR: --variant and --all-variants are mutually exclusive.[/red]")
+        raise typer.Exit(1)
+
     from nasde_toolkit.config import load_project_config
-    from nasde_toolkit.runner import run_benchmark
+    from nasde_toolkit.runner import collect_available_variants, run_benchmark
 
     config = load_project_config(project_dir.resolve())
-
     tasks_filter = [t.strip() for t in tasks.split(",")] if tasks else None
-
     resolved_harbor_env = harbor_env or config.default_harbor_env
+    resolved_model = model or config.default_model
+    resolved_timeout = timeout or config.default_timeout_sec
 
-    _print_run_header(
-        variant=variant or config.default_variant,
-        model=model or config.default_model,
-        timeout=timeout or config.default_timeout_sec,
-        tasks_filter=tasks_filter,
-        with_opik=with_opik,
-        with_eval=not without_eval,
-        harbor_env=resolved_harbor_env,
-        attempts=attempts,
-    )
+    if all_variants:
+        variants_list = collect_available_variants(config.project_dir)
+        if not variants_list:
+            console.print("[red]ERROR: No variants found.[/red]")
+            raise typer.Exit(1)
 
-    asyncio.run(run_benchmark(
-        config=config,
-        variant=variant or config.default_variant,
-        model=model or config.default_model,
-        timeout_sec=timeout or config.default_timeout_sec,
-        tasks_filter=tasks_filter,
-        with_opik=with_opik,
-        with_eval=not without_eval,
-        harbor_env=resolved_harbor_env,
-        n_attempts=attempts,
-    ))
+        _confirm_multi_variant_run(
+            variants=variants_list,
+            config=config,
+            tasks_filter=tasks_filter,
+            attempts=attempts,
+        )
+
+        # TODO: Parallel variant execution is possible but requires refactoring
+        # _run_job() to eliminate os.chdir() and isolate Opik tracking.
+        asyncio.run(_run_all_variants(
+            config=config,
+            variants=variants_list,
+            model=resolved_model,
+            timeout_sec=resolved_timeout,
+            tasks_filter=tasks_filter,
+            with_opik=with_opik,
+            with_eval=not without_eval,
+            harbor_env=resolved_harbor_env,
+            n_attempts=attempts,
+        ))
+    else:
+        resolved_variant = variant or config.default_variant
+        _print_run_header(
+            variant=resolved_variant,
+            model=resolved_model,
+            timeout=resolved_timeout,
+            tasks_filter=tasks_filter,
+            with_opik=with_opik,
+            with_eval=not without_eval,
+            harbor_env=resolved_harbor_env,
+            attempts=attempts,
+        )
+
+        asyncio.run(run_benchmark(
+            config=config,
+            variant=resolved_variant,
+            model=resolved_model,
+            timeout_sec=resolved_timeout,
+            tasks_filter=tasks_filter,
+            with_opik=with_opik,
+            with_eval=not without_eval,
+            harbor_env=resolved_harbor_env,
+            n_attempts=attempts,
+        ))
 
 
 @app.command(name="eval")
@@ -244,3 +281,95 @@ def _print_run_header(
         f"Assessment: {eval_str}",
         title="nasde",
     ))
+
+
+def _confirm_multi_variant_run(
+    variants: list[str],
+    config: "ProjectConfig",
+    tasks_filter: list[str] | None,
+    attempts: int,
+) -> None:
+    from rich.table import Table
+
+    task_names = [t.name for t in config.tasks]
+    if tasks_filter:
+        task_names = [n for n in task_names if n in set(tasks_filter)]
+
+    n_variants = len(variants)
+    n_tasks = len(task_names)
+    total_trials = n_variants * n_tasks * attempts
+
+    table = Table(title="Multi-Variant Run")
+    table.add_column("Variants", style="cyan")
+    table.add_column("Tasks", style="green")
+    table.add_column("Attempts", justify="right")
+    table.add_column("Total trials", justify="right", style="bold")
+    table.add_row(
+        ", ".join(variants),
+        ", ".join(task_names) if task_names else "(none)",
+        str(attempts),
+        str(total_trials),
+    )
+    console.print(table)
+
+    typer.confirm(
+        f"Run {total_trials} trials ({n_variants} variants x {n_tasks} tasks x {attempts} attempts)?",
+        abort=True,
+    )
+
+
+async def _run_all_variants(
+    config: "ProjectConfig",
+    variants: list[str],
+    model: str,
+    timeout_sec: int,
+    tasks_filter: list[str] | None,
+    with_opik: bool,
+    with_eval: bool,
+    harbor_env: str | None,
+    n_attempts: int,
+) -> None:
+    from rich.table import Table
+
+    from nasde_toolkit.runner import run_benchmark
+
+    results: list[tuple[str, str, str]] = []
+
+    for i, variant_name in enumerate(variants, 1):
+        console.print(
+            f"\n[bold]===  Variant {i}/{len(variants)}: {variant_name}  ===[/bold]\n"
+        )
+        try:
+            await run_benchmark(
+                config=config,
+                variant=variant_name,
+                model=model,
+                timeout_sec=timeout_sec,
+                tasks_filter=tasks_filter,
+                with_opik=with_opik,
+                with_eval=with_eval,
+                harbor_env=harbor_env,
+                n_attempts=n_attempts,
+            )
+            results.append((variant_name, "[green]OK[/green]", ""))
+        except SystemExit:
+            results.append((variant_name, "[red]FAILED[/red]", "system exit"))
+        except Exception as exc:
+            console.print(f"[red]ERROR running variant '{variant_name}': {exc}[/red]")
+            results.append((variant_name, "[red]FAILED[/red]", str(exc)))
+
+    _print_multi_variant_summary(results)
+
+
+def _print_multi_variant_summary(
+    results: list[tuple[str, str, str]],
+) -> None:
+    from rich.table import Table
+
+    table = Table(title="Multi-Variant Summary")
+    table.add_column("Variant", style="cyan")
+    table.add_column("Status")
+    table.add_column("Error")
+    for variant_name, status, error in results:
+        table.add_row(variant_name, status, error)
+    console.print(table)

@@ -54,7 +54,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **Configuration**: Two-layer config — `nasde.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.nasde/tasks/`) automatically.
 - **Benchmark runner**: Uses Harbor Python API (`Job`, `JobConfig`) directly instead of subprocess. The runner merges variant config with task registry into a dict, passes it to `JobConfig.model_validate()`, then runs `await job.run()`. Opik tracking via `track_harbor()` (monkey-patches Harbor at runtime).
 - **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
-- **Variant system**: Each variant is a directory under `variants/`. The `CLAUDE.md` inside is injected into the Harbor sandbox. If no `harbor_config.json` exists, one is auto-generated.
+- **Variant system**: Each variant is a directory under `variants/`. The `CLAUDE.md` inside is injected into `/app/CLAUDE.md` in the Harbor sandbox. An optional `skills/` subdirectory contains skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. If no `harbor_config.json` exists, one is auto-generated from discovered files.
 - **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
 - See `docs/adr/` for detailed decision records.
@@ -102,7 +102,10 @@ my-benchmark/
       solution/solve.sh         # Optional reference solution
   variants/
     <variant-name>/
-      CLAUDE.md                 # Agent instructions (injected into /app/CLAUDE.md in sandbox)
+      CLAUDE.md                 # Project instructions (injected into /app/CLAUDE.md in sandbox)
+      skills/                   # Optional: skill snapshots (injected into /app/.claude/skills/)
+        <skill-name>/
+          SKILL.md              # Skill content (snapshot for deterministic testing)
       harbor_config.json        # Optional: agent import path + sandbox_files mapping
       claude_config.json        # Optional: MCP server configuration
   jobs/                         # Trial output (gitignored)
@@ -200,7 +203,8 @@ timeout_sec = 300
       "name": "variant-name",
       "kwargs": {
         "sandbox_files": {
-          "/app/CLAUDE.md": "/absolute/path/to/variants/variant-name/CLAUDE.md"
+          "/app/CLAUDE.md": "/absolute/path/to/variants/variant-name/CLAUDE.md",
+          "/app/.claude/skills/my-skill/SKILL.md": "/absolute/path/to/variants/variant-name/skills/my-skill/SKILL.md"
         }
       }
     }

@@ -209,11 +209,14 @@ Harbor natively handles auth, MCP servers, model selection, and timeout. `Config
 Each benchmark defines its **own set of variants** — there are no globally shared variants. A variant represents a specific agent configuration to be compared against other variants on the same set of tasks.
 
 Each variant is a directory under `variants/<variant-name>/` containing:
-- `CLAUDE.md` — instructions injected into the sandbox (required)
+- `CLAUDE.md` — project instructions injected into `/app/CLAUDE.md` in the sandbox (required)
+- `skills/` — skill snapshots, each `skills/<name>/SKILL.md` injected into `/app/.claude/skills/<name>/SKILL.md` (optional)
 - `harbor_config.json` — agent import path + `sandbox_files` mapping (auto-generated if absent)
 - `claude_config.json` — MCP server configuration (optional)
 
-Variants can differ along many axes: instruction specificity, tool access, constraints, prompting techniques.
+This mirrors a real Claude Code project where CLAUDE.md and `.claude/skills/` are separate concerns. Skills in variants are deterministic snapshots — copies of the skill at a specific point in time, not references to external sources.
+
+Variants can differ along many axes: instruction specificity, skill combinations, tool access, constraints, prompting techniques.
 
 ---
 

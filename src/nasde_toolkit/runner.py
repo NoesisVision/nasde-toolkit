@@ -127,11 +127,23 @@ def _resolve_variant_dir(project_dir: Path, variant: str) -> Path:
     raise SystemExit(1)
 
 
-def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
-    claude_md = variant_dir / "CLAUDE.md"
+def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
     sandbox_files: dict[str, str] = {}
+    claude_md = variant_dir / "CLAUDE.md"
     if claude_md.exists():
         sandbox_files["/app/CLAUDE.md"] = str(claude_md)
+    skills_dir = variant_dir / "skills"
+    if skills_dir.is_dir():
+        for skill_dir in sorted(skills_dir.iterdir()):
+            skill_md = skill_dir / "SKILL.md"
+            if skill_dir.is_dir() and skill_md.exists():
+                target = f"/app/.claude/skills/{skill_dir.name}/SKILL.md"
+                sandbox_files[target] = str(skill_md)
+    return sandbox_files
+
+
+def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
+    sandbox_files = _collect_sandbox_files(variant_dir)
 
     config = {
         "agents": [

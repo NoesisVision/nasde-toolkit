@@ -134,11 +134,16 @@ async def evaluate_trial(
         return None
 
     result_json = _load_json(trial_dir / "result.json")
+
+    if result_json.get("exception_info"):
+        console.print(f"  [dim]SKIP: Trial {trial_dir.name} failed with exception (agent never ran)[/dim]")
+        return None
+
     task_name = _resolve_task_name(result_json)
     task_dir = _resolve_task_dir(result_json, project_root)
     trial_name = result_json.get("trial_name", trial_dir.name)
     agent_name = _resolve_agent_name(trial_dir)
-    harbor_reward = result_json.get("verifier_result", {}).get("rewards", {}).get("reward", 0.0)
+    harbor_reward = (result_json.get("verifier_result") or {}).get("rewards", {}).get("reward", 0.0)
     duration_sec = _compute_duration_sec(result_json)
 
     dimensions_path = task_dir.parent.parent / "assessment_dimensions.json"

@@ -10,9 +10,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 RUN git clone https://github.com/emilybache/Theatrical-Players-Refactoring-Kata.git . && git checkout main
 
-RUN pip install pytest
+RUN pip install pytest approvaltests
+
+# Remove pytest.ini with unsupported approvaltests flag
+RUN rm -f python/pytest.ini
 
 # Verify tests pass at the "before" state
-RUN cd python && python -m pytest test_statement.py -v
+RUN cd python && python -m pytest tests/test_statement.py -v
 
 CMD ["/bin/bash"]

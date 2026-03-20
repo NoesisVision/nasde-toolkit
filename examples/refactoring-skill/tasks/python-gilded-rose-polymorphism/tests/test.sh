@@ -9,7 +9,7 @@ cd /app/python
 
 echo "Step 1: Running existing tests..."
 echo "--------------------------------------"
-if python -m pytest test_gilded_rose.py -v; then
+if python -m pytest tests/test_gilded_rose.py -v; then
     echo "✓ Existing tests pass"
     echo ""
 else

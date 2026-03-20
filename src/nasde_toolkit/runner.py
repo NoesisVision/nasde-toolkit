@@ -34,6 +34,7 @@ async def run_benchmark(
     with_opik: bool = False,
     with_eval: bool = True,
     harbor_env: str | None = None,
+    n_attempts: int = 1,
 ) -> None:
     """Run a benchmark variant against configured tasks via Harbor."""
     _load_env_file(config.project_dir)
@@ -49,10 +50,12 @@ async def run_benchmark(
     merged_config = _build_merged_config(
         config=config,
         variant_config_path=harbor_config_path,
+        variant_name=variant,
         model=model,
         timeout_sec=timeout_sec,
         tasks_filter=tasks_filter,
         harbor_env=harbor_env,
+        n_attempts=n_attempts,
     )
 
     result = await _run_job(
@@ -66,7 +69,8 @@ async def run_benchmark(
     console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
     if with_eval:
-        await _run_post_hoc_assessment(config, with_opik)
+        job_dir = _resolve_jobs_dir(config.project_dir).resolve() / merged_config["job_name"]
+        await _run_post_hoc_assessment(config, with_opik, job_dir=job_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -154,11 +158,15 @@ def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
 def _build_merged_config(
     config: ProjectConfig,
     variant_config_path: Path,
+    variant_name: str,
     model: str,
     timeout_sec: int,
     tasks_filter: list[str] | None,
     harbor_env: str | None = None,
+    n_attempts: int = 1,
 ) -> dict:
+    from datetime import datetime
+
     with open(variant_config_path) as f:
         variant = json.load(f)
 
@@ -172,9 +180,12 @@ def _build_merged_config(
     jobs_dir = _resolve_jobs_dir(config.project_dir).resolve()
     jobs_dir.mkdir(parents=True, exist_ok=True)
 
+    job_name = f"{datetime.now().strftime('%Y-%m-%d__%H-%M-%S')}__{variant_name}"
+
     merged = {
+        "job_name": job_name,
         "jobs_dir": str(jobs_dir),
-        "n_attempts": 1,
+        "n_attempts": n_attempts,
         "agents": variant["agents"],
         "datasets": [
             {
@@ -295,9 +306,13 @@ def _print_job_summary(result: "JobResult") -> None:
 # ---------------------------------------------------------------------------
 
 
-async def _run_post_hoc_assessment(config: ProjectConfig, with_opik: bool) -> None:
-    latest_job = _find_latest_job(config.project_dir)
-    if not latest_job:
+async def _run_post_hoc_assessment(
+    config: ProjectConfig,
+    with_opik: bool,
+    job_dir: Path | None = None,
+) -> None:
+    target_job = job_dir or _find_latest_job(config.project_dir)
+    if not target_job:
         console.print("[yellow]WARN: No job directory found for assessment[/yellow]")
         return
 
@@ -308,7 +323,7 @@ async def _run_post_hoc_assessment(config: ProjectConfig, with_opik: bool) -> No
     from nasde_toolkit.evaluator import evaluate_job
 
     await evaluate_job(
-        job_dir=latest_job,
+        job_dir=target_job,
         project_root=config.project_dir,
         project_name=config.reporting.project_name,
         with_opik=with_opik,

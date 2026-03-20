@@ -92,6 +92,12 @@ def run(
         "--with-opik",
         help="Enable Opik tracing.",
     ),
+    attempts: int = typer.Option(
+        1,
+        "--attempts",
+        "-n",
+        help="Number of independent attempts per task (Harbor n_attempts).",
+    ),
     without_eval: bool = typer.Option(
         False,
         "--without-eval",
@@ -127,6 +133,7 @@ def run(
         with_opik=with_opik,
         with_eval=not without_eval,
         harbor_env=resolved_harbor_env,
+        attempts=attempts,
     )
 
     asyncio.run(run_benchmark(
@@ -138,6 +145,7 @@ def run(
         with_opik=with_opik,
         with_eval=not without_eval,
         harbor_env=resolved_harbor_env,
+        n_attempts=attempts,
     ))
 
 
@@ -218,16 +226,19 @@ def _print_run_header(
     with_opik: bool,
     with_eval: bool,
     harbor_env: str | None = None,
+    attempts: int = 1,
 ) -> None:
     tasks_str = ", ".join(tasks_filter) if tasks_filter else "all"
     eval_str = "enabled" if with_eval else "[yellow]disabled[/yellow]"
     env_str = harbor_env or "docker"
+    attempts_str = f"{attempts}" if attempts > 1 else "1"
     console.print(Panel(
         f"[bold]Benchmark Runner[/bold]\n"
         f"Variant: {variant}\n"
         f"Model: {model}\n"
         f"Timeout: {timeout}s\n"
         f"Tasks: {tasks_str}\n"
+        f"Attempts: {attempts_str}\n"
         f"Environment: {env_str}\n"
         f"Opik: {'enabled' if with_opik else 'disabled'}\n"
         f"Assessment: {eval_str}",

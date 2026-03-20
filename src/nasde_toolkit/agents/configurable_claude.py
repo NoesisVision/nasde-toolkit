@@ -26,11 +26,19 @@ Usage in harbor_config.json::
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.environments.base import BaseEnvironment
+
+logger = logging.getLogger(__name__)
+
+_DNS_FIX_COMMAND = (
+    "timeout 5 getent hosts claude.ai >/dev/null 2>&1"
+    " || printf 'nameserver 8.8.8.8\\nnameserver 1.1.1.1\\n' > /etc/resolv.conf"
+)
 
 
 class ConfigurableClaude(ClaudeCode):
@@ -56,9 +64,24 @@ class ConfigurableClaude(ClaudeCode):
         return "configurable-claude-code"
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        """Run base setup then upload configured files into the sandbox."""
+        """Fix cloud DNS, run base setup, then upload configured files."""
+        await self._ensure_dns_resolution(environment)
         await super().setup(environment)
         await self._upload_sandbox_files(environment)
+
+    async def _ensure_dns_resolution(self, environment: BaseEnvironment) -> None:
+        """Prepend 1.1.1.1 to resolv.conf if missing.
+
+        Daytona cloud sandboxes may land on runners whose DNS resolvers
+        cannot reach whitelisted domains (e.g. claude.ai).  Prepending
+        Cloudflare's public resolver fixes this without affecting local
+        Docker environments (Docker regenerates resolv.conf on start).
+        """
+        result = await environment.exec(command=_DNS_FIX_COMMAND)
+        if result.return_code == 0:
+            logger.debug("DNS resolution fix applied")
+        else:
+            logger.warning("DNS resolution fix failed: %s", result.stderr)
 
     async def _upload_sandbox_files(self, environment: BaseEnvironment) -> None:
         for target_path, source_path in self._sandbox_files.items():

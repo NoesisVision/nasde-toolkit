@@ -7,3 +7,5 @@ dist/
 build/
 **/jobs/
 .env
+harbor_config.json
+.claude/worktrees/

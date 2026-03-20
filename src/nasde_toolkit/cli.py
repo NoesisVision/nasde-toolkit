@@ -125,6 +125,10 @@ def run(
         console.print("[red]ERROR: --variant and --all-variants are mutually exclusive.[/red]")
         raise typer.Exit(1)
 
+    if not variant and not all_variants:
+        console.print("[red]ERROR: Specify --variant NAME or --all-variants.[/red]")
+        raise typer.Exit(1)
+
     from nasde_toolkit.config import load_project_config
     from nasde_toolkit.runner import collect_available_variants, run_benchmark
 
@@ -161,7 +165,7 @@ def run(
             n_attempts=attempts,
         ))
     else:
-        resolved_variant = variant or config.default_variant
+        resolved_variant = variant
         _print_run_header(
             variant=resolved_variant,
             model=resolved_model,

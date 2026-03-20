@@ -93,7 +93,8 @@ my-benchmark/
   assessment_dimensions.json    # Scoring dimensions (benchmark-wide, 3-5 dimensions, sum to 100)
   tasks/
     <task-name>/
-      task.json                 # Task metadata (name, source.git, source.ref, evaluation script)
+      task.json                 # Task metadata for nasde (name, source.git, source.ref, evaluation script)
+      task.toml                 # Task metadata for Harbor (version, agent timeout, verifier timeout)
       instruction.md            # Agent-facing task description
       assessment_criteria.md    # Per-task rubric for LLM-as-a-Judge
       environment/Dockerfile    # Docker container setup
@@ -168,6 +169,25 @@ Dimensions are benchmark-specific. Total scores should sum to 100. Typically 3-5
     "timeout_seconds": 300
   }
 }
+```
+
+### task.toml (required by Harbor)
+
+Harbor reads `task.toml`, not `task.json`. Every task directory MUST have both files.
+
+```toml
+version = "1.0"
+
+[metadata]
+name = "task-name"
+description = "Brief description"
+language = "Python"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300
 ```
 
 ### harbor_config.json (per variant)

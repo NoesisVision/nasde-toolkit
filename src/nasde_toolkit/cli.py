@@ -113,6 +113,11 @@ def run(
         "--job-suffix",
         help="Custom suffix for job directory name (default: random 6-char hex).",
     ),
+    max_concurrent_eval: int = typer.Option(
+        10,
+        "--max-concurrent-eval",
+        help="Max concurrent assessment evaluations (default: 10).",
+    ),
     harbor_env: Optional[str] = typer.Option(
         None,
         "--harbor-env",
@@ -169,6 +174,7 @@ def run(
             harbor_env=resolved_harbor_env,
             n_attempts=attempts,
             job_suffix=job_suffix,
+            max_concurrent_eval=max_concurrent_eval,
         ))
     else:
         resolved_variant = variant
@@ -194,6 +200,7 @@ def run(
             harbor_env=resolved_harbor_env,
             n_attempts=attempts,
             job_suffix=job_suffix,
+            max_concurrent_eval=max_concurrent_eval,
         ))
 
 
@@ -207,6 +214,11 @@ def eval_command(
         False,
         "--with-opik",
         help="Upload scores to Opik.",
+    ),
+    max_concurrent_eval: int = typer.Option(
+        10,
+        "--max-concurrent-eval",
+        help="Max concurrent assessment evaluations (default: 10).",
     ),
     project_dir: Path = typer.Option(
         Path("."),
@@ -233,6 +245,7 @@ def eval_command(
         project_root=config.project_dir,
         project_name=config.reporting.project_name,
         with_opik=with_opik,
+        max_concurrent=max_concurrent_eval,
     ))
 
 
@@ -340,6 +353,7 @@ async def _run_all_variants(
     harbor_env: str | None,
     n_attempts: int,
     job_suffix: str | None = None,
+    max_concurrent_eval: int = 10,
 ) -> None:
     from rich.table import Table
 
@@ -363,6 +377,7 @@ async def _run_all_variants(
                 harbor_env=harbor_env,
                 n_attempts=n_attempts,
                 job_suffix=job_suffix,
+                max_concurrent_eval=max_concurrent_eval,
             )
             results.append((variant_name, "[green]OK[/green]", ""))
         except SystemExit:

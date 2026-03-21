@@ -96,31 +96,75 @@ async def evaluate_job(
     project_root: Path,
     project_name: str,
     with_opik: bool = False,
+    max_concurrent: int = 10,
 ) -> list[EvaluationResult]:
-    """Evaluate all trials in a job directory."""
+    """Evaluate all trials in a job directory (concurrently)."""
     trial_dirs = _collect_trial_dirs(job_dir)
 
     if not trial_dirs:
         console.print("[yellow]No trial directories found.[/yellow]")
         return []
 
-    results: list[EvaluationResult] = []
-    for trial_dir in trial_dirs:
-        console.print(f"\n[bold]{'=' * 60}[/bold]")
-        console.print(f"[bold]Evaluating: {trial_dir.name}[/bold]")
-        console.print(f"[bold]{'=' * 60}[/bold]")
+    _warn_if_throttled(trial_dirs, max_concurrent)
+    semaphore = asyncio.Semaphore(max_concurrent)
+    coros = [
+        _evaluate_and_record_trial(td, project_root, project_name, with_opik, semaphore)
+        for td in trial_dirs
+    ]
+    all_results = await asyncio.gather(*coros)
+    return [r for r in all_results if r is not None]
 
-        evaluation = await evaluate_trial(trial_dir, project_root)
-        if not evaluation:
-            continue
 
-        _write_evaluation_result(trial_dir, evaluation)
-        results.append(evaluation)
+async def evaluate_and_record_trial(
+    trial_dir: Path,
+    project_root: Path,
+    project_name: str,
+    with_opik: bool,
+    semaphore: asyncio.Semaphore,
+) -> EvaluationResult | None:
+    """Evaluate a single trial with semaphore-based concurrency control.
 
-        if with_opik:
-            _upload_to_opik(evaluation, project_name)
+    Public wrapper used by runner.py for streaming (Level 2) assessment.
+    """
+    return await _evaluate_and_record_trial(
+        trial_dir, project_root, project_name, with_opik, semaphore,
+    )
 
-    return results
+
+async def _evaluate_and_record_trial(
+    trial_dir: Path,
+    project_root: Path,
+    project_name: str,
+    with_opik: bool,
+    semaphore: asyncio.Semaphore,
+) -> EvaluationResult | None:
+    async with semaphore:
+        console.print(f"\n[bold]Evaluating: {trial_dir.name}[/bold]")
+        try:
+            evaluation = await evaluate_trial(trial_dir, project_root)
+            if not evaluation:
+                return None
+            _write_evaluation_result(trial_dir, evaluation)
+            if with_opik:
+                await asyncio.to_thread(_upload_to_opik, evaluation, project_name)
+            return evaluation
+        except Exception as exc:
+            console.print(f"[red]Assessment failed for {trial_dir.name}: {exc}[/red]")
+            return None
+
+
+def _warn_if_throttled(trial_dirs: list[Path], max_concurrent: int) -> None:
+    if len(trial_dirs) <= max_concurrent:
+        return
+    unique_tasks = {td.name.rsplit("__", 1)[0] for td in trial_dirs}
+    n_tasks = len(unique_tasks)
+    n_attempts = len(trial_dirs) // max(n_tasks, 1)
+    breakdown = f"{n_tasks} tasks x {n_attempts} attempts" if n_attempts > 1 else f"{n_tasks} tasks"
+    console.print(
+        f"[yellow]Warning: {len(trial_dirs)} trials to evaluate ({breakdown}), "
+        f"but max concurrent evals is {max_concurrent}. "
+        f"Evaluations will be throttled. Use --max-concurrent-eval to adjust.[/yellow]"
+    )
 
 
 async def evaluate_trial(

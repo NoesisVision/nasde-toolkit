@@ -6,11 +6,13 @@ directly via Python API, and triggers post-hoc assessment evaluation.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
+from typing import Callable
 from uuid import uuid4
 
 from rich.console import Console
@@ -49,6 +51,7 @@ async def run_benchmark(
     harbor_env: str | None = None,
     n_attempts: int = 1,
     job_suffix: str | None = None,
+    max_concurrent_eval: int = 10,
 ) -> None:
     """Run a benchmark variant against configured tasks via Harbor."""
     _load_env_file(config.project_dir)
@@ -73,19 +76,24 @@ async def run_benchmark(
         job_suffix=job_suffix,
     )
 
-    result = await _run_job(
-        merged_config,
-        with_opik=with_opik,
-        project_name=config.reporting.project_name or config.name,
-        project_dir=config.project_dir,
-    )
-    _print_job_summary(result)
-
-    console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
-
     if with_eval:
-        job_dir = _resolve_jobs_dir(config.project_dir).resolve() / merged_config["job_name"]
-        await _run_post_hoc_assessment(config, with_opik, job_dir=job_dir)
+        os.environ.pop("CLAUDECODE", None)
+        await _run_job_with_streaming_eval(
+            config=config,
+            merged_config=merged_config,
+            with_opik=with_opik,
+            harbor_env=harbor_env,
+            max_concurrent_eval=max_concurrent_eval,
+        )
+    else:
+        result = await _run_job(
+            merged_config,
+            with_opik=with_opik,
+            project_name=config.reporting.project_name or config.name,
+            project_dir=config.project_dir,
+        )
+        _print_job_summary(result)
+        console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
 # ---------------------------------------------------------------------------
@@ -269,22 +277,60 @@ def _resolve_jobs_dir(project_dir: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 
+async def _run_job_with_streaming_eval(
+    config: ProjectConfig,
+    merged_config: dict,
+    with_opik: bool,
+    harbor_env: str | None,
+    max_concurrent_eval: int,
+) -> None:
+    """Run Harbor job with assessment eval starting per trial as they complete."""
+    from nasde_toolkit.evaluator import evaluate_and_record_trial
+
+    project_name = config.reporting.project_name or config.name
+    job_dir = _resolve_jobs_dir(config.project_dir).resolve() / merged_config["job_name"]
+    eval_semaphore = asyncio.Semaphore(max_concurrent_eval)
+    assessment_tasks: list[asyncio.Task] = []
+
+    async def _on_trial_complete(event: object) -> None:
+        trial_dir = Path(event.config.trials_dir) / event.config.trial_name  # type: ignore[attr-defined]
+        task = asyncio.create_task(
+            evaluate_and_record_trial(
+                trial_dir=trial_dir,
+                project_root=config.project_dir,
+                project_name=project_name,
+                with_opik=with_opik,
+                semaphore=eval_semaphore,
+            )
+        )
+        assessment_tasks.append(task)
+
+    try:
+        result = await _run_job(
+            merged_config,
+            with_opik=with_opik,
+            project_name=project_name,
+            project_dir=config.project_dir,
+            on_trial_ended=_on_trial_complete,
+        )
+        _print_job_summary(result)
+        console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
+    finally:
+        if assessment_tasks:
+            console.print(
+                f"[dim]Waiting for {len(assessment_tasks)} assessment evaluation(s)...[/dim]"
+            )
+            await asyncio.gather(*assessment_tasks, return_exceptions=True)
+
+
 async def _run_job(
     config_dict: dict,
     with_opik: bool,
     project_name: str,
     project_dir: Path | None = None,
+    on_trial_ended: Callable | None = None,
 ) -> "JobResult":
-    """Run a Harbor job via Python API.
-
-    Args:
-        config_dict: Merged Harbor config as a dict.
-        with_opik: Enable Opik tracking.
-        project_name: Opik project name.
-        project_dir: Project directory to chdir into before running.
-            Harbor resolves task paths and agent import_path relative to
-            CWD, so we must be in the project directory.
-    """
+    """Run a Harbor job via Python API."""
     from harbor.job import Job
     from harbor.models.job.config import JobConfig
 
@@ -302,6 +348,8 @@ async def _run_job(
     try:
         job_config = JobConfig.model_validate(config_dict)
         job = Job(job_config)
+        if on_trial_ended:
+            job.on_trial_ended(on_trial_ended)
         return await job.run()
     finally:
         os.chdir(saved_cwd)
@@ -339,6 +387,7 @@ async def _run_post_hoc_assessment(
     config: ProjectConfig,
     with_opik: bool,
     job_dir: Path | None = None,
+    max_concurrent_eval: int = 10,
 ) -> None:
     target_job = job_dir or _find_latest_job(config.project_dir)
     if not target_job:
@@ -356,6 +405,7 @@ async def _run_post_hoc_assessment(
         project_root=config.project_dir,
         project_name=config.reporting.project_name,
         with_opik=with_opik,
+        max_concurrent=max_concurrent_eval,
     )
 
 

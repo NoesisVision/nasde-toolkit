@@ -148,7 +148,7 @@ def run(
     config = load_project_config(project_dir.resolve())
     tasks_filter = [t.strip() for t in tasks.split(",")] if tasks else None
     resolved_harbor_env = harbor_env or config.default_harbor_env
-    resolved_model = model or config.default_model
+    resolved_model = model
     resolved_timeout = timeout or config.default_timeout_sec
 
     if all_variants:
@@ -297,7 +297,7 @@ def opik_passthrough(ctx: typer.Context) -> None:
 
 def _print_run_header(
     variant: str,
-    model: str,
+    model: str | None,
     timeout: int,
     tasks_filter: list[str] | None,
     with_opik: bool,
@@ -366,7 +366,7 @@ def _confirm_multi_variant_run(
 async def _run_all_variants(
     config: ProjectConfig,
     variants: list[str],
-    model: str,
+    model: str | None,
     timeout_sec: int,
     tasks_filter: list[str] | None,
     with_opik: bool,

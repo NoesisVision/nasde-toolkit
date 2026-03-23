@@ -239,7 +239,7 @@ Codex variant:
     {
       "import_path": "nasde_toolkit.agents.configurable_codex:ConfigurableCodex",
       "name": "variant-name",
-      "model_name": "o3",
+      "model_name": "gpt-5.3-codex",
       "kwargs": {
         "sandbox_files": {
           "/app/AGENTS.md": "/absolute/path/to/variants/variant-name/AGENTS.md"

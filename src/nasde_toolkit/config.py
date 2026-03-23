@@ -70,7 +70,7 @@ class ProjectConfig:
     version: str = "1.0.0"
     project_dir: Path = field(default_factory=lambda: Path.cwd())
     default_variant: str = "vanilla"
-    default_model: str = "claude-sonnet-4-6"
+    default_model: str | None = None
     default_timeout_sec: int = 720
     default_harbor_env: str | None = None
     docker: DockerConfig = field(default_factory=DockerConfig)
@@ -116,7 +116,7 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
         version=project.get("version", "1.0.0"),
         project_dir=project_dir,
         default_variant=defaults.get("variant", "vanilla"),
-        default_model=defaults.get("model", "claude-sonnet-4-6"),
+        default_model=defaults.get("model"),
         default_timeout_sec=defaults.get("timeout_sec", 720),
         default_harbor_env=defaults.get("harbor_env"),
         docker=DockerConfig(

@@ -4,6 +4,8 @@
   <h3>Noesis Agentic Software Development Evals Toolkit</h3>
 
   <p>CLI toolkit for evaluating AI coding agents with multi-dimensional, agentic code review.</p>
+
+  <a href="https://discord.gg/QF5PMX4Dqg"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
 </div>
 
 ---
@@ -437,3 +439,9 @@ Expected feedback scores after a full run with `--with-opik`:
 - `arch_total` — overall architecture score
 - `reward` — Harbor functional test result (0.0 or 1.0)
 - `duration_sec` — trial duration
+
+## Community
+
+Have questions, want to share your benchmarks, or discuss AI agent evaluation strategies? Join our Discord community — we'd love to hear from you!
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/QF5PMX4Dqg)

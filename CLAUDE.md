@@ -16,7 +16,8 @@ src/nasde_toolkit/
     __init__.py            # Project scaffolding templates and file creation
   agents/
     __init__.py
-    configurable_claude.py # Harbor-compatible agent with sandbox file injection
+    configurable_claude.py # Harbor-compatible Claude Code agent with sandbox file injection
+    configurable_codex.py  # Harbor-compatible Codex agent with sandbox file injection
 tests/
 pyproject.toml
 ```
@@ -54,7 +55,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **Configuration**: Two-layer config — `nasde.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.nasde/tasks/`) automatically.
 - **Benchmark runner**: Uses Harbor Python API (`Job`, `JobConfig`) directly instead of subprocess. The runner merges variant config with task registry into a dict, passes it to `JobConfig.model_validate()`, then runs `await job.run()`. Opik tracking via `track_harbor()` (monkey-patches Harbor at runtime).
 - **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Configurable via `[evaluation]` in `nasde.toml` — model, tools, MCP servers, skills, and system prompt can all be customized. Default model is `claude-opus-4-6` (best available for review quality). Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
-- **Variant system**: Each variant is a directory under `variants/`. The `CLAUDE.md` inside is injected into `/app/CLAUDE.md` in the Harbor sandbox. An optional `skills/` subdirectory contains skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. If no `harbor_config.json` exists, one is auto-generated from discovered files.
+- **Variant system**: Each variant is a directory under `variants/` with a required `variant.toml` declaring the agent type (`agent = "claude"` or `agent = "codex"`). For Claude Code variants, `CLAUDE.md` is injected into `/app/CLAUDE.md`; for Codex variants, `AGENTS.md` is injected into `/app/AGENTS.md`. An optional `skills/` subdirectory contains Claude skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. An optional `agents_skills/` subdirectory contains Codex skill snapshots — all files under `agents_skills/<name>/` are injected into `/app/.agents/skills/<name>/`. If no `harbor_config.json` exists, one is auto-generated from `variant.toml`.
 - **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
 - See `docs/adr/` for detailed decision records.
@@ -103,10 +104,15 @@ my-benchmark/
       solution/solve.sh         # Optional reference solution
   variants/
     <variant-name>/
-      CLAUDE.md                 # Project instructions (injected into /app/CLAUDE.md in sandbox)
-      skills/                   # Optional: skill snapshots (injected into /app/.claude/skills/)
+      variant.toml              # Required: agent type declaration (agent = "claude" or "codex")
+      CLAUDE.md                 # Claude Code instructions (injected into /app/CLAUDE.md)
+      AGENTS.md                 # Codex instructions (injected into /app/AGENTS.md)
+      skills/                   # Optional: Claude skill snapshots (injected into /app/.claude/skills/)
         <skill-name>/
           SKILL.md              # Skill content (snapshot for deterministic testing)
+      agents_skills/            # Optional: Codex skill snapshots (injected into /app/.agents/skills/)
+        <skill-name>/
+          SKILL.md              # Skill content with YAML frontmatter (name + description)
       harbor_config.json        # Optional: agent import path + sandbox_files mapping
       claude_config.json        # Optional: MCP server configuration
   evaluator_skills/             # Optional: skills for the evaluator agent
@@ -205,6 +211,7 @@ timeout_sec = 300
 
 ### harbor_config.json (per variant)
 
+Claude Code variant:
 ```json
 {
   "agents": [
@@ -222,8 +229,27 @@ timeout_sec = 300
 }
 ```
 
+Codex variant:
+```json
+{
+  "agents": [
+    {
+      "import_path": "nasde_toolkit.agents.configurable_codex:ConfigurableCodex",
+      "name": "variant-name",
+      "model_name": "o3",
+      "kwargs": {
+        "sandbox_files": {
+          "/app/AGENTS.md": "/absolute/path/to/variants/variant-name/AGENTS.md"
+        },
+        "reasoning_effort": "high"
+      }
+    }
+  ]
+}
+```
+
 Critical: `"name"` field is REQUIRED — without it, Opik tagging breaks.
-If `harbor_config.json` is absent, `nasde` auto-generates one from `CLAUDE.md`.
+If `harbor_config.json` is absent, `nasde` auto-generates one based on the instruction file present (`CLAUDE.md` → Claude, `AGENTS.md` → Codex).
 
 ### tests/test.sh (Harbor verifier)
 

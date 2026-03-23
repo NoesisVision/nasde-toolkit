@@ -106,23 +106,31 @@ After installation, only `nasde` appears on PATH. Harbor, Opik, and Claude Code 
 ## Quick start
 
 ```bash
-# Set authentication (one of)
+# Set authentication for the agent you want to use:
+
+# Claude Code (one of)
 export ANTHROPIC_API_KEY=sk-ant-...
 export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+
+# OpenAI Codex
+export CODEX_API_KEY=sk-...        # OpenAI API key (from platform.openai.com)
 
 # 1. Scaffold a new evaluation project
 nasde init my-benchmark
 
-# 2. Run benchmark (assessment evaluation runs by default)
+# 2. Run benchmark with Claude Code variant
 nasde run --variant vanilla -C my-benchmark
 
-# 3. Run specific tasks with Opik tracing
+# 3. Run benchmark with Codex variant
+nasde run --variant codex-baseline --model o3 -C my-benchmark
+
+# 4. Run specific tasks with Opik tracing
 nasde run --variant vanilla --tasks my-task -C my-benchmark --with-opik
 
-# 4. Skip assessment evaluation (Harbor only)
+# 5. Skip assessment evaluation (Harbor only)
 nasde run --variant vanilla -C my-benchmark --without-eval
 
-# 5. Re-evaluate an existing job directory
+# 6. Re-evaluate an existing job directory
 nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 ```
 
@@ -286,15 +294,35 @@ my-benchmark/
       tests/
         test.sh                # Harbor verification script
   variants/
-    vanilla/
-      CLAUDE.md                # Agent system prompt for this variant
-    guided/
+    vanilla/                   # Claude Code variant
+      variant.toml             # agent = "claude"
+      CLAUDE.md                # Agent system prompt (injected to /app/CLAUDE.md)
+    guided/                    # Claude Code variant with skills
+      variant.toml             # agent = "claude"
       CLAUDE.md
+      skills/                  # Claude skills (injected to /app/.claude/skills/)
+        my-skill/
+          SKILL.md
+    codex-baseline/            # Codex variant
+      variant.toml             # agent = "codex"
+      AGENTS.md                # Codex instructions (injected to /app/AGENTS.md)
+    codex-with-skills/         # Codex variant with skills
+      variant.toml             # agent = "codex"
+      AGENTS.md
+      agents_skills/           # Codex skills (injected to /app/.agents/skills/)
+        my-skill/
+          SKILL.md             # Requires YAML frontmatter (name + description)
   evaluator_skills/            # Optional: skills for the evaluator agent
     code-review/
       SKILL.md
   evaluator_mcp.json           # Optional: MCP server config for evaluator
   jobs/                        # Trial output (gitignored)
+```
+
+Each variant must have a `variant.toml` declaring the agent type:
+
+```toml
+agent = "claude"   # or "codex"
 ```
 
 ### `nasde.toml`
@@ -336,6 +364,10 @@ Key design: `nasde` is a **thin integration layer** over Harbor and Opik, not a 
 
 ## Authentication
 
+NASDE auto-detects the required credentials based on the variant's agent type.
+
+### Claude Code
+
 The tool checks for auth tokens in this order:
 1. `ANTHROPIC_API_KEY` environment variable
 2. `CLAUDE_CODE_OAUTH_TOKEN` environment variable
@@ -349,6 +381,22 @@ source scripts/export_oauth_token.sh
 
 This lets you use your Claude Pro/Max subscription instead of an API key.
 
+### OpenAI Codex
+
+Codex variants require an **OpenAI API key**. This is a standard API key from [platform.openai.com](https://platform.openai.com/api-keys) — the same key you'd use for any OpenAI API call (GPT, o3, etc.). It is billed per-token through your OpenAI Platform account.
+
+Set it as `CODEX_API_KEY` (preferred by the Codex CLI):
+
+```bash
+export CODEX_API_KEY=sk-...
+```
+
+`OPENAI_API_KEY` also works, but `CODEX_API_KEY` is recommended to avoid conflicts with other OpenAI tools.
+
+> **Note:** Codex CLI also supports OAuth-based auth via ChatGPT subscriptions (`codex login`), but NASDE currently only supports API key authentication for Codex variants, since agents run in isolated Docker/cloud sandboxes where OAuth sessions from the host are not available.
+
+### Opik tracing
+
 For Opik tracing, set credentials in `.env` (in project dir or parent):
 ```
 OPIK_API_KEY=...
@@ -361,7 +409,10 @@ OPIK_PROJECT_NAME=...
 - **Python 3.12+**
 - **Docker** (default) or a cloud sandbox provider — Harbor runs agents in isolated environments
 - **uv** — Package manager
-- **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** — Required for agent and evaluator execution
+- **Agent credentials** (at least one):
+  - Claude Code: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`
+  - OpenAI Codex: `CODEX_API_KEY` (OpenAI API key from [platform.openai.com](https://platform.openai.com/api-keys))
+- **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** — Also required for the assessment evaluator (which always uses Claude Code SDK)
 
 ## Verifying Opik results
 

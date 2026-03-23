@@ -2,7 +2,7 @@
 
 ## Overview
 
-NASDE evaluates AI coding agents (e.g. Claude Code) on programming tasks. It uses **Harbor** as the execution engine running agents in isolated sandbox environments and **Opik** as the observability platform for tracking results.
+NASDE evaluates AI coding agents (e.g. Claude Code, OpenAI Codex) on programming tasks. It uses **Harbor** as the execution engine running agents in isolated sandbox environments and **Opik** as the observability platform for tracking results.
 
 Key design: evaluation is **two-stage** — Harbor assesses functional correctness (tests pass/fail), then a separate reviewer agent (Claude Code SDK) assesses architectural quality of the generated code.
 
@@ -200,11 +200,16 @@ When `mcp_config` is set, MCP servers are loaded from the JSON file and passed t
 
 ---
 
-## ConfigurableClaude — the only custom agent class
+## Custom agent classes
 
 ```mermaid
 classDiagram
     class ClaudeCode {
+        <<Harbor built-in>>
+        +setup(environment)
+        +solve(task)
+    }
+    class Codex {
         <<Harbor built-in>>
         +setup(environment)
         +solve(task)
@@ -215,12 +220,20 @@ classDiagram
         -_upload_sandbox_files(environment)
         +name() str
     }
+    class ConfigurableCodex {
+        -_sandbox_files: dict~str, str~
+        +setup(environment)
+        -_upload_sandbox_files(environment)
+        +name() str
+    }
     ClaudeCode <|-- ConfigurableClaude
+    Codex <|-- ConfigurableCodex
 
-    note for ConfigurableClaude "Only reason to exist: Harbor has no\nmechanism for injecting files into\nthe sandbox (e.g. CLAUDE.md, MCP config)"
+    note for ConfigurableClaude "Injects CLAUDE.md, .claude/skills/ into sandbox"
+    note for ConfigurableCodex "Injects AGENTS.md, .agents/skills/ into sandbox"
 ```
 
-Harbor natively handles auth, MCP servers, model selection, and timeout. `ConfigurableClaude` adds **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`.
+Harbor natively handles auth, MCP servers, model selection, and timeout for both agents. `ConfigurableClaude` and `ConfigurableCodex` each add **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`. The agent type is auto-detected from the variant's instruction file (`CLAUDE.md` → Claude, `AGENTS.md` → Codex).
 
 ---
 
@@ -229,14 +242,15 @@ Harbor natively handles auth, MCP servers, model selection, and timeout. `Config
 Each benchmark defines its **own set of variants** — there are no globally shared variants. A variant represents a specific agent configuration to be compared against other variants on the same set of tasks.
 
 Each variant is a directory under `variants/<variant-name>/` containing:
-- `CLAUDE.md` — project instructions injected into `/app/CLAUDE.md` in the sandbox (required)
-- `skills/` — skill snapshots, each `skills/<name>/SKILL.md` injected into `/app/.claude/skills/<name>/SKILL.md` (optional)
-- `harbor_config.json` — agent import path + `sandbox_files` mapping (auto-generated if absent)
-- `claude_config.json` — MCP server configuration (optional)
+- `variant.toml` — **required**, declares the agent type (`agent = "claude"` or `agent = "codex"`)
+- `CLAUDE.md` — Claude Code instructions injected into `/app/CLAUDE.md` (for Claude variants)
+- `AGENTS.md` — Codex instructions injected into `/app/AGENTS.md` (for Codex variants)
+- `skills/` — Claude skill snapshots, each `skills/<name>/SKILL.md` injected into `/app/.claude/skills/<name>/SKILL.md` (optional)
+- `agents_skills/` — Codex skill snapshots, each `agents_skills/<name>/` injected recursively into `/app/.agents/skills/<name>/` (optional)
+- `harbor_config.json` — agent import path + `sandbox_files` mapping (auto-generated from `variant.toml` if absent)
+- `claude_config.json` — MCP server configuration, Claude only (optional)
 
-This mirrors a real Claude Code project where CLAUDE.md and `.claude/skills/` are separate concerns. Skills in variants are deterministic snapshots — copies of the skill at a specific point in time, not references to external sources.
-
-Variants can differ along many axes: instruction specificity, skill combinations, tool access, constraints, prompting techniques.
+Variants can differ along many axes: agent type, instruction specificity, skill combinations, tool access, constraints, prompting techniques. Cross-agent comparison (e.g. Claude vs Codex on the same tasks) is a key use case.
 
 ---
 
@@ -328,5 +342,6 @@ src/nasde_toolkit/
   docker.py                # Docker environment helpers
   scaffold/                # Project scaffolding templates
   agents/
-    configurable_claude.py # Harbor-compatible agent with sandbox file injection
+    configurable_claude.py # Harbor-compatible Claude Code agent with sandbox file injection
+    configurable_codex.py  # Harbor-compatible Codex agent with sandbox file injection
 ```

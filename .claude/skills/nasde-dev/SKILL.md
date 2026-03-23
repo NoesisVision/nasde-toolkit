@@ -29,12 +29,19 @@ grep -r "sdlc.eval\|sdlc-eval\|sdlc_eval" src/ docs/ CLAUDE.md README.md .claude
 uv sync
 ```
 
-### 1b. Documentation consistency
+### 1b. Documentation and skills consistency
 
-After any change to the evaluation pipeline, CLI flags, configuration schema, or sandbox/environment handling, update **all** of these:
+After any change to the evaluation pipeline, CLI flags, configuration schema, agent support, or sandbox/environment handling, update **all** of these:
+
+**Documentation:**
 - `ARCHITECTURE.md` — system architecture with mermaid diagrams (end-to-end flow, trial lifecycle, cloud sandbox providers, assessment evaluation)
-- `README.md` — user-facing documentation (CLI options table, nasde.toml example, prerequisites)
+- `README.md` — user-facing documentation (CLI options table, nasde.toml example, prerequisites, authentication)
 - `CLAUDE.md` — agent instructions (CLI reference, nasde.toml example, architecture decisions)
+
+**Skills (update when relevant to the change):**
+- `.claude/skills/nasde-benchmark-runner/SKILL.md` — running benchmarks, supported models/agents, auth, troubleshooting
+- `.claude/skills/nasde-benchmark-creator/SKILL.md` — creating benchmarks, variant structure, task formats, agent conventions
+- `.claude/skills/nasde-dev/SKILL.md` — this file, verification protocol
 
 ### 2. CLI smoke test
 

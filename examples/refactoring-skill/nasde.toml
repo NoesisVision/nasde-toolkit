@@ -3,7 +3,7 @@ name = "refactoring-skill"
 version = "1.0.0"
 
 [defaults]
-variant = "vanilla"
+variant = "claude-vanilla"
 model = "claude-sonnet-4-6"
 timeout_sec = 720
 

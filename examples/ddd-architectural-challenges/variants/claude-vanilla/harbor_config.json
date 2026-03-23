@@ -1,0 +1,13 @@
+{
+  "agents": [
+    {
+      "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
+      "name": "claude-vanilla",
+      "kwargs": {
+        "sandbox_files": {
+          "/app/CLAUDE.md": "/Users/szjanikowski/Documents/git/noesis/sdlc-projects/nasde-toolkit/examples/ddd-architectural-challenges/variants/claude-vanilla/CLAUDE.md"
+        }
+      }
+    }
+  ]
+}

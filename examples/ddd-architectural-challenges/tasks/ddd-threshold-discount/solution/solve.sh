@@ -15,7 +15,6 @@ DISCOUNT_DIR="Sources/Sales/Sales.DeepModel/Pricing/Discounts"
 
 cat > "$DISCOUNT_DIR/ThresholdDiscount.cs" << 'EOF'
 using MyCompany.ECommerce.Sales.Commons;
-using MyCompany.ECommerce.TechnicalStuff.Money;
 
 namespace MyCompany.ECommerce.Sales.Pricing.Discounts;
 
@@ -62,44 +61,131 @@ echo "✓ ThresholdDiscount.cs created"
 # 2. Extend Discount discriminated union
 # -------------------------------------------------------------------
 
-# Patch Discount.cs: add _thresholdDiscount field, factory method, and cases
-# Uses Python for safe in-place patching.
-python3 - << 'PYEOF'
-import re
+# The original Discount.cs uses a private constructor with all fields.
+# We need to: add a field, extend the constructor, add a factory method,
+# and update ApplyOn/Equals/GetHashCode/ToString.
 
-path = "Sources/Sales/Sales.DeepModel/Pricing/Discounts/Discount.cs"
-with open(path) as f:
-    src = f.read()
+DISCOUNT_FILE="Sources/Sales/Sales.DeepModel/Pricing/Discounts/Discount.cs"
 
-# Add field after _valueDiscount field
-src = src.replace(
-    "    private readonly ValueDiscount _valueDiscount;",
-    "    private readonly ValueDiscount _valueDiscount;\n    private readonly ThresholdDiscount _thresholdDiscount;"
-)
+# Rewrite Discount.cs entirely — sed patches are fragile on readonly structs
+cat > "$DISCOUNT_FILE" << 'EOF'
+using MyCompany.ECommerce.Sales.Commons;
+using NoesisVision.Annotations.Domain.DDD;
 
-# Add factory method after Value factory method
-src = src.replace(
-    "    public static Discount Value(Money value) =>",
-    "    public static Discount Threshold(Money threshold, Percentage value) =>\n        new() { _thresholdDiscount = ThresholdDiscount.Of(threshold, value) };\n\n    public static Discount Value(Money value) =>"
-)
+namespace MyCompany.ECommerce.Sales.Pricing.Discounts;
 
-# Add case in ApplyOn
-src = src.replace(
-    "        if (_valueDiscount != default) return _valueDiscount.ApplyOn(price);",
-    "        if (_valueDiscount != default) return _valueDiscount.ApplyOn(price);\n        if (_thresholdDiscount != default) return _thresholdDiscount.ApplyOn(price);"
-)
+[DddValueObject]
+public readonly struct Discount : PriceModifier, IEquatable<Discount>
+{
+    private readonly bool _isPercentage;
+    private readonly bool _isThreshold;
+    private readonly PercentageDiscount _percentageDiscount;
+    private readonly ValueDiscount _valueDiscount;
+    private readonly ThresholdDiscount _thresholdDiscount;
 
-# Add case in ToString
-src = src.replace(
-    "        if (_valueDiscount != default) return _valueDiscount.ToString();",
-    "        if (_valueDiscount != default) return _valueDiscount.ToString();\n        if (_thresholdDiscount != default) return _thresholdDiscount.ToString();"
-)
+    public static Discount Percentage(Percentage value) =>
+        new(isPercentage: true, isThreshold: false, PercentageDiscount.Of(value), default, default);
 
-with open(path, "w") as f:
-    f.write(src)
+    public static Discount Value(Money value) =>
+        new(isPercentage: false, isThreshold: false, default, ValueDiscount.Of(value), default);
 
-print("✓ Discount.cs extended with threshold variant")
-PYEOF
+    public static Discount Threshold(Money threshold, Percentage value) =>
+        new(isPercentage: false, isThreshold: true, default, default, ThresholdDiscount.Of(threshold, value));
+
+    private Discount(
+        bool isPercentage,
+        bool isThreshold,
+        PercentageDiscount percentageDiscount,
+        ValueDiscount valueDiscount,
+        ThresholdDiscount thresholdDiscount)
+    {
+        _isPercentage = isPercentage;
+        _isThreshold = isThreshold;
+        _percentageDiscount = percentageDiscount;
+        _valueDiscount = valueDiscount;
+        _thresholdDiscount = thresholdDiscount;
+    }
+
+    public Money ApplyOn(Money price) => _isThreshold
+        ? _thresholdDiscount.ApplyOn(price)
+        : _isPercentage
+            ? _percentageDiscount.ApplyOn(price)
+            : _valueDiscount.ApplyOn(price);
+
+    public bool Equals(Discount other) =>
+        (_isPercentage, _isThreshold, _percentageDiscount, _valueDiscount, _thresholdDiscount)
+            .Equals((other._isPercentage, other._isThreshold, other._percentageDiscount, other._valueDiscount, other._thresholdDiscount));
+
+    public override bool Equals(object? obj) => obj is Discount other && Equals(other);
+    public override int GetHashCode() =>
+        (_isPercentage, _isThreshold, _percentageDiscount, _valueDiscount, _thresholdDiscount).GetHashCode();
+
+    public override string ToString() => _isThreshold
+        ? _thresholdDiscount.ToString()
+        : _isPercentage
+            ? _percentageDiscount.ToString()
+            : _valueDiscount.ToString();
+}
+EOF
+
+echo "✓ Discount.cs extended with threshold variant"
+
+# -------------------------------------------------------------------
+# 3. Create tests for ThresholdDiscount
+# -------------------------------------------------------------------
+
+TEST_DIR="Sources/Sales/Sales.DeepModel.Tests/Pricing/Discounts"
+mkdir -p "$TEST_DIR"
+
+cat > "$TEST_DIR/ThresholdDiscountTests.cs" << 'EOF'
+using FluentAssertions;
+using MyCompany.ECommerce.Sales.Commons;
+using MyCompany.ECommerce.Sales.Pricing.Discounts;
+using Xunit;
+
+namespace MyCompany.ECommerce.Sales.Tests.Pricing.Discounts;
+
+public class ThresholdDiscountTests
+{
+    [Fact]
+    public void AppliesDiscountWhenPriceExceedsThreshold()
+    {
+        var threshold = ThresholdDiscount.Of(
+            Money.Of(500, Currency.PLN),
+            Percentage.Of(10));
+
+        var result = threshold.ApplyOn(Money.Of(600, Currency.PLN));
+
+        result.Should().Be(Money.Of(540, Currency.PLN));
+    }
+
+    [Fact]
+    public void DoesNotApplyDiscountWhenPriceEqualsThreshold()
+    {
+        var threshold = ThresholdDiscount.Of(
+            Money.Of(500, Currency.PLN),
+            Percentage.Of(10));
+
+        var result = threshold.ApplyOn(Money.Of(500, Currency.PLN));
+
+        result.Should().Be(Money.Of(500, Currency.PLN));
+    }
+
+    [Fact]
+    public void DoesNotApplyDiscountWhenPriceBelowThreshold()
+    {
+        var threshold = ThresholdDiscount.Of(
+            Money.Of(500, Currency.PLN),
+            Percentage.Of(10));
+
+        var result = threshold.ApplyOn(Money.Of(300, Currency.PLN));
+
+        result.Should().Be(Money.Of(300, Currency.PLN));
+    }
+}
+EOF
+
+echo "✓ ThresholdDiscountTests.cs created"
 
 echo ""
 echo "Reference solution applied successfully."

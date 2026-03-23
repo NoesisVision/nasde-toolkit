@@ -9,10 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from nasde_toolkit.config import (
-    DockerConfig,
-    EvaluationConfig,
     ProjectConfig,
-    ReportingConfig,
     SourceConfig,
     TaskConfig,
 )
@@ -30,10 +27,14 @@ from nasde_toolkit.runner import (
 def tmp_project(tmp_path: Path) -> ProjectConfig:
     task_dir = tmp_path / "tasks" / "sample-task"
     task_dir.mkdir(parents=True)
-    (task_dir / "task.json").write_text(json.dumps({
-        "name": "sample-task",
-        "source": {"git": "https://example.com/repo.git", "ref": "main"},
-    }))
+    (task_dir / "task.json").write_text(
+        json.dumps(
+            {
+                "name": "sample-task",
+                "source": {"git": "https://example.com/repo.git", "ref": "main"},
+            }
+        )
+    )
 
     variant_dir = tmp_path / "variants" / "vanilla"
     variant_dir.mkdir(parents=True)
@@ -252,9 +253,8 @@ def test_ensure_auth_claude_with_oauth_token() -> None:
 
 
 def test_ensure_auth_claude_missing_raises() -> None:
-    with patch.dict("os.environ", {}, clear=True):
-        with pytest.raises(SystemExit):
-            _ensure_auth()
+    with patch.dict("os.environ", {}, clear=True), pytest.raises(SystemExit):
+        _ensure_auth()
 
 
 def test_ensure_auth_codex_with_codex_api_key() -> None:
@@ -287,8 +287,8 @@ def test_ensure_auth_codex_missing_raises() -> None:
     with (
         patch.dict("os.environ", {}, clear=True),
         patch("nasde_toolkit.runner.Path") as mock_path_cls,
+        pytest.raises(SystemExit),
     ):
         mock_home = mock_path_cls.home.return_value
         mock_home.joinpath.return_value.exists.return_value = False
-        with pytest.raises(SystemExit):
-            _ensure_auth(codex_path)
+        _ensure_auth(codex_path)

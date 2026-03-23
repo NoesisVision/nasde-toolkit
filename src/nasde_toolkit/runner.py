@@ -11,14 +11,18 @@ import json
 import os
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from rich.console import Console
 from rich.table import Table
 
 from nasde_toolkit.config import ProjectConfig
+
+if TYPE_CHECKING:
+    from harbor.models.job.result import JobResult
 
 console = Console()
 
@@ -34,9 +38,7 @@ def collect_available_variants(project_dir: Path) -> list[str]:
     for base in [project_dir / ".nasde", project_dir]:
         variants_parent = base / "variants"
         if variants_parent.exists():
-            variants.update(
-                d.name for d in variants_parent.iterdir() if d.is_dir()
-            )
+            variants.update(d.name for d in variants_parent.iterdir() if d.is_dir())
     return sorted(variants)
 
 
@@ -110,10 +112,7 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
             or Path.home().joinpath(".codex", "auth.json").exists()
         ):
             return
-        console.print(
-            "[red]ERROR: Set CODEX_API_KEY, OPENAI_API_KEY, "
-            "or run 'codex login' for OAuth[/red]"
-        )
+        console.print("[red]ERROR: Set CODEX_API_KEY, OPENAI_API_KEY, or run 'codex login' for OAuth[/red]")
         raise SystemExit(1)
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
         return
@@ -213,8 +212,7 @@ def load_variant_agent_type(variant_dir: Path) -> str:
     variant_toml = variant_dir / "variant.toml"
     if not variant_toml.exists():
         console.print(
-            f"[red]ERROR: {variant_toml} not found. "
-            f"Every variant must have a variant.toml with 'agent' field.[/red]"
+            f"[red]ERROR: {variant_toml} not found. Every variant must have a variant.toml with 'agent' field.[/red]"
         )
         raise SystemExit(1)
 
@@ -223,11 +221,10 @@ def load_variant_agent_type(variant_dir: Path) -> str:
     with open(variant_toml, "rb") as f:
         data = tomllib.load(f)
 
-    agent_type = data.get("agent")
+    agent_type: str = data.get("agent", "")
     if agent_type not in _VALID_AGENT_TYPES:
         console.print(
-            f"[red]ERROR: variant.toml 'agent' must be one of "
-            f"{_VALID_AGENT_TYPES}, got: {agent_type!r}[/red]"
+            f"[red]ERROR: variant.toml 'agent' must be one of {_VALID_AGENT_TYPES}, got: {agent_type!r}[/red]"
         )
         raise SystemExit(1)
 
@@ -251,7 +248,8 @@ def _read_agent_import_path(harbor_config_path: Path) -> str | None:
             data = json.load(f)
         agents = data.get("agents", [])
         if agents:
-            return agents[0].get("import_path")
+            result: str | None = agents[0].get("import_path")
+            return result
     except (json.JSONDecodeError, OSError):
         pass
     return None
@@ -344,10 +342,7 @@ def _build_registry(config: ProjectConfig, tasks_filter: list[str] | None) -> li
             "name": config.name,
             "description": f"Benchmark: {config.name}",
             "version": config.version,
-            "tasks": [
-                {"name": t.name, "path": str(t.path.resolve())}
-                for t in tasks
-            ],
+            "tasks": [{"name": t.name, "path": str(t.path.resolve())} for t in tasks],
         }
     ]
 
@@ -382,7 +377,6 @@ async def _run_job_with_streaming_eval(
     from nasde_toolkit.evaluator import evaluate_and_record_trial
 
     project_name = config.reporting.project_name or config.name
-    job_dir = _resolve_jobs_dir(config.project_dir).resolve() / merged_config["job_name"]
     eval_semaphore = asyncio.Semaphore(max_concurrent_eval)
     assessment_tasks: list[asyncio.Task] = []
 
@@ -412,9 +406,7 @@ async def _run_job_with_streaming_eval(
         console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
     finally:
         if assessment_tasks:
-            console.print(
-                f"[dim]Waiting for {len(assessment_tasks)} assessment evaluation(s)...[/dim]"
-            )
+            console.print(f"[dim]Waiting for {len(assessment_tasks)} assessment evaluation(s)...[/dim]")
             await asyncio.gather(*assessment_tasks, return_exceptions=True)
 
 
@@ -424,13 +416,14 @@ async def _run_job(
     project_name: str,
     project_dir: Path | None = None,
     on_trial_ended: Callable | None = None,
-) -> "JobResult":
+) -> JobResult:
     """Run a Harbor job via Python API."""
     from harbor.job import Job
     from harbor.models.job.config import JobConfig
 
     if with_opik:
         from opik.integrations.harbor import track_harbor
+
         console.print("Opik tracking enabled\n")
         track_harbor(project_name=project_name)
 
@@ -450,7 +443,7 @@ async def _run_job(
         os.chdir(saved_cwd)
 
 
-def _print_job_summary(result: "JobResult") -> None:
+def _print_job_summary(result: JobResult) -> None:
     console.print()
     console.print("[bold]Job completed[/bold]")
     console.print(f"  Trials: {result.stats.n_trials}")

@@ -1,0 +1,56 @@
+name: Dogfooding
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Task to run (default: python-gilded-rose-polymorphism)"
+        required: false
+        default: "python-gilded-rose-polymorphism"
+      variant:
+        description: "Variant to use"
+        required: false
+        default: "vanilla"
+      model:
+        description: "Model override"
+        required: false
+        default: "claude-sonnet-4-6"
+
+jobs:
+  dogfood:
+    name: "Dogfood: nasde run"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install nasde-toolkit
+        run: uv tool install .
+
+      - name: Run benchmark
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          nasde run \
+            --variant "${{ inputs.variant }}" \
+            --tasks "${{ inputs.task }}" \
+            --model "${{ inputs.model }}" \
+            --without-eval \
+            -C examples/refactoring-skill
+
+      - name: Upload job artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dogfood-results-${{ github.run_number }}
+          path: examples/refactoring-skill/jobs/
+          retention-days: 30

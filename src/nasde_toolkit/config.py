@@ -40,8 +40,13 @@ class DockerConfig:
 class EvaluationConfig:
     """Assessment evaluation settings."""
 
-    model: str = "claude-sonnet-4-6"
+    model: str = "claude-opus-4-6"
     dimensions_file: str = "assessment_dimensions.json"
+    max_turns: int = 30
+    allowed_tools: list[str] | None = None
+    mcp_config: str | None = None
+    skills_dir: str | None = None
+    append_system_prompt: str | None = None
 
 
 @dataclass
@@ -127,8 +132,13 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
             build_commands=docker_raw.get("build_commands", []),
         ),
         evaluation=EvaluationConfig(
-            model=eval_raw.get("model", "claude-sonnet-4-6"),
+            model=eval_raw.get("model", "claude-opus-4-6"),
             dimensions_file=eval_raw.get("dimensions_file", "assessment_dimensions.json"),
+            max_turns=eval_raw.get("max_turns", 30),
+            allowed_tools=eval_raw.get("allowed_tools"),
+            mcp_config=eval_raw.get("mcp_config"),
+            skills_dir=eval_raw.get("skills_dir"),
+            append_system_prompt=eval_raw.get("append_system_prompt"),
         ),
         reporting=ReportingConfig(
             platform=reporting_raw.get("platform", "opik"),

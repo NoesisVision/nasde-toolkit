@@ -301,6 +301,7 @@ async def _run_job_with_streaming_eval(
                 project_name=project_name,
                 with_opik=with_opik,
                 semaphore=eval_semaphore,
+                eval_config=config.evaluation,
             )
         )
         assessment_tasks.append(task)
@@ -406,6 +407,7 @@ async def _run_post_hoc_assessment(
         project_name=config.reporting.project_name,
         with_opik=with_opik,
         max_concurrent=max_concurrent_eval,
+        eval_config=config.evaluation,
     )
 
 

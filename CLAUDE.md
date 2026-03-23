@@ -53,7 +53,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **CLI framework**: Typer with Rich markup mode. The `app` object in `cli.py` is the entry point registered in `pyproject.toml` as `nasde`.
 - **Configuration**: Two-layer config — `nasde.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.nasde/tasks/`) automatically.
 - **Benchmark runner**: Uses Harbor Python API (`Job`, `JobConfig`) directly instead of subprocess. The runner merges variant config with task registry into a dict, passes it to `JobConfig.model_validate()`, then runs `await job.run()`. Opik tracking via `track_harbor()` (monkey-patches Harbor at runtime).
-- **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
+- **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Configurable via `[evaluation]` in `nasde.toml` — model, tools, MCP servers, skills, and system prompt can all be customized. Default model is `claude-opus-4-6` (best available for review quality). Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
 - **Variant system**: Each variant is a directory under `variants/`. The `CLAUDE.md` inside is injected into `/app/CLAUDE.md` in the Harbor sandbox. An optional `skills/` subdirectory contains skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. If no `harbor_config.json` exists, one is auto-generated from discovered files.
 - **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
@@ -109,6 +109,10 @@ my-benchmark/
           SKILL.md              # Skill content (snapshot for deterministic testing)
       harbor_config.json        # Optional: agent import path + sandbox_files mapping
       claude_config.json        # Optional: MCP server configuration
+  evaluator_skills/             # Optional: skills for the evaluator agent
+    <skill-name>/
+      SKILL.md
+  evaluator_mcp.json            # Optional: MCP server config for the evaluator agent
   jobs/                         # Trial output (gitignored)
 ```
 
@@ -132,8 +136,13 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
-model = "claude-sonnet-4-6"
+model = "claude-opus-4-6"
 dimensions_file = "assessment_dimensions.json"
+# max_turns = 30                              # Max evaluator conversation turns
+# allowed_tools = ["Read", "Glob", "Grep"]    # Override default tool whitelist
+# mcp_config = "./evaluator_mcp.json"         # MCP server config for evaluator
+# skills_dir = "./evaluator_skills"           # Skills directory for evaluator
+# append_system_prompt = ""                   # Extra system prompt for evaluator
 
 [reporting]
 platform = "opik"

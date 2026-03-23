@@ -55,14 +55,15 @@ async def run_benchmark(
 ) -> None:
     """Run a benchmark variant against configured tasks via Harbor."""
     _load_env_file(config.project_dir)
-    _ensure_auth()
 
-    variant_dir = _resolve_variant_dir(config.project_dir, variant)
+    variant_dir = resolve_variant_dir(config.project_dir, variant)
     harbor_config_path = variant_dir / "harbor_config.json"
 
     if not harbor_config_path.exists():
         _generate_harbor_config(variant_dir, variant)
         harbor_config_path = variant_dir / "harbor_config.json"
+
+    _ensure_auth(_read_agent_import_path(harbor_config_path))
 
     merged_config = _build_merged_config(
         config=config,
@@ -101,7 +102,19 @@ async def run_benchmark(
 # ---------------------------------------------------------------------------
 
 
-def _ensure_auth() -> None:
+def _ensure_auth(agent_import_path: str | None = None) -> None:
+    if _is_codex_agent(agent_import_path):
+        if (
+            os.environ.get("CODEX_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+            or Path.home().joinpath(".codex", "auth.json").exists()
+        ):
+            return
+        console.print(
+            "[red]ERROR: Set CODEX_API_KEY, OPENAI_API_KEY, "
+            "or run 'codex login' for OAuth[/red]"
+        )
+        raise SystemExit(1)
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
         return
     console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
@@ -130,7 +143,7 @@ def _parse_env_file(env_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_variant_dir(project_dir: Path, variant: str) -> Path:
+def resolve_variant_dir(project_dir: Path, variant: str) -> Path:
     for base in [project_dir / ".nasde", project_dir]:
         variant_dir = base / "variants" / variant
         if variant_dir.exists():
@@ -155,23 +168,104 @@ def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
     claude_md = variant_dir / "CLAUDE.md"
     if claude_md.exists():
         sandbox_files["/app/CLAUDE.md"] = str(claude_md)
-    skills_dir = variant_dir / "skills"
-    if skills_dir.is_dir():
-        for skill_dir in sorted(skills_dir.iterdir()):
-            skill_md = skill_dir / "SKILL.md"
-            if skill_dir.is_dir() and skill_md.exists():
-                target = f"/app/.claude/skills/{skill_dir.name}/SKILL.md"
-                sandbox_files[target] = str(skill_md)
+    agents_md = variant_dir / "AGENTS.md"
+    if agents_md.exists():
+        sandbox_files["/app/AGENTS.md"] = str(agents_md)
+    _collect_claude_skills(variant_dir, sandbox_files)
+    _collect_codex_skills(variant_dir, sandbox_files)
     return sandbox_files
+
+
+def _collect_claude_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
+    skills_dir = variant_dir / "skills"
+    if not skills_dir.is_dir():
+        return
+    for skill_dir in sorted(skills_dir.iterdir()):
+        skill_md = skill_dir / "SKILL.md"
+        if skill_dir.is_dir() and skill_md.exists():
+            target = f"/app/.claude/skills/{skill_dir.name}/SKILL.md"
+            sandbox_files[target] = str(skill_md)
+
+
+def _collect_codex_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
+    agents_skills_dir = variant_dir / "agents_skills"
+    if not agents_skills_dir.is_dir():
+        return
+    for skill_dir in sorted(agents_skills_dir.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        for file_path in skill_dir.rglob("*"):
+            if file_path.is_file():
+                relative = file_path.relative_to(agents_skills_dir)
+                target = f"/app/.agents/skills/{relative}"
+                sandbox_files[target] = str(file_path)
+
+
+_VALID_AGENT_TYPES = {"claude", "codex"}
+
+
+def load_variant_agent_type(variant_dir: Path) -> str:
+    """Read the agent type from variant.toml.
+
+    Every variant directory must contain a ``variant.toml`` with an
+    ``agent`` field set to ``"claude"`` or ``"codex"``.
+    """
+    variant_toml = variant_dir / "variant.toml"
+    if not variant_toml.exists():
+        console.print(
+            f"[red]ERROR: {variant_toml} not found. "
+            f"Every variant must have a variant.toml with 'agent' field.[/red]"
+        )
+        raise SystemExit(1)
+
+    import tomllib
+
+    with open(variant_toml, "rb") as f:
+        data = tomllib.load(f)
+
+    agent_type = data.get("agent")
+    if agent_type not in _VALID_AGENT_TYPES:
+        console.print(
+            f"[red]ERROR: variant.toml 'agent' must be one of "
+            f"{_VALID_AGENT_TYPES}, got: {agent_type!r}[/red]"
+        )
+        raise SystemExit(1)
+
+    return agent_type
+
+
+def _agent_import_path(agent_type: str) -> str:
+    if agent_type == "codex":
+        return "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"
+    return "nasde_toolkit.agents.configurable_claude:ConfigurableClaude"
+
+
+def _is_codex_agent(agent_import_path: str | None) -> bool:
+    return bool(agent_import_path and "codex" in agent_import_path.lower())
+
+
+def _read_agent_import_path(harbor_config_path: Path) -> str | None:
+    """Extract the first agent's import_path from a harbor_config.json."""
+    try:
+        with open(harbor_config_path) as f:
+            data = json.load(f)
+        agents = data.get("agents", [])
+        if agents:
+            return agents[0].get("import_path")
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
     sandbox_files = _collect_sandbox_files(variant_dir)
+    agent_type = load_variant_agent_type(variant_dir)
+    import_path = _agent_import_path(agent_type)
 
     config = {
         "agents": [
             {
-                "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
+                "import_path": import_path,
                 "name": variant,
                 "kwargs": {
                     "sandbox_files": sandbox_files,

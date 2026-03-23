@@ -57,6 +57,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Configurable via `[evaluation]` in `nasde.toml` — model, tools, MCP servers, skills, and system prompt can all be customized. Default model is `claude-opus-4-6` (best available for review quality). Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
 - **Variant system**: Each variant is a directory under `variants/` with a required `variant.toml` declaring the agent type (`agent = "claude"` or `agent = "codex"`). For Claude Code variants, `CLAUDE.md` is injected into `/app/CLAUDE.md`; for Codex variants, `AGENTS.md` is injected into `/app/AGENTS.md`. An optional `skills/` subdirectory contains Claude skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. An optional `agents_skills/` subdirectory contains Codex skill snapshots — all files under `agents_skills/<name>/` are injected into `/app/.agents/skills/<name>/`. If no `harbor_config.json` exists, one is auto-generated from `variant.toml`.
 - **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
+- **Auto-generated Dockerfile**: When a task has no `environment/Dockerfile`, nasde generates one from `source.git` + `[docker]`. For local paths, also generates `docker-compose.yaml` to override the build context. See `docker.py:ensure_task_environment()`.
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
 - See `docs/adr/` for detailed decision records.
 
@@ -189,6 +190,8 @@ Dimensions are benchmark-specific. Total scores should sum to 100. Typically 3-5
   }
 }
 ```
+
+**Auto-generated environment:** If `environment/Dockerfile` is absent, nasde auto-generates one from `source.git` + `[docker]` config in `nasde.toml`. For local repos (paths not starting with `http`/`https`/`git`/`file`), the generated Dockerfile uses `COPY . /app` instead of `git clone`, and a `docker-compose.yaml` is also generated to set the Docker build context to the repo root.
 
 ### task.toml (required by Harbor)
 

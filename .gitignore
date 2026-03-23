@@ -9,3 +9,5 @@ build/
 .env
 harbor_config.json
 .claude/worktrees/
+nasde-registry-*.json
+pytest-of-*/

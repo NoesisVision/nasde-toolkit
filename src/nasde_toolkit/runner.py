@@ -20,6 +20,7 @@ from rich.console import Console
 from rich.table import Table
 
 from nasde_toolkit.config import ProjectConfig
+from nasde_toolkit.docker import cleanup_worktrees, ensure_task_environment
 
 if TYPE_CHECKING:
     from harbor.models.job.result import JobResult
@@ -66,6 +67,9 @@ async def run_benchmark(
         harbor_config_path = variant_dir / "harbor_config.json"
 
     _ensure_auth(_read_agent_import_path(harbor_config_path))
+
+    for task in config.tasks:
+        ensure_task_environment(task.path, task.source, config.docker)
 
     merged_config = _build_merged_config(
         config=config,
@@ -440,6 +444,7 @@ async def _run_job(
             job.on_trial_ended(on_trial_ended)
         return await job.run()
     finally:
+        cleanup_worktrees()
         os.chdir(saved_cwd)
 
 

@@ -10,7 +10,7 @@ on:
       variant:
         description: "Variant to use"
         required: false
-        default: "vanilla"
+        default: "claude-vanilla"
       model:
         description: "Model override"
         required: false

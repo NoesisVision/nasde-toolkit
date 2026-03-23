@@ -178,6 +178,11 @@ def run(
         ))
     else:
         resolved_variant = variant
+        from nasde_toolkit.runner import load_variant_agent_type, resolve_variant_dir
+
+        variant_dir = resolve_variant_dir(config.project_dir, resolved_variant)
+        agent_type = load_variant_agent_type(variant_dir)
+
         _print_run_header(
             variant=resolved_variant,
             model=resolved_model,
@@ -187,6 +192,7 @@ def run(
             with_eval=not without_eval,
             harbor_env=resolved_harbor_env,
             attempts=attempts,
+            agent_type=agent_type,
         )
 
         asyncio.run(run_benchmark(
@@ -289,13 +295,16 @@ def _print_run_header(
     with_eval: bool,
     harbor_env: str | None = None,
     attempts: int = 1,
+    agent_type: str = "claude",
 ) -> None:
     tasks_str = ", ".join(tasks_filter) if tasks_filter else "all"
     eval_str = "enabled" if with_eval else "[yellow]disabled[/yellow]"
     env_str = harbor_env or "docker"
     attempts_str = f"{attempts}" if attempts > 1 else "1"
+    agent_label = "Codex (OpenAI)" if agent_type == "codex" else "Claude Code"
     console.print(Panel(
         f"[bold]Benchmark Runner[/bold]\n"
+        f"Agent: {agent_label}\n"
         f"Variant: {variant}\n"
         f"Model: {model}\n"
         f"Timeout: {timeout}s\n"

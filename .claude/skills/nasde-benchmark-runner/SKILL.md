@@ -67,6 +67,39 @@ For deterministic job names, use `--job-suffix`:
 nasde run --variant vanilla --job-suffix run1 -C path/to/benchmark
 ```
 
+### Running Codex variants
+
+Codex variants use `AGENTS.md` (instead of `CLAUDE.md`) and require `CODEX_API_KEY` (standard OpenAI API key from platform.openai.com):
+
+```bash
+# Set Codex API key
+export CODEX_API_KEY=sk-...
+
+# Run a Codex variant — must specify a Codex-compatible model
+nasde run --variant codex-vanilla --model gpt-5-codex -C path/to/benchmark
+```
+
+**Supported Codex models** (via API key): `gpt-5-codex`, `gpt-5.3-codex`, `gpt-5.4`, `gpt-5.4-mini`. Models like `codex-mini-latest` or `o3-mini` do NOT work with API keys.
+
+### Cross-agent comparison (Claude vs Codex)
+
+Run all variants (both Claude and Codex) on the same tasks:
+
+```bash
+export CODEX_API_KEY=sk-...           # For Codex variants
+export CLAUDE_CODE_OAUTH_TOKEN=...     # For Claude variants
+
+nasde run --all-variants -C path/to/benchmark --with-opik
+```
+
+Or run specific variants in parallel:
+
+```bash
+nasde run --variant vanilla --tasks my-task -C path/to/benchmark --with-opik &
+nasde run --variant codex-vanilla --model gpt-5-codex --tasks my-task -C path/to/benchmark --with-opik &
+wait
+```
+
 ### Custom model and timeout
 
 ```bash
@@ -81,9 +114,13 @@ nasde eval path/to/benchmark/jobs/2026-03-16__14-05-58 --with-opik -C path/to/be
 
 ## Token cost heuristic
 
+**Claude Code variants:**
 When using `CLAUDE_CODE_OAUTH_TOKEN` (Claude subscription — no per-token cost):
 - **Run freely**: total estimated time under 30 minutes (sum of tasks × variants)
 - **Ask first**: over 30 minutes, OR when using `ANTHROPIC_API_KEY` (API billing)
+
+**Codex variants:**
+Always billed per-token via `CODEX_API_KEY`. Always ask before running. Codex uses significantly more input tokens than Claude Code (~1M vs ~250K per task).
 
 Task estimated times are in `task.json` → `estimated_time_minutes`. When `--tasks` filters are used, count only selected tasks.
 
@@ -199,6 +236,19 @@ Harbor didn't copy artifacts. Check:
 1. Check trace exists: use the REST API verification script above
 2. If trace exists but no `arch_*` scores: assessment eval didn't run or failed. Check the CLI output for errors.
 3. If no trace at all: Opik tracking wasn't enabled. Verify `.env` has `OPIK_API_KEY` and `OPIK_WORKSPACE`.
+
+### Codex trial fails immediately (reward 0, 0/100)
+
+Check the agent log for errors:
+```bash
+head -20 jobs/<ts>/<trial>/agent/codex.txt
+```
+
+Common causes:
+- **`Incorrect API key provided: ''`** — `CODEX_API_KEY` not set or not exported
+- **`model 'X' does not exist`** — wrong model name. Use `gpt-5-codex`, `gpt-5.3-codex`, `gpt-5.4`, or `gpt-5.4-mini`
+- **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools (e.g. `o3-mini`)
+- **`Model metadata for 'X' not found`** — warning only, usually followed by the real error
 
 ### Trial reward is 0 but code looks correct
 

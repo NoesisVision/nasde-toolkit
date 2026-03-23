@@ -218,9 +218,33 @@ Reference solution for verifying test.sh works. Not executed by Harbor.
 
 ## Step 5: Create variants
 
-Each variant is a directory under `variants/<variant-name>/`. At minimum it contains `CLAUDE.md` — the instructions injected into the agent's sandbox.
+Each variant is a directory under `variants/<variant-name>/` with a required `variant.toml` declaring the agent type.
 
-If no `harbor_config.json` exists, `nasde` auto-generates one. To customize (e.g., add MCP servers), create it explicitly:
+### variant.toml (required)
+
+```toml
+agent = "claude"   # or "codex"
+```
+
+### Claude Code variant
+
+```
+variants/vanilla/
+  variant.toml       # agent = "claude"
+  CLAUDE.md          # Instructions (injected to /app/CLAUDE.md)
+  skills/            # Optional: skill snapshots (injected to /app/.claude/skills/)
+```
+
+### Codex variant
+
+```
+variants/codex-baseline/
+  variant.toml       # agent = "codex"
+  AGENTS.md          # Instructions (injected to /app/AGENTS.md)
+  agents_skills/     # Optional: skill snapshots (injected to /app/.agents/skills/)
+```
+
+If no `harbor_config.json` exists, `nasde` auto-generates one from `variant.toml`. To customize (e.g., add MCP servers), create it explicitly:
 
 ```json
 {
@@ -246,8 +270,9 @@ Critical: `"name"` field is REQUIRED — without it, Opik tagging breaks.
 Design variants to test specific hypotheses:
 - **Minimal** (baseline) — bare instructions, no extra guidance
 - **Guided** — detailed domain-specific guidance, patterns to follow
+- **Skill-augmented** — skills injected for domain expertise (e.g., tactical DDD)
 - **Tool-augmented** — MCP server access (e.g., codebase search)
-- **Constrained** — specific restrictions or requirements
+- **Cross-agent** — same instructions for Claude and Codex to compare agent performance
 
 Every benchmark needs at least one variant (typically `vanilla` or `baseline`).
 

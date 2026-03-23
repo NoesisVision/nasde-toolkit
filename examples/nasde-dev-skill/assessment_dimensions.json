@@ -1,0 +1,28 @@
+{
+  "dimensions": [
+    {
+      "name": "verification_discipline",
+      "title": "Verification Discipline",
+      "max_score": 25,
+      "description": "Agent ran tests before and after changes, verified CLI help output, checked that flag parses correctly, did not leave regressions. Evidence of systematic verification in the workspace."
+    },
+    {
+      "name": "code_conventions",
+      "title": "Code Conventions",
+      "max_score": 25,
+      "description": "Lazy imports for heavy deps (harbor/opik/sdk inside functions), Typer option patterns match existing style (Optional with None default), Rich console output (no bare print), error handling follows project patterns."
+    },
+    {
+      "name": "architecture_quality",
+      "title": "Architecture Quality",
+      "max_score": 25,
+      "description": "Deterministic job naming with timestamp+variant, explicit job_dir passed to assessment eval instead of latest-job heuristic, DNS resolution fix conditional and before super().setup(), n_attempts propagated through full chain."
+    },
+    {
+      "name": "documentation_completeness",
+      "title": "Documentation Completeness",
+      "max_score": 25,
+      "description": "CLAUDE.md CLI reference updated with --attempts flag, README.md CLI options table updated, help text is clear and descriptive, header display shows attempts count, ARCHITECTURE.md updated if pipeline flow changed."
+    }
+  ]
+}

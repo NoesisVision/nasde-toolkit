@@ -1,0 +1,22 @@
+{
+  "name": "add-multi-attempt-support",
+  "description": "Add --attempts/-n CLI flag for multiple independent trial attempts per task, with deterministic job naming and cloud DNS fix",
+  "difficulty": "intermediate",
+  "estimated_time_minutes": 30,
+  "tags": ["python", "cli", "typer", "async", "harbor-integration"],
+  "source": {
+    "git": "../../../..",
+    "ref": "7e1a804"
+  },
+  "instruction": "./instruction.md",
+  "evaluation": {
+    "type": "script",
+    "script": "./tests/test.sh",
+    "timeout_seconds": 300
+  },
+  "metadata": {
+    "language": "Python",
+    "framework": "Typer + Harbor",
+    "source_commit": "812b189"
+  }
+}

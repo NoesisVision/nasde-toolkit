@@ -1,0 +1,24 @@
+[project]
+name = "nasde-dev-skill"
+version = "1.0.0"
+
+[defaults]
+variant = "vanilla"
+model = "claude-sonnet-4-6"
+timeout_sec = 1800
+
+[docker]
+base_image = "python:3.12-slim"
+build_commands = [
+  "pip install uv",
+  "uv tool install .",
+  "nasde --version",
+]
+
+[evaluation]
+model = "claude-sonnet-4-6"
+dimensions_file = "assessment_dimensions.json"
+
+[reporting]
+platform = "opik"
+project_name = "nasde-dev-skill"

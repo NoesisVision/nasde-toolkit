@@ -64,10 +64,16 @@ class ConfigurableClaude(ClaudeCode):
         return "configurable-claude-code"
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        """Fix cloud DNS, run base setup, then upload configured files."""
+        """Fix cloud DNS, upload files, then run base setup.
+
+        Files must be uploaded BEFORE super().setup() because Harbor's
+        ClaudeCode.setup() copies skills from ~/.claude/skills/ into
+        the Claude config directory. Our sandbox_files that target
+        ~/.claude/skills/ need to be in place before that copy happens.
+        """
         await self._ensure_dns_resolution(environment)
-        await super().setup(environment)
         await self._upload_sandbox_files(environment)
+        await super().setup(environment)
 
     async def _ensure_dns_resolution(self, environment: BaseEnvironment) -> None:
         """Prepend 1.1.1.1 to resolv.conf if missing.
@@ -90,9 +96,26 @@ class ConfigurableClaude(ClaudeCode):
                 raise FileNotFoundError(
                     f"sandbox_files: source '{source_path}' (resolved to '{resolved}') does not exist"
                 )
-            parent_dir = str(Path(target_path).parent)
-            await environment.exec(command=f"mkdir -p {parent_dir}")
-            await environment.upload_file(
-                source_path=resolved,
-                target_path=target_path,
-            )
+            upload_targets = _expand_skill_targets(target_path)
+            for upload_path in upload_targets:
+                parent_dir = str(Path(upload_path).parent)
+                await environment.exec(command=f"mkdir -p {parent_dir}")
+                await environment.upload_file(
+                    source_path=resolved,
+                    target_path=upload_path,
+                )
+
+
+def _expand_skill_targets(target_path: str) -> list[str]:
+    """Expand a skill target path to include both /app/ and ~/.claude/ locations.
+
+    Harbor's ClaudeCode.setup() copies skills from ~/.claude/skills/ into
+    its internal config directory. Skills placed only under /app/.claude/
+    won't be discovered. This ensures skills are available in both locations.
+    """
+    app_skills_prefix = "/app/.claude/skills/"
+    if target_path.startswith(app_skills_prefix):
+        relative = target_path[len(app_skills_prefix) :]
+        home_path = f"/root/.claude/skills/{relative}"
+        return [target_path, home_path]
+    return [target_path]

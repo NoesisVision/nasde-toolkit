@@ -250,6 +250,21 @@ append_system_prompt = "Pay special attention to SOLID principles when scoring."
 | `skills_dir` | — | Path to evaluator skills directory |
 | `append_system_prompt` | — | Extra system prompt text |
 
+## Local repo benchmarks
+
+You can build benchmarks from local (private) repositories by setting `source.git` to a relative path:
+
+```json
+{
+  "source": {
+    "git": "../..",
+    "ref": "abc1234"
+  }
+}
+```
+
+nasde auto-generates the Docker environment — no custom `Dockerfile` needed. See `examples/nasde-dev-skill/` for a complete example that tests nasde-toolkit itself.
+
 ## Commands
 
 ### Core

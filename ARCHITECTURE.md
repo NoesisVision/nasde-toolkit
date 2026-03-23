@@ -103,6 +103,10 @@ flowchart LR
 
 Harbor only measures **functional correctness** — tests pass or fail, yielding a binary reward. Whether the agent wrote the code *well* is not something Harbor measures. That's where assessment evaluation comes in.
 
+### Docker environment auto-generation
+
+When a task has no `environment/Dockerfile`, the runner calls `docker.py:ensure_task_environment()` to auto-generate one from `source.git` + `[docker]` config. For local paths (not starting with `http`/`https`/`git`/`file`), it also generates `environment/docker-compose.yaml` with a `build.context` override pointing to the repo root, so Harbor's `DockerEnvironment` uses the correct build context for `COPY`-based Dockerfiles.
+
 ---
 
 ## Cloud sandbox providers

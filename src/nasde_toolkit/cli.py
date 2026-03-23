@@ -246,6 +246,7 @@ def eval_command(
         project_name=config.reporting.project_name,
         with_opik=with_opik,
         max_concurrent=max_concurrent_eval,
+        eval_config=config.evaluation,
     ))
 
 

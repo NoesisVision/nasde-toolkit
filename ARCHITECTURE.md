@@ -33,7 +33,7 @@ flowchart TB
 
     subgraph ASSESSMENT ["3. Assessment evaluation (host machine, always local)"]
         ARTIFACTS -->|"Harbor done,\nsandboxes torn down"| EVAL["evaluator.evaluate_job()"]
-        EVAL --> SDK["Claude Code SDK\n(local subprocess, sonnet)\ntools: Read/Glob/Grep\ncwd = artifacts/workspace/"]
+        EVAL --> SDK["Claude Code SDK\n(local subprocess, opus)\ntools: Read/Glob/Grep + MCP\ncwd = artifacts/workspace/\n+ optional skills & system prompt"]
         SDK --> SCORE["Score across N dimensions\n0-25 pts each"]
         SCORE --> JSON_OUT["assessment_eval.json"]
         SCORE --> OPIK_FB["Opik feedback scores\narch_*, reward, duration"]
@@ -157,7 +157,7 @@ flowchart TB
 
     subgraph Evaluator["Claude Code SDK as evaluator"]
         PROMPT["Composite prompt:\ninstruction + rubric +\ndimension constraints"]
-        SDK_RUN["query() with tools:\nRead, Glob, Grep\ncwd = workspace\nmodel = sonnet\nmax_turns = 30"]
+        SDK_RUN["query() with configurable:\nmodel (default: opus)\ntools (default: Read/Glob/Grep)\nMCP servers (optional)\nskills (optional)\nsystem prompt (optional)\nmax_turns (default: 30)"]
         PARSE["Parse JSON from\nlast json code block"]
     end
 
@@ -177,6 +177,26 @@ flowchart TB
     SCORE --> FILE
     SCORE --> OPIK
 ```
+
+---
+
+## Evaluator configuration
+
+The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All options are optional — defaults provide a working evaluator out of the box.
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `model` | `claude-opus-4-6` | Evaluator model (Opus recommended for review quality) |
+| `dimensions_file` | `assessment_dimensions.json` | Path to scoring dimensions |
+| `max_turns` | `30` | Max conversation turns for evaluator |
+| `allowed_tools` | `["Read", "Glob", "Grep"]` | Tool whitelist for evaluator |
+| `mcp_config` | — | Path to MCP server config JSON (same format as Claude Code MCP config) |
+| `skills_dir` | — | Path to skills directory (copied into evaluator's `.claude/skills/`) |
+| `append_system_prompt` | — | Extra text appended to evaluator's system prompt |
+
+When `skills_dir` is set, the evaluator runs in a temporary workspace with skills installed. Trial artifacts are made accessible via `add_dirs`, and the prompt references the artifact path explicitly.
+
+When `mcp_config` is set, MCP servers are loaded from the JSON file and passed to the Claude Code SDK. MCP tool names follow the `mcp__<server>__<tool>` convention and must be included in `allowed_tools` if that field is overridden.
 
 ---
 

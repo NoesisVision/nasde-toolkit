@@ -213,6 +213,10 @@ my-benchmark/
       CLAUDE.md                # Agent system prompt for this variant
     guided/
       CLAUDE.md
+  evaluator_skills/            # Optional: skills for the evaluator agent
+    code-review/
+      SKILL.md
+  evaluator_mcp.json           # Optional: MCP server config for evaluator
   jobs/                        # Trial output (gitignored)
 ```
 
@@ -234,8 +238,13 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
-model = "claude-sonnet-4-6"
+model = "claude-opus-4-6"
 dimensions_file = "assessment_dimensions.json"
+# max_turns = 30                              # Max evaluator conversation turns
+# allowed_tools = ["Read", "Glob", "Grep"]    # Override default tool whitelist
+# mcp_config = "./evaluator_mcp.json"         # MCP server config for evaluator
+# skills_dir = "./evaluator_skills"           # Skills directory for evaluator
+# append_system_prompt = ""                   # Extra system prompt for evaluator
 
 [reporting]
 platform = "opik"

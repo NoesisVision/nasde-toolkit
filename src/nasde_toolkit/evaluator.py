@@ -11,7 +11,9 @@ import asyncio
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +23,8 @@ from claude_code_sdk._internal import client as _sdk_client
 from claude_code_sdk._internal import message_parser as _mp
 from claude_code_sdk.types import AssistantMessage, TextBlock
 from rich.console import Console
+
+from nasde_toolkit.config import EvaluationConfig
 
 # ---------------------------------------------------------------------------
 # Monkeypatch: claude-code-sdk 0.0.25 — unknown message type crash
@@ -97,8 +101,10 @@ async def evaluate_job(
     project_name: str,
     with_opik: bool = False,
     max_concurrent: int = 10,
+    eval_config: EvaluationConfig | None = None,
 ) -> list[EvaluationResult]:
     """Evaluate all trials in a job directory (concurrently)."""
+    eval_config = eval_config or EvaluationConfig()
     trial_dirs = _collect_trial_dirs(job_dir)
 
     if not trial_dirs:
@@ -108,7 +114,9 @@ async def evaluate_job(
     _warn_if_throttled(trial_dirs, max_concurrent)
     semaphore = asyncio.Semaphore(max_concurrent)
     coros = [
-        _evaluate_and_record_trial(td, project_root, project_name, with_opik, semaphore)
+        _evaluate_and_record_trial(
+            td, project_root, project_name, with_opik, semaphore, eval_config,
+        )
         for td in trial_dirs
     ]
     all_results = await asyncio.gather(*coros)
@@ -121,13 +129,15 @@ async def evaluate_and_record_trial(
     project_name: str,
     with_opik: bool,
     semaphore: asyncio.Semaphore,
+    eval_config: EvaluationConfig | None = None,
 ) -> EvaluationResult | None:
     """Evaluate a single trial with semaphore-based concurrency control.
 
     Public wrapper used by runner.py for streaming (Level 2) assessment.
     """
+    eval_config = eval_config or EvaluationConfig()
     return await _evaluate_and_record_trial(
-        trial_dir, project_root, project_name, with_opik, semaphore,
+        trial_dir, project_root, project_name, with_opik, semaphore, eval_config,
     )
 
 
@@ -137,11 +147,13 @@ async def _evaluate_and_record_trial(
     project_name: str,
     with_opik: bool,
     semaphore: asyncio.Semaphore,
+    eval_config: EvaluationConfig | None = None,
 ) -> EvaluationResult | None:
+    eval_config = eval_config or EvaluationConfig()
     async with semaphore:
         console.print(f"\n[bold]Evaluating: {trial_dir.name}[/bold]")
         try:
-            evaluation = await evaluate_trial(trial_dir, project_root)
+            evaluation = await evaluate_trial(trial_dir, project_root, eval_config)
             if not evaluation:
                 return None
             _write_evaluation_result(trial_dir, evaluation)
@@ -170,8 +182,10 @@ def _warn_if_throttled(trial_dirs: list[Path], max_concurrent: int) -> None:
 async def evaluate_trial(
     trial_dir: Path,
     project_root: Path,
+    eval_config: EvaluationConfig | None = None,
 ) -> EvaluationResult | None:
     """Orchestrate assessment evaluation for a single trial."""
+    eval_config = eval_config or EvaluationConfig()
     workspace_path = trial_dir / "artifacts" / "workspace"
     if not workspace_path.exists():
         console.print(f"  [dim]SKIP: No artifacts/workspace/ in {trial_dir.name}[/dim]")
@@ -205,14 +219,17 @@ async def evaluate_trial(
     ground_truth_path = task_dir / "ground_truth_decisions.json"
     ground_truth = ground_truth_path.read_text() if ground_truth_path.exists() else ""
 
+    artifacts_dir = str(workspace_path) if eval_config.skills_dir else None
     prompt = _build_evaluator_prompt(
-        instruction, criteria, expected_dimensions, ground_truth,
+        instruction, criteria, expected_dimensions, ground_truth, artifacts_dir,
     )
     console.print(f"  Task: {task_name}")
     console.print(f"  Workspace: {workspace_path}")
     console.print("  Running Claude Code evaluation...")
 
-    raw_response = await _run_claude_code_evaluation(prompt, workspace_path)
+    raw_response = await _run_claude_code_evaluation(
+        prompt, workspace_path, eval_config, project_root,
+    )
     evaluation = _parse_evaluation_response(raw_response, expected_dimensions)
 
     if not evaluation:
@@ -224,7 +241,7 @@ async def evaluate_trial(
     evaluation.agent_name = agent_name
     evaluation.harbor_reward = harbor_reward
     evaluation.duration_sec = duration_sec
-    evaluation.evaluator_model = "claude-code-sdk"
+    evaluation.evaluator_model = eval_config.model
     evaluation.timestamp = datetime.now(timezone.utc).isoformat()
 
     console.print(f"  Score: {evaluation.total_score}/100 ({evaluation.normalized_score:.2f})")
@@ -298,16 +315,23 @@ def _build_evaluator_prompt(
     criteria: str,
     expected_dimensions: list[dict] | None,
     ground_truth: str = "",
+    artifacts_dir: str | None = None,
 ) -> str:
     """Build the evaluation prompt with optional dimension constraints and ground truth."""
     dimension_constraint = _format_dimension_constraint(expected_dimensions)
     ground_truth_section = _format_ground_truth_section(ground_truth)
 
+    location_hint = (
+        f"Analyze the artifacts in `{artifacts_dir}`."
+        if artifacts_dir
+        else "Analyze the artifacts in the current working directory."
+    )
+
     return f"""You are an expert evaluator assessing AI-generated artifacts against defined criteria.
 
 ## Your task
 
-Analyze the artifacts in the current working directory. These were generated by an AI agent that was given the following task instruction:
+{location_hint} These were generated by an AI agent that was given the following task instruction:
 
 <task_instruction>
 {instruction}
@@ -378,28 +402,90 @@ Use the following ground truth to evaluate completeness and accuracy. The agent'
 # ---------------------------------------------------------------------------
 
 
-async def _run_claude_code_evaluation(prompt: str, workspace_path: Path) -> str:
+async def _run_claude_code_evaluation(
+    prompt: str,
+    workspace_path: Path,
+    eval_config: EvaluationConfig | None = None,
+    project_root: Path = Path(),
+) -> str:
+    eval_config = eval_config or EvaluationConfig()
     _validate_auth()
+    options, temp_dir = _build_claude_code_options(
+        workspace_path, eval_config, project_root,
+    )
 
-    text_parts: list[str] = []
-    async for message in query(
-        prompt=prompt,
-        options=ClaudeCodeOptions(
-            allowed_tools=["Read", "Glob", "Grep"],
-            cwd=str(workspace_path),
-            max_turns=30,
-            model="claude-sonnet-4-6",
-            env={"CLAUDECODE": ""},
-        ),
-    ):
-        if message is None:
-            continue
-        if isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    text_parts.append(block.text)
+    try:
+        text_parts: list[str] = []
+        async for message in query(prompt=prompt, options=options):
+            if message is None:
+                continue
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        text_parts.append(block.text)
 
-    return "\n".join(text_parts)
+        return "\n".join(text_parts)
+    finally:
+        if temp_dir:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _build_claude_code_options(
+    workspace_path: Path,
+    eval_config: EvaluationConfig,
+    project_root: Path,
+) -> tuple[ClaudeCodeOptions, Path | None]:
+    allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
+    cwd = str(workspace_path)
+    add_dirs: list[str | Path] = []
+    temp_dir: Path | None = None
+
+    if eval_config.skills_dir:
+        temp_dir = Path(tempfile.mkdtemp(prefix="nasde_eval_"))
+        skills_source = _resolve_path(eval_config.skills_dir, project_root)
+        _prepare_skills_workspace(temp_dir, skills_source)
+        add_dirs.append(str(workspace_path))
+        cwd = str(temp_dir)
+
+    mcp_servers: dict | str | Path = {}
+    if eval_config.mcp_config:
+        mcp_config_path = _resolve_path(eval_config.mcp_config, project_root)
+        mcp_servers = str(mcp_config_path)
+
+    kwargs: dict = {}
+    if mcp_servers:
+        kwargs["mcp_servers"] = mcp_servers
+    if eval_config.append_system_prompt:
+        kwargs["append_system_prompt"] = eval_config.append_system_prompt
+
+    options = ClaudeCodeOptions(
+        allowed_tools=allowed_tools,
+        cwd=cwd,
+        max_turns=eval_config.max_turns,
+        model=eval_config.model,
+        env={"CLAUDECODE": ""},
+        add_dirs=add_dirs,
+        **kwargs,
+    )
+
+    return options, temp_dir
+
+
+def _prepare_skills_workspace(temp_dir: Path, skills_source: Path) -> None:
+    if not skills_source.is_dir():
+        console.print(
+            f"  [yellow]WARN: skills_dir '{skills_source}' not found or not a directory[/yellow]"
+        )
+        return
+    target_skills_dir = temp_dir / ".claude" / "skills"
+    shutil.copytree(skills_source, target_skills_dir)
+
+
+def _resolve_path(relative_or_absolute: str, project_root: Path) -> Path:
+    path = Path(relative_or_absolute)
+    if path.is_absolute():
+        return path
+    return project_root / path
 
 
 def _validate_auth() -> dict[str, str]:

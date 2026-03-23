@@ -12,8 +12,9 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
-model = "claude-sonnet-4-6"
+model = "claude-opus-4-6"
 dimensions_file = "assessment_dimensions.json"
+skills_dir = "./evaluator_skills"
 
 [reporting]
 platform = "opik"

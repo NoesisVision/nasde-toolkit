@@ -163,6 +163,83 @@ harbor_env = "daytona"
 
 See the [Harbor documentation](https://harborframework.com/docs/cloud) for detailed provider configuration.
 
+## Configuring the reviewer agent
+
+The reviewer agent (assessment evaluator) is configurable via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-4-6` with read-only tools (`Read`, `Glob`, `Grep`).
+
+### Model
+
+Use the best available model for review quality:
+
+```toml
+[evaluation]
+model = "claude-opus-4-6"   # Default — recommended for review quality
+```
+
+### Skills
+
+Give the reviewer agent skills (e.g. a code review methodology). Create a directory with `SKILL.md` files:
+
+```
+my-benchmark/
+  evaluator_skills/
+    code-review/
+      SKILL.md              # Review methodology, scoring principles
+```
+
+```toml
+[evaluation]
+skills_dir = "./evaluator_skills"
+```
+
+Skills are copied into the evaluator's workspace and loaded natively by Claude Code. The evaluator's prompt automatically adjusts to reference artifact paths correctly.
+
+### MCP servers
+
+Add external analysis tools (linters, complexity analyzers) as MCP servers:
+
+```json
+// evaluator_mcp.json
+{
+  "mcpServers": {
+    "code-analysis": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@some-org/code-analysis-mcp"]
+    }
+  }
+}
+```
+
+```toml
+[evaluation]
+mcp_config = "./evaluator_mcp.json"
+allowed_tools = ["Read", "Glob", "Grep", "mcp__code-analysis__analyze"]
+```
+
+MCP tool names follow the `mcp__<server>__<tool>` convention. If you override `allowed_tools`, you must include the MCP tools explicitly.
+
+### System prompt
+
+Append custom instructions to the evaluator's system prompt:
+
+```toml
+[evaluation]
+append_system_prompt = "Pay special attention to SOLID principles when scoring."
+```
+
+### All options
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `model` | `claude-opus-4-6` | Evaluator model |
+| `dimensions_file` | `assessment_dimensions.json` | Scoring dimensions file |
+| `max_turns` | `30` | Max conversation turns |
+| `allowed_tools` | `["Read", "Glob", "Grep"]` | Tool whitelist |
+| `mcp_config` | — | Path to MCP server config JSON |
+| `skills_dir` | — | Path to evaluator skills directory |
+| `append_system_prompt` | — | Extra system prompt text |
+
 ## Commands
 
 ### Core

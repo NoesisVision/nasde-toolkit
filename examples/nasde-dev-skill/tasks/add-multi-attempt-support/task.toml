@@ -1,0 +1,14 @@
+version = "1.0"
+
+[metadata]
+name = "add-multi-attempt-support"
+description = "Add --attempts/-n flag for multiple independent trial attempts per task"
+difficulty = "intermediate"
+language = "Python"
+framework = "Typer + Harbor"
+
+[agent]
+timeout_sec = 1800
+
+[verifier]
+timeout_sec = 300

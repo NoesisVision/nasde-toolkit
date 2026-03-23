@@ -1,0 +1,79 @@
+name: Example Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "examples/**"
+      - "src/**"
+      - "scripts/validate_example_task.sh"
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: examples-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-configs:
+    name: Validate benchmark configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install nasde-toolkit
+        run: uv sync
+
+      - name: Validate refactoring-skill config
+        run: |
+          uv run python -c "
+          from pathlib import Path
+          from nasde_toolkit.config import load_project_config
+          config = load_project_config(Path('examples/refactoring-skill'))
+          assert len(config.tasks) > 0, 'No tasks discovered'
+          print(f'OK: {config.name} — {len(config.tasks)} tasks')
+          "
+        env:
+          PYTHONPATH: src
+
+      - name: Validate ddd-architectural-challenges config
+        run: |
+          uv run python -c "
+          from pathlib import Path
+          from nasde_toolkit.config import load_project_config
+          config = load_project_config(Path('examples/ddd-architectural-challenges'))
+          assert len(config.tasks) > 0, 'No tasks discovered'
+          print(f'OK: {config.name} — {len(config.tasks)} tasks')
+          "
+        env:
+          PYTHONPATH: src
+
+  validate-docker-tasks:
+    name: "Docker: ${{ matrix.task }}"
+    runs-on: ubuntu-latest
+    needs: validate-configs
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - example: refactoring-skill
+            task: python-gilded-rose-polymorphism
+          # - example: ddd-architectural-challenges
+          #   task: ddd-threshold-discount  # temporarily disabled to reduce CI minutes
+          # - example: ddd-architectural-challenges
+          #   task: ddd-weather-discount  # temporarily disabled to reduce CI minutes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and validate task
+        run: |
+          bash scripts/validate_example_task.sh \
+            "examples/${{ matrix.example }}/tasks/${{ matrix.task }}"

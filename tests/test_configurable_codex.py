@@ -43,9 +43,7 @@ def test_setup_calls_dns_fix_then_parent_then_upload() -> None:
     env = AsyncMock()
     env.exec.return_value = MagicMock(return_code=0, stderr="")
 
-    with patch.object(
-        ConfigurableCodex.__bases__[0], "setup", new_callable=AsyncMock
-    ) as mock_parent_setup:
+    with patch.object(ConfigurableCodex.__bases__[0], "setup", new_callable=AsyncMock) as mock_parent_setup:
         asyncio.run(agent.setup(env))
 
     dns_call = env.exec.call_args_list[0]
@@ -64,8 +62,8 @@ def test_upload_raises_on_missing_source() -> None:
     env = AsyncMock()
     env.exec.return_value = MagicMock(return_code=0, stderr="")
 
-    with patch.object(
-        ConfigurableCodex.__bases__[0], "setup", new_callable=AsyncMock
+    with (
+        patch.object(ConfigurableCodex.__bases__[0], "setup", new_callable=AsyncMock),
+        pytest.raises(FileNotFoundError, match="does not exist"),
     ):
-        with pytest.raises(FileNotFoundError, match="does not exist"):
-            asyncio.run(agent.setup(env))
+        asyncio.run(agent.setup(env))

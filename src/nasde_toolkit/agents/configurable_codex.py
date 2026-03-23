@@ -93,15 +93,15 @@ class ConfigurableCodex(Codex):
         """
         if not os.environ.get("OPENAI_API_KEY") and os.environ.get("CODEX_API_KEY"):
             os.environ["OPENAI_API_KEY"] = os.environ["CODEX_API_KEY"]
-        return super().create_run_agent_commands(instruction)
+        commands: list[str] = super().create_run_agent_commands(instruction)
+        return commands
 
     async def _upload_sandbox_files(self, environment: BaseEnvironment) -> None:
         for target_path, source_path in self._sandbox_files.items():
             resolved = Path(source_path).resolve()
             if not resolved.is_file():
                 raise FileNotFoundError(
-                    f"sandbox_files: source '{source_path}' "
-                    f"(resolved to '{resolved}') does not exist"
+                    f"sandbox_files: source '{source_path}' (resolved to '{resolved}') does not exist"
                 )
             parent_dir = str(Path(target_path).parent)
             await environment.exec(command=f"mkdir -p {parent_dir}")

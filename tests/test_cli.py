@@ -16,10 +16,7 @@ runner = CliRunner()
 
 @pytest.fixture()
 def benchmark_project(tmp_path: Path) -> Path:
-    (tmp_path / "nasde.toml").write_text(
-        '[project]\nname = "test"\n'
-        '[defaults]\nvariant = "vanilla"\n'
-    )
+    (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n[defaults]\nvariant = "vanilla"\n')
 
     for variant_name in ["vanilla", "enhanced"]:
         variant_dir = tmp_path / "variants" / variant_name
@@ -28,10 +25,14 @@ def benchmark_project(tmp_path: Path) -> Path:
 
     task_dir = tmp_path / "tasks" / "sample"
     task_dir.mkdir(parents=True)
-    (task_dir / "task.json").write_text(json.dumps({
-        "name": "sample",
-        "source": {"git": "https://example.com/repo.git", "ref": "main"},
-    }))
+    (task_dir / "task.json").write_text(
+        json.dumps(
+            {
+                "name": "sample",
+                "source": {"git": "https://example.com/repo.git", "ref": "main"},
+            }
+        )
+    )
 
     return tmp_path
 
@@ -66,25 +67,19 @@ def test_all_variants_discovers_and_confirms(benchmark_project: Path) -> None:
 
 
 @patch("nasde_toolkit.runner.run_benchmark", new_callable=AsyncMock)
-def test_all_variants_runs_each_variant(
-    mock_run: AsyncMock, benchmark_project: Path
-) -> None:
-    result = runner.invoke(
+def test_all_variants_runs_each_variant(mock_run: AsyncMock, benchmark_project: Path) -> None:
+    runner.invoke(
         app,
         ["run", "--all-variants", "-C", str(benchmark_project)],
         input="y\n",
     )
     assert mock_run.await_count == 2
-    called_variants = sorted(
-        call.kwargs["variant"] for call in mock_run.call_args_list
-    )
+    called_variants = sorted(call.kwargs["variant"] for call in mock_run.call_args_list)
     assert called_variants == ["enhanced", "vanilla"]
 
 
 @patch("nasde_toolkit.runner.run_benchmark", new_callable=AsyncMock)
-def test_all_variants_continues_on_failure(
-    mock_run: AsyncMock, benchmark_project: Path
-) -> None:
+def test_all_variants_continues_on_failure(mock_run: AsyncMock, benchmark_project: Path) -> None:
     mock_run.side_effect = [Exception("boom"), AsyncMock()]
     result = runner.invoke(
         app,

@@ -117,9 +117,14 @@ def create_project(project_dir: Path, name: str) -> None:
         example_task_dir / "task.json",
         TASK_JSON_TEMPLATE.format(task_name="example-task"),
     )
+    instruction_content = (
+        "# Task: Example\n\n"
+        "## Context\n\nDescribe the codebase context.\n\n"
+        "## Requirement\n\nDescribe what the agent should do.\n"
+    )
     _write_if_missing(
         example_task_dir / "instruction.md",
-        "# Task: Example\n\n## Context\n\nDescribe the codebase context.\n\n## Requirement\n\nDescribe what the agent should do.\n",
+        instruction_content,
     )
     _write_if_missing(
         example_task_dir / "assessment_criteria.md",
@@ -131,10 +136,10 @@ def create_project(project_dir: Path, name: str) -> None:
     )
 
     console.print(f"[green]Project scaffolded at[/green] {project_dir}")
-    console.print(f"  nasde.toml")
-    console.print(f"  assessment_dimensions.json")
-    console.print(f"  tasks/example-task/")
-    console.print(f"  variants/vanilla/CLAUDE.md")
+    console.print("  nasde.toml")
+    console.print("  assessment_dimensions.json")
+    console.print("  tasks/example-task/")
+    console.print("  variants/vanilla/CLAUDE.md")
 
 
 def _write_if_missing(path: Path, content: str) -> None:

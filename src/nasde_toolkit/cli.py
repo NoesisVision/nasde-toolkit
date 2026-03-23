@@ -8,13 +8,16 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 
 from nasde_toolkit import __version__
+
+if TYPE_CHECKING:
+    from nasde_toolkit.config import ProjectConfig
 
 app = typer.Typer(
     name="nasde",
@@ -67,7 +70,7 @@ def init(
 
 @app.command()
 def run(
-    variant: Optional[str] = typer.Option(
+    variant: str | None = typer.Option(
         None,
         "--variant",
         help="Variant to run (defaults to config default).",
@@ -77,17 +80,17 @@ def run(
         "--all-variants",
         help="Run all available variants (Cartesian product with tasks).",
     ),
-    tasks: Optional[str] = typer.Option(
+    tasks: str | None = typer.Option(
         None,
         "--tasks",
         help="Comma-separated task names to run.",
     ),
-    model: Optional[str] = typer.Option(
+    model: str | None = typer.Option(
         None,
         "--model",
         help="Model override.",
     ),
-    timeout: Optional[int] = typer.Option(
+    timeout: int | None = typer.Option(
         None,
         "--timeout",
         help="Agent timeout in seconds.",
@@ -108,7 +111,7 @@ def run(
         "--without-eval",
         help="Skip assessment evaluation after benchmark.",
     ),
-    job_suffix: Optional[str] = typer.Option(
+    job_suffix: str | None = typer.Option(
         None,
         "--job-suffix",
         help="Custom suffix for job directory name (default: random 6-char hex).",
@@ -118,7 +121,7 @@ def run(
         "--max-concurrent-eval",
         help="Max concurrent assessment evaluations (default: 10).",
     ),
-    harbor_env: Optional[str] = typer.Option(
+    harbor_env: str | None = typer.Option(
         None,
         "--harbor-env",
         help="Harbor execution environment (docker, daytona, modal, e2b, runloop, gke). Default: docker.",
@@ -163,20 +166,23 @@ def run(
 
         # TODO: Parallel variant execution is possible but requires refactoring
         # _run_job() to eliminate os.chdir() and isolate Opik tracking.
-        asyncio.run(_run_all_variants(
-            config=config,
-            variants=variants_list,
-            model=resolved_model,
-            timeout_sec=resolved_timeout,
-            tasks_filter=tasks_filter,
-            with_opik=with_opik,
-            with_eval=not without_eval,
-            harbor_env=resolved_harbor_env,
-            n_attempts=attempts,
-            job_suffix=job_suffix,
-            max_concurrent_eval=max_concurrent_eval,
-        ))
+        asyncio.run(
+            _run_all_variants(
+                config=config,
+                variants=variants_list,
+                model=resolved_model,
+                timeout_sec=resolved_timeout,
+                tasks_filter=tasks_filter,
+                with_opik=with_opik,
+                with_eval=not without_eval,
+                harbor_env=resolved_harbor_env,
+                n_attempts=attempts,
+                job_suffix=job_suffix,
+                max_concurrent_eval=max_concurrent_eval,
+            )
+        )
     else:
+        assert variant is not None
         resolved_variant = variant
         from nasde_toolkit.runner import load_variant_agent_type, resolve_variant_dir
 
@@ -195,19 +201,21 @@ def run(
             agent_type=agent_type,
         )
 
-        asyncio.run(run_benchmark(
-            config=config,
-            variant=resolved_variant,
-            model=resolved_model,
-            timeout_sec=resolved_timeout,
-            tasks_filter=tasks_filter,
-            with_opik=with_opik,
-            with_eval=not without_eval,
-            harbor_env=resolved_harbor_env,
-            n_attempts=attempts,
-            job_suffix=job_suffix,
-            max_concurrent_eval=max_concurrent_eval,
-        ))
+        asyncio.run(
+            run_benchmark(
+                config=config,
+                variant=resolved_variant,
+                model=resolved_model,
+                timeout_sec=resolved_timeout,
+                tasks_filter=tasks_filter,
+                with_opik=with_opik,
+                with_eval=not without_eval,
+                harbor_env=resolved_harbor_env,
+                n_attempts=attempts,
+                job_suffix=job_suffix,
+                max_concurrent_eval=max_concurrent_eval,
+            )
+        )
 
 
 @app.command(name="eval")
@@ -239,21 +247,22 @@ def eval_command(
 
     config = load_project_config(project_dir.resolve())
 
-    console.print(Panel(
-        f"[bold]Assessment Evaluation[/bold]\n"
-        f"Job: {job_dir}\n"
-        f"Opik: {'enabled' if with_opik else 'disabled'}",
-        title="nasde",
-    ))
+    console.print(
+        Panel(
+            f"[bold]Assessment Evaluation[/bold]\nJob: {job_dir}\nOpik: {'enabled' if with_opik else 'disabled'}",
+            title="nasde",
+        )
+    )
 
-    asyncio.run(evaluate_job(
-        job_dir=job_dir.resolve(),
-        project_root=config.project_dir,
-        project_name=config.reporting.project_name,
-        with_opik=with_opik,
-        max_concurrent=max_concurrent_eval,
-        eval_config=config.evaluation,
-    ))
+    asyncio.run(
+        evaluate_job(
+            job_dir=job_dir.resolve(),
+            project_root=config.project_dir,
+            project_name=config.reporting.project_name,
+            with_opik=with_opik,
+            max_concurrent=max_concurrent_eval,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -302,24 +311,26 @@ def _print_run_header(
     env_str = harbor_env or "docker"
     attempts_str = f"{attempts}" if attempts > 1 else "1"
     agent_label = "Codex (OpenAI)" if agent_type == "codex" else "Claude Code"
-    console.print(Panel(
-        f"[bold]Benchmark Runner[/bold]\n"
-        f"Agent: {agent_label}\n"
-        f"Variant: {variant}\n"
-        f"Model: {model}\n"
-        f"Timeout: {timeout}s\n"
-        f"Tasks: {tasks_str}\n"
-        f"Attempts: {attempts_str}\n"
-        f"Environment: {env_str}\n"
-        f"Opik: {'enabled' if with_opik else 'disabled'}\n"
-        f"Assessment: {eval_str}",
-        title="nasde",
-    ))
+    console.print(
+        Panel(
+            f"[bold]Benchmark Runner[/bold]\n"
+            f"Agent: {agent_label}\n"
+            f"Variant: {variant}\n"
+            f"Model: {model}\n"
+            f"Timeout: {timeout}s\n"
+            f"Tasks: {tasks_str}\n"
+            f"Attempts: {attempts_str}\n"
+            f"Environment: {env_str}\n"
+            f"Opik: {'enabled' if with_opik else 'disabled'}\n"
+            f"Assessment: {eval_str}",
+            title="nasde",
+        )
+    )
 
 
 def _confirm_multi_variant_run(
     variants: list[str],
-    config: "ProjectConfig",
+    config: ProjectConfig,
     tasks_filter: list[str] | None,
     attempts: int,
 ) -> None:
@@ -353,7 +364,7 @@ def _confirm_multi_variant_run(
 
 
 async def _run_all_variants(
-    config: "ProjectConfig",
+    config: ProjectConfig,
     variants: list[str],
     model: str,
     timeout_sec: int,
@@ -365,16 +376,13 @@ async def _run_all_variants(
     job_suffix: str | None = None,
     max_concurrent_eval: int = 10,
 ) -> None:
-    from rich.table import Table
 
     from nasde_toolkit.runner import run_benchmark
 
     results: list[tuple[str, str, str]] = []
 
     for i, variant_name in enumerate(variants, 1):
-        console.print(
-            f"\n[bold]===  Variant {i}/{len(variants)}: {variant_name}  ===[/bold]\n"
-        )
+        console.print(f"\n[bold]===  Variant {i}/{len(variants)}: {variant_name}  ===[/bold]\n")
         try:
             await run_benchmark(
                 config=config,

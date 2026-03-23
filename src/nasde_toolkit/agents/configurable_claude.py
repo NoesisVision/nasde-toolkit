@@ -88,8 +88,7 @@ class ConfigurableClaude(ClaudeCode):
             resolved = Path(source_path).resolve()
             if not resolved.is_file():
                 raise FileNotFoundError(
-                    f"sandbox_files: source '{source_path}' "
-                    f"(resolved to '{resolved}') does not exist"
+                    f"sandbox_files: source '{source_path}' (resolved to '{resolved}') does not exist"
                 )
             parent_dir = str(Path(target_path).parent)
             await environment.exec(command=f"mkdir -p {parent_dir}")

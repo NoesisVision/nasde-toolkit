@@ -12,10 +12,9 @@ import json
 import os
 import re
 import shutil
-import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from claude_code_sdk import ClaudeCodeOptions, query
@@ -53,7 +52,7 @@ def _patched_parse_message(data: dict) -> object:
         return None
 
 
-_sdk_client.parse_message = _patched_parse_message
+_sdk_client.parse_message = _patched_parse_message  # type: ignore[assignment]
 
 console = Console()
 
@@ -115,7 +114,12 @@ async def evaluate_job(
     semaphore = asyncio.Semaphore(max_concurrent)
     coros = [
         _evaluate_and_record_trial(
-            td, project_root, project_name, with_opik, semaphore, eval_config,
+            td,
+            project_root,
+            project_name,
+            with_opik,
+            semaphore,
+            eval_config,
         )
         for td in trial_dirs
     ]
@@ -137,7 +141,12 @@ async def evaluate_and_record_trial(
     """
     eval_config = eval_config or EvaluationConfig()
     return await _evaluate_and_record_trial(
-        trial_dir, project_root, project_name, with_opik, semaphore, eval_config,
+        trial_dir,
+        project_root,
+        project_name,
+        with_opik,
+        semaphore,
+        eval_config,
     )
 
 
@@ -221,14 +230,21 @@ async def evaluate_trial(
 
     artifacts_dir = str(workspace_path) if eval_config.skills_dir else None
     prompt = _build_evaluator_prompt(
-        instruction, criteria, expected_dimensions, ground_truth, artifacts_dir,
+        instruction,
+        criteria,
+        expected_dimensions,
+        ground_truth,
+        artifacts_dir,
     )
     console.print(f"  Task: {task_name}")
     console.print(f"  Workspace: {workspace_path}")
     console.print("  Running Claude Code evaluation...")
 
     raw_response = await _run_claude_code_evaluation(
-        prompt, workspace_path, eval_config, project_root,
+        prompt,
+        workspace_path,
+        eval_config,
+        project_root,
     )
     evaluation = _parse_evaluation_response(raw_response, expected_dimensions)
 
@@ -242,7 +258,7 @@ async def evaluate_trial(
     evaluation.harbor_reward = harbor_reward
     evaluation.duration_sec = duration_sec
     evaluation.evaluator_model = eval_config.model
-    evaluation.timestamp = datetime.now(timezone.utc).isoformat()
+    evaluation.timestamp = datetime.now(UTC).isoformat()
 
     console.print(f"  Score: {evaluation.total_score}/100 ({evaluation.normalized_score:.2f})")
     for dim in evaluation.dimensions:
@@ -279,30 +295,33 @@ def _load_expected_dimensions(dimensions_path: Path) -> list[dict] | None:
     if not dimensions_path.exists():
         return None
     data = _load_json(dimensions_path)
-    return data.get("dimensions", [])
+    dims: list[dict] | None = data.get("dimensions", [])
+    return dims
 
 
 def _resolve_agent_name(trial_dir: Path) -> str:
     config_path = trial_dir / "config.json"
     if config_path.exists():
         config = _load_json(config_path)
-        return config.get("agent", {}).get("name", "")
+        name: str = config.get("agent", {}).get("name", "")
+        return name
     return ""
 
 
 def _resolve_task_dir(result: dict, project_root: Path) -> Path:
-    task_path = result.get("task_id", {}).get("path", "")
+    task_path: str = result.get("task_id", {}).get("path", "")
     if task_path:
         return project_root / task_path
-    task_name = result.get("task_name", "")
-    source = result.get("source", "")
+    task_name: str = result.get("task_name", "")
+    source: str = result.get("source", "")
     if source and task_name:
         return project_root / "evals" / source / "tasks" / task_name
     return Path()
 
 
 def _resolve_task_name(result: dict) -> str:
-    return result.get("task_name", "")
+    name: str = result.get("task_name", "")
+    return name
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +358,8 @@ def _build_evaluator_prompt(
 
 ## Evaluation criteria
 
-Score the output on the following dimensions. Each dimension is 0–25 points. Follow the rubric EXACTLY — assign the score that matches the description, not higher.
+Score the output on the following dimensions. Each dimension is 0–25 points.
+Follow the rubric EXACTLY — assign the score that matches the description, not higher.
 
 <criteria>
 {criteria}
@@ -354,12 +374,14 @@ Score the output on the following dimensions. Each dimension is 0–25 points. F
 
 ## Output format
 
-After your analysis, output a single JSON block with your evaluation. The JSON MUST be the last code block in your response:
+After your analysis, output a single JSON block with your evaluation.
+The JSON MUST be the last code block in your response:
 
 ```json
 {{
   "dimensions": [
-    {{"name": "<dimension_snake_case>", "score": <0-25>, "max_score": 25, "reasoning": "<1-3 sentences with specific evidence references>"}},
+    {{"name": "<dimension_snake_case>", "score": <0-25>, "max_score": 25,
+      "reasoning": "<1-3 sentences with specific evidence references>"}},
     ...
   ],
   "total_score": <sum of all dimension scores>,
@@ -389,7 +411,9 @@ def _format_ground_truth_section(ground_truth: str) -> str:
     return f"""
 ## Ground truth reference
 
-Use the following ground truth to evaluate completeness and accuracy. The agent's output should capture these decisions — missing or incorrect decisions should lower the score.
+Use the following ground truth to evaluate completeness and accuracy.
+The agent's output should capture these decisions — missing or incorrect
+decisions should lower the score.
 
 <ground_truth>
 {ground_truth}
@@ -411,7 +435,9 @@ async def _run_claude_code_evaluation(
     eval_config = eval_config or EvaluationConfig()
     _validate_auth()
     options, temp_dir = _build_claude_code_options(
-        workspace_path, eval_config, project_root,
+        workspace_path,
+        eval_config,
+        project_root,
     )
 
     try:
@@ -473,9 +499,7 @@ def _build_claude_code_options(
 
 def _prepare_skills_workspace(temp_dir: Path, skills_source: Path) -> None:
     if not skills_source.is_dir():
-        console.print(
-            f"  [yellow]WARN: skills_dir '{skills_source}' not found or not a directory[/yellow]"
-        )
+        console.print(f"  [yellow]WARN: skills_dir '{skills_source}' not found or not a directory[/yellow]")
         return
     target_skills_dir = temp_dir / ".claude" / "skills"
     shutil.copytree(skills_source, target_skills_dir)
@@ -555,10 +579,7 @@ def _validate_dimensions(
     expected_names = [d["name"] for d in expected]
     actual_names = [d.name for d in actual]
     if actual_names != expected_names:
-        console.print(
-            f"  [yellow]WARN: Dimension mismatch — expected {expected_names}, "
-            f"got {actual_names}[/yellow]"
-        )
+        console.print(f"  [yellow]WARN: Dimension mismatch — expected {expected_names}, got {actual_names}[/yellow]")
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +620,7 @@ def _upload_to_opik(evaluation: EvaluationResult, project_name: str) -> None:
         trace_id = new_trace.id
 
     scores = _build_opik_scores(trace_id, evaluation)
-    client.log_traces_feedback_scores(scores, project_name=project_name)
+    client.log_traces_feedback_scores(scores, project_name=project_name)  # type: ignore[arg-type]
     client.flush()
     console.print(f"  Uploaded {len(scores)} feedback scores to Opik (trace {trace_id})")
 
@@ -656,8 +677,9 @@ def _find_opik_trace(
             wait_for_timeout=30,
         )
         if traces:
-            console.print(f"  Found Opik trace: {search_name} ({traces[0].id})")
-            return traces[0].id
+            trace_id: str = traces[0].id
+            console.print(f"  Found Opik trace: {search_name} ({trace_id})")
+            return trace_id
     except Exception as exc:
         console.print(f"  [yellow]WARN: Opik search timed out for '{search_name}': {exc}[/yellow]")
 
@@ -671,4 +693,5 @@ def _find_opik_trace(
 
 def _load_json(path: Path) -> dict:
     with open(path) as f:
-        return json.load(f)
+        data: dict = json.load(f)
+    return data

@@ -46,7 +46,7 @@ def collect_available_variants(project_dir: Path) -> list[str]:
 async def run_benchmark(
     config: ProjectConfig,
     variant: str,
-    model: str = "claude-sonnet-4-6",
+    model: str | None = None,
     timeout_sec: int = 720,
     tasks_filter: list[str] | None = None,
     with_opik: bool = False,
@@ -68,6 +68,8 @@ async def run_benchmark(
 
     _ensure_auth(_read_agent_import_path(harbor_config_path))
 
+    resolved_model = _resolve_model(model, variant_dir, config)
+
     for task in config.tasks:
         ensure_task_environment(task.path, task.source, config.docker)
 
@@ -75,7 +77,7 @@ async def run_benchmark(
         config=config,
         variant_config_path=harbor_config_path,
         variant_name=variant,
-        model=model,
+        model=resolved_model,
         timeout_sec=timeout_sec,
         tasks_filter=tasks_filter,
         harbor_env=harbor_env,
@@ -106,6 +108,34 @@ async def run_benchmark(
 # ---------------------------------------------------------------------------
 # Prerequisites
 # ---------------------------------------------------------------------------
+
+
+def _resolve_model(
+    cli_model: str | None,
+    variant_dir: Path,
+    config: ProjectConfig,
+) -> str:
+    """Resolve model from CLI flag, variant.toml, or nasde.toml.
+
+    Priority: --model flag > variant.toml model > nasde.toml [defaults] model.
+    Raises SystemExit if no model is found at any level.
+    """
+    if cli_model:
+        return cli_model
+
+    variant_data = load_variant_config(variant_dir)
+    variant_model: str | None = variant_data.get("model")
+    if variant_model:
+        return variant_model
+
+    if config.default_model:
+        return config.default_model
+
+    console.print(
+        "[red]ERROR: No model specified. Set model via --model flag, "
+        "variant.toml 'model' field, or nasde.toml [defaults] model.[/red]"
+    )
+    raise SystemExit(1)
 
 
 def _ensure_auth(agent_import_path: str | None = None) -> None:
@@ -207,11 +237,11 @@ def _collect_codex_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> N
 _VALID_AGENT_TYPES = {"claude", "codex"}
 
 
-def load_variant_agent_type(variant_dir: Path) -> str:
-    """Read the agent type from variant.toml.
+def load_variant_config(variant_dir: Path) -> dict:
+    """Read variant.toml and return its contents as a dict.
 
-    Every variant directory must contain a ``variant.toml`` with an
-    ``agent`` field set to ``"claude"`` or ``"codex"``.
+    Every variant directory must contain a ``variant.toml`` with at least
+    an ``agent`` field set to ``"claude"`` or ``"codex"``.
     """
     variant_toml = variant_dir / "variant.toml"
     if not variant_toml.exists():
@@ -232,6 +262,12 @@ def load_variant_agent_type(variant_dir: Path) -> str:
         )
         raise SystemExit(1)
 
+    return data
+
+
+def load_variant_agent_type(variant_dir: Path) -> str:
+    """Read the agent type from variant.toml."""
+    agent_type: str = load_variant_config(variant_dir)["agent"]
     return agent_type
 
 

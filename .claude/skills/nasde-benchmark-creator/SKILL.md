@@ -226,6 +226,22 @@ Each variant is a directory under `variants/<variant-name>/` with a required `va
 agent = "claude"   # or "codex"
 ```
 
+For Codex variants, **always** set the model explicitly to avoid inheriting the Claude model from `nasde.toml`:
+
+```toml
+agent = "codex"
+model = "gpt-5.3-codex"   # Required for Codex — use an OpenAI model ID
+```
+
+**Codex models** (recommended first, as of 2026-03):
+- `gpt-5.4` — flagship frontier model, best overall for professional work
+- `gpt-5.4-mini` — fast, efficient mini model for responsive coding and subagents
+- `gpt-5.3-codex` — industry-leading coding model for complex software engineering
+- `gpt-5.3-codex-spark` — near-instant real-time coding iteration (ChatGPT Pro only)
+- Older: `gpt-5.2-codex`, `gpt-5.1-codex`, `gpt-5-codex`, `gpt-5-codex-mini`
+
+Without `model` in variant.toml, Codex inherits `nasde.toml`'s default (e.g. `claude-sonnet-4-6`), which silently produces garbage results.
+
 ### Claude Code variant
 
 ```

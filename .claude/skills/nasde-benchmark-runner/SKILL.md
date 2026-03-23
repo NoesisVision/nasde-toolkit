@@ -15,6 +15,36 @@ description: |
 
 Run coding agent benchmarks with `nasde` and verify results. The two-stage pipeline: Harbor runs agents in Docker containers (functional test → reward 0/1), then an LLM-as-a-Judge scores architecture quality across multiple dimensions.
 
+## Authentication setup
+
+Before running any benchmark, set up authentication tokens. Both are needed for cross-agent benchmarks.
+
+### Claude Code (OAuth token from subscription)
+
+```bash
+source scripts/export_oauth_token.sh
+```
+
+This extracts `CLAUDE_CODE_OAUTH_TOKEN` from macOS Keychain (written by `claude` CLI login). Required for both Claude agent runs AND assessment evaluation (which uses Claude Code SDK).
+
+Alternatively, set `ANTHROPIC_API_KEY` for API billing.
+
+### Codex (OpenAI API key)
+
+The project `.env` file contains `CODEX_API_KEY`. Load it:
+
+```bash
+export $(grep CODEX_API_KEY .env)
+```
+
+Or set directly: `export CODEX_API_KEY=sk-proj-...`
+
+### Combined setup for cross-agent runs
+
+```bash
+source scripts/export_oauth_token.sh && export $(grep CODEX_API_KEY .env)
+```
+
 ## Running benchmarks
 
 All commands assume `-C` points to the benchmark project directory.
@@ -69,36 +99,49 @@ nasde run --variant vanilla --job-suffix run1 -C path/to/benchmark
 
 ### Running Codex variants
 
-Codex variants use `AGENTS.md` (instead of `CLAUDE.md`) and require `CODEX_API_KEY` (standard OpenAI API key from platform.openai.com):
+Codex variants use `AGENTS.md` (instead of `CLAUDE.md`) and require `CODEX_API_KEY` or `OPENAI_API_KEY`.
+
+**CRITICAL: Codex model must be set explicitly.** The `nasde.toml` default model (e.g. `claude-sonnet-4-6`) is designed for Claude and will be passed to Codex if not overridden. Codex CLI will silently accept invalid model names but produce garbage results (0% pass rate). Always set the model via `--model` flag or in `variant.toml`.
 
 ```bash
-# Set Codex API key
-export CODEX_API_KEY=sk-...
+# Load Codex API key from .env
+export $(grep CODEX_API_KEY .env)
 
-# Run a Codex variant — must specify a Codex-compatible model
-nasde run --variant codex-vanilla --model gpt-5-codex -C path/to/benchmark
+# Run a Codex variant — MUST specify a Codex-compatible model
+nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark
 ```
 
-**Supported Codex models** (via API key): `gpt-5-codex`, `gpt-5.3-codex`, `gpt-5.4`, `gpt-5.4-mini`. Models like `codex-mini-latest` or `o3-mini` do NOT work with API keys.
+**Codex models** (recommended first, as of 2026-03):
+- `gpt-5.4` — flagship frontier model, best overall for professional work
+- `gpt-5.4-mini` — fast, efficient mini model for responsive coding and subagents
+- `gpt-5.3-codex` — industry-leading coding model for complex software engineering
+- `gpt-5.3-codex-spark` — near-instant real-time coding iteration (ChatGPT Pro only)
+
+Older alternatives: `gpt-5.2-codex`, `gpt-5.1-codex`, `gpt-5-codex`, `gpt-5-codex-mini`
+
+Codex supports any model compatible with the Responses API. Chat Completions API support is deprecated.
+
+**Setting model in variant.toml** (preferred over --model flag):
+```toml
+agent = "codex"
+model = "gpt-5.4"
+```
+This avoids accidentally inheriting the Claude model from `nasde.toml`.
 
 ### Cross-agent comparison (Claude vs Codex)
 
-Run all variants (both Claude and Codex) on the same tasks:
+Set up both auth tokens first (see Authentication setup above), then run:
 
 ```bash
-export CODEX_API_KEY=sk-...           # For Codex variants
-export CLAUDE_CODE_OAUTH_TOKEN=...     # For Claude variants
+source scripts/export_oauth_token.sh && export $(grep CODEX_API_KEY .env)
 
-nasde run --all-variants -C path/to/benchmark --with-opik
-```
-
-Or run specific variants in parallel:
-
-```bash
-nasde run --variant vanilla --tasks my-task -C path/to/benchmark --with-opik &
-nasde run --variant codex-vanilla --model gpt-5-codex --tasks my-task -C path/to/benchmark --with-opik &
+# Run Claude and Codex variants — Codex MUST have --model override
+nasde run --variant claude-vanilla -C path/to/benchmark --with-opik &
+nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark --with-opik &
 wait
 ```
+
+**WARNING**: Running Claude variants in parallel can cause OOM (exit code 137) in Docker. Claude Code containers are memory-heavy (~2-4 GB each). Run Claude variants sequentially, or increase Docker Desktop memory to 16+ GB.
 
 ### Custom model and timeout
 
@@ -245,9 +288,10 @@ head -20 jobs/<ts>/<trial>/agent/codex.txt
 ```
 
 Common causes:
-- **`Incorrect API key provided: ''`** — `CODEX_API_KEY` not set or not exported
-- **`model 'X' does not exist`** — wrong model name. Use `gpt-5-codex`, `gpt-5.3-codex`, `gpt-5.4`, or `gpt-5.4-mini`
-- **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools (e.g. `o3-mini`)
+- **`Incorrect API key provided: ''`** — `CODEX_API_KEY` not set or not exported. Load from `.env`: `export $(grep CODEX_API_KEY .env)`
+- **`model 'X' does not exist`** — wrong model name. Use `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, or `gpt-5.3-codex-spark`
+- **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-4-6`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-5.3-codex"` to `variant.toml` or using `--model gpt-5.3-codex`
+- **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools
 - **`Model metadata for 'X' not found`** — warning only, usually followed by the real error
 
 ### Trial reward is 0 but code looks correct

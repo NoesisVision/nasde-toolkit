@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | grep -q 'git commit' && uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/ && uv run mypy src/nasde_toolkit/ && uv run pytest -q || true",
+            "timeout": 120,
+            "statusMessage": "Running quality gates (ruff, mypy, pytest)..."
+          }
+        ]
+      }
+    ]
+  }
+}

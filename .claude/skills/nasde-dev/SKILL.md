@@ -19,7 +19,29 @@ Internal guidelines for developing nasde-toolkit itself.
 
 After any significant change to the toolkit (new features, refactors, dependency updates, renamed identifiers), run the full verification pipeline before considering the work complete.
 
-### 1. Static checks
+### 1. Quality gates (must pass before any commit/PR)
+
+These are the same checks that run on CI. **Always run locally before claiming code is ready:**
+
+```bash
+# Lint
+uv run ruff check src/ tests/
+
+# Format
+uv run ruff format --check src/ tests/
+
+# Type check
+uv run mypy src/nasde_toolkit/
+
+# Unit tests
+uv run pytest
+```
+
+All four must pass. If `ruff format` fails, run `uv run ruff format src/ tests/` to auto-fix.
+
+After pushing, verify CI passes on the PR with `gh pr checks <PR_NUMBER>`.
+
+### 1b. Static checks
 
 ```bash
 # No stale references to old names or patterns
@@ -29,7 +51,7 @@ grep -r "sdlc.eval\|sdlc-eval\|sdlc_eval" src/ docs/ CLAUDE.md README.md .claude
 uv sync
 ```
 
-### 1b. Documentation and skills consistency
+### 1c. Documentation and skills consistency
 
 After any change to the evaluation pipeline, CLI flags, configuration schema, agent support, or sandbox/environment handling, update **all** of these:
 
@@ -99,8 +121,9 @@ Expected feedback scores (7 total for the ddd benchmark):
 - `reward` — Harbor functional test result (0.0 or 1.0)
 - `duration_sec` — trial execution time
 
-### 5. When to run this protocol
+### 6. When to run this protocol
 
-- **Full protocol (steps 1-4):** After renaming, refactoring, dependency updates, or changes to runner/evaluator/config
+- **Step 1 (quality gates): ALWAYS before any commit or PR.** No exceptions.
+- **Full protocol (steps 1-5):** After renaming, refactoring, dependency updates, or changes to runner/evaluator/config
 - **Steps 1-2 only:** After documentation-only changes or minor code edits
-- **Skip:** Typo fixes, comment changes, .gitignore updates
+- **Skip entirely:** Typo fixes, comment changes, .gitignore updates (but still run step 1 before committing)

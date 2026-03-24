@@ -400,17 +400,26 @@ This lets you use your Claude Pro/Max subscription instead of an API key.
 
 ### OpenAI Codex
 
-Codex variants require an **OpenAI API key**. This is a standard API key from [platform.openai.com](https://platform.openai.com/api-keys) — the same key you'd use for any OpenAI API call (GPT, o3, etc.). It is billed per-token through your OpenAI Platform account.
+Codex variants support two authentication methods:
 
-Set it as `CODEX_API_KEY` (preferred by the Codex CLI):
+**Option 1: ChatGPT subscription (OAuth)** — uses your ChatGPT Plus/Pro/Business plan credits, not API billing.
 
 ```bash
-export CODEX_API_KEY=sk-...
+codex login                                # authenticate via ChatGPT (one-time)
+source scripts/export_codex_oauth_token.sh # validate tokens are present
+uv run nasde run --variant codex-vanilla -C my-benchmark
 ```
 
-`OPENAI_API_KEY` also works, but `CODEX_API_KEY` is recommended to avoid conflicts with other OpenAI tools.
+NASDE auto-detects `~/.codex/auth.json` with `auth_mode: "chatgpt"` and injects the full OAuth token structure into the sandbox. No env vars needed.
 
-> **Note:** Codex CLI also supports OAuth-based auth via ChatGPT subscriptions (`codex login`), but NASDE currently only supports API key authentication for Codex variants, since agents run in isolated Docker/cloud sandboxes where OAuth sessions from the host are not available.
+**Option 2: API key** — billed per-token through your OpenAI Platform account.
+
+```bash
+export CODEX_API_KEY=sk-...  # preferred
+# or: export OPENAI_API_KEY=sk-...
+```
+
+API key always takes priority over OAuth when both are present.
 
 ### Opik tracing
 
@@ -428,7 +437,7 @@ OPIK_PROJECT_NAME=...
 - **uv** — Package manager
 - **Agent credentials** (at least one):
   - Claude Code: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`
-  - OpenAI Codex: `CODEX_API_KEY` (OpenAI API key from [platform.openai.com](https://platform.openai.com/api-keys))
+  - OpenAI Codex: `CODEX_API_KEY` (API key) or `codex login` (ChatGPT subscription OAuth)
 - **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** — Also required for the assessment evaluator (which always uses Claude Code SDK)
 
 ## Verifying Opik results

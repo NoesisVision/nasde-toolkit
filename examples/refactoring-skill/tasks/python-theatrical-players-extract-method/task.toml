@@ -12,5 +12,8 @@ difficulty = "intermediate"
 [agent]
 timeout_sec = 1800
 
+[environment]
+memory_mb = 4096
+
 [verifier]
 timeout_sec = 300

@@ -69,7 +69,7 @@ nasde run [OPTIONS]              # Run benchmark (Harbor trial + assessment eval
   --variant TEXT                     # Variant name (default: from nasde.toml)
   --tasks TEXT                       # Comma-separated task names (default: all)
   --model TEXT                       # Model override
-  --timeout INT                      # Agent timeout in seconds
+  --timeout INT                      # Agent timeout override (default: task.toml [agent] timeout_sec)
   --with-opik                        # Enable Opik tracing
   --without-eval                     # Skip assessment evaluation
   --job-suffix TEXT                  # Custom suffix for job directory (default: random 6-char hex)
@@ -136,7 +136,7 @@ version = "1.0.0"
 [defaults]
 variant = "vanilla"
 model = "claude-sonnet-4-6"
-timeout_sec = 720
+# timeout_sec = 720        # Optional: only used if --timeout flag is passed without value
 # harbor_env = "daytona"  # Optional: cloud sandbox provider
 
 [docker]
@@ -207,11 +207,16 @@ description = "Brief description"
 language = "Python"
 
 [agent]
-timeout_sec = 1800
+timeout_sec = 1800          # Agent execution timeout (primary source — overridden only by --timeout flag)
+
+[environment]
+memory_mb = 4096            # Container memory limit (default: 2048). Claude Code needs 4096+.
 
 [verifier]
 timeout_sec = 300
 ```
+
+**Timeout priority**: `--timeout` CLI flag > task.toml `[agent] timeout_sec` > Harbor default (1800s). The `nasde.toml [defaults] timeout_sec` is NOT used as override — task.toml controls per-task timeouts.
 
 ### harbor_config.json (per variant)
 

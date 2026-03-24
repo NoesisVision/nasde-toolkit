@@ -100,13 +100,18 @@ language = "C#"
 framework = ".NET 8"
 
 [agent]
-timeout_sec = 1800
+timeout_sec = 1800          # Primary agent timeout — this is the authoritative source
+
+[environment]
+memory_mb = 4096            # Container memory limit. Claude Code needs 4096+, default 2048 is too low.
 
 [verifier]
 timeout_sec = 300
 ```
 
 The `agent.timeout_sec` should be `estimated_time_minutes × 60`. The `verifier.timeout_sec` matches `evaluation.timeout_seconds` from task.json.
+
+**Timeout priority**: `--timeout` CLI flag > task.toml `[agent] timeout_sec` > Harbor default. Set per-task timeouts here, not in nasde.toml.
 
 ### instruction.md (required)
 

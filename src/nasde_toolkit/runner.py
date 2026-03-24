@@ -47,7 +47,7 @@ async def run_benchmark(
     config: ProjectConfig,
     variant: str,
     model: str | None = None,
-    timeout_sec: int = 720,
+    timeout_sec: int | None = None,
     tasks_filter: list[str] | None = None,
     with_opik: bool = False,
     with_eval: bool = True,
@@ -327,7 +327,7 @@ def _build_merged_config(
     variant_config_path: Path,
     variant_name: str,
     model: str,
-    timeout_sec: int,
+    timeout_sec: int | None,
     tasks_filter: list[str] | None,
     harbor_env: str | None = None,
     n_attempts: int = 1,
@@ -340,7 +340,8 @@ def _build_merged_config(
 
     for agent in variant.get("agents", []):
         agent.setdefault("model_name", model)
-        agent.setdefault("override_timeout_sec", timeout_sec)
+        if timeout_sec is not None:
+            agent.setdefault("override_timeout_sec", timeout_sec)
 
     registry = _build_registry(config, tasks_filter)
     registry_path = _write_temp_json(registry, prefix="nasde-registry-")

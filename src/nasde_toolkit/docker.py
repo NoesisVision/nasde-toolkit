@@ -38,14 +38,12 @@ def ensure_task_environment(
     current working tree which may contain later changes.
     """
     env_dir = task_dir / "environment"
-    if (env_dir / "Dockerfile").exists():
-        return
 
-    env_dir.mkdir(parents=True, exist_ok=True)
-
-    dockerfile_content = generate_dockerfile(source, docker)
-    (env_dir / "Dockerfile").write_text(dockerfile_content)
-    console.print(f"  [dim]Generated Dockerfile in {env_dir}[/dim]")
+    if not (env_dir / "Dockerfile").exists():
+        env_dir.mkdir(parents=True, exist_ok=True)
+        dockerfile_content = generate_dockerfile(source, docker)
+        (env_dir / "Dockerfile").write_text(dockerfile_content)
+        console.print(f"  [dim]Generated Dockerfile in {env_dir}[/dim]")
 
     if _is_local_path(source.git):
         build_context_dir = _resolve_local_build_context(task_dir, source)

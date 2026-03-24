@@ -29,9 +29,18 @@ This extracts `CLAUDE_CODE_OAUTH_TOKEN` from macOS Keychain (written by `claude`
 
 Alternatively, set `ANTHROPIC_API_KEY` for API billing.
 
-### Codex (OpenAI API key)
+### Codex (ChatGPT subscription or API key)
 
-The project `.env` file contains `CODEX_API_KEY`. Load it:
+**Option 1: ChatGPT subscription (OAuth)** — uses ChatGPT Plus/Pro/Business plan credits, no per-token API cost:
+
+```bash
+codex login                                # one-time: authenticate via ChatGPT
+source scripts/export_codex_oauth_token.sh # validate tokens are present
+```
+
+NASDE auto-detects `~/.codex/auth.json` with `auth_mode: "chatgpt"` and injects OAuth tokens into the sandbox. No env vars needed.
+
+**Option 2: API key** — billed per-token through OpenAI Platform:
 
 ```bash
 export $(grep CODEX_API_KEY .env)
@@ -39,10 +48,14 @@ export $(grep CODEX_API_KEY .env)
 
 Or set directly: `export CODEX_API_KEY=sk-proj-...`
 
+API key always takes priority over OAuth when both are present.
+
 ### Combined setup for cross-agent runs
 
 ```bash
-source scripts/export_oauth_token.sh && export $(grep CODEX_API_KEY .env)
+source scripts/export_oauth_token.sh  # Claude (subscription)
+# Codex: either codex login (subscription) or:
+export $(grep CODEX_API_KEY .env)     # Codex (API key)
 ```
 
 ## Running benchmarks
@@ -99,15 +112,16 @@ nasde run --variant vanilla --job-suffix run1 -C path/to/benchmark
 
 ### Running Codex variants
 
-Codex variants use `AGENTS.md` (instead of `CLAUDE.md`) and require `CODEX_API_KEY` or `OPENAI_API_KEY`.
+Codex variants use `AGENTS.md` (instead of `CLAUDE.md`) and require either `codex login` (ChatGPT subscription) or `CODEX_API_KEY`/`OPENAI_API_KEY` (API billing).
 
 **CRITICAL: Codex model must be set explicitly.** The `nasde.toml` default model (e.g. `claude-sonnet-4-6`) is designed for Claude and will be passed to Codex if not overridden. Codex CLI will silently accept invalid model names but produce garbage results (0% pass rate). Always set the model via `--model` flag or in `variant.toml`.
 
 ```bash
-# Load Codex API key from .env
-export $(grep CODEX_API_KEY .env)
+# Option A: ChatGPT subscription (no env vars needed after codex login)
+nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark
 
-# Run a Codex variant — MUST specify a Codex-compatible model
+# Option B: API key
+export $(grep CODEX_API_KEY .env)
 nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark
 ```
 
@@ -163,7 +177,8 @@ When using `CLAUDE_CODE_OAUTH_TOKEN` (Claude subscription — no per-token cost)
 - **Ask first**: over 30 minutes, OR when using `ANTHROPIC_API_KEY` (API billing)
 
 **Codex variants:**
-Always billed per-token via `CODEX_API_KEY`. Always ask before running. Codex uses significantly more input tokens than Claude Code (~1M vs ~250K per task).
+- **ChatGPT OAuth** (`codex login`): uses subscription credits, no per-token cost. Same heuristic as Claude subscription — run freely under 30 minutes.
+- **API key** (`CODEX_API_KEY`): billed per-token. Always ask before running. Codex uses significantly more input tokens than Claude Code (~1M vs ~250K per task).
 
 Task estimated times are in `task.json` → `estimated_time_minutes`. When `--tasks` filters are used, count only selected tasks.
 
@@ -288,7 +303,7 @@ head -20 jobs/<ts>/<trial>/agent/codex.txt
 ```
 
 Common causes:
-- **`Incorrect API key provided: ''`** — `CODEX_API_KEY` not set or not exported. Load from `.env`: `export $(grep CODEX_API_KEY .env)`
+- **`Incorrect API key provided: ''`** — no auth configured. Either run `codex login` (ChatGPT subscription) or set `CODEX_API_KEY`: `export $(grep CODEX_API_KEY .env)`
 - **`model 'X' does not exist`** — wrong model name. Use `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, or `gpt-5.3-codex-spark`
 - **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-4-6`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-5.3-codex"` to `variant.toml` or using `--model gpt-5.3-codex`
 - **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools

@@ -209,3 +209,44 @@ def test_ensure_task_environment_creates_worktree_for_local_with_ref(
         assert not (worktree_dir / "new_file.txt").exists()
     finally:
         cleanup_worktrees()
+
+
+def test_ensure_task_environment_regenerates_compose_when_dockerfile_exists(
+    tmp_path: Path,
+    default_docker: DockerConfig,
+) -> None:
+    """docker-compose.yaml must be regenerated even when Dockerfile already exists.
+
+    Local sources with a ref create a temp worktree whose path changes every run.
+    A stale docker-compose.yaml from a previous run points to a cleaned-up path.
+    """
+    repo_dir = tmp_path / "my-repo"
+    repo_dir.mkdir()
+    commit_hash = _init_git_repo(repo_dir)
+
+    task_dir = tmp_path / "project" / "tasks" / "my-task"
+    env_dir = task_dir / "environment"
+    env_dir.mkdir(parents=True)
+
+    (env_dir / "Dockerfile").write_text("FROM python:3.12-slim\nCOPY . /app\n")
+    (env_dir / "docker-compose.yaml").write_text(
+        "services:\n  main:\n    build:\n      context: /tmp/nasde-build-STALE\n"
+    )
+
+    source = SourceConfig(git=str(repo_dir), ref=commit_hash)
+
+    try:
+        ensure_task_environment(task_dir, source, default_docker)
+
+        assert (env_dir / "Dockerfile").read_text() == "FROM python:3.12-slim\nCOPY . /app\n"
+
+        compose = (env_dir / "docker-compose.yaml").read_text()
+        assert "/tmp/nasde-build-STALE" not in compose
+
+        context_line = [line.strip() for line in compose.splitlines() if "context:" in line][0]
+        relative_context = context_line.split("context:")[1].strip()
+        worktree_dir = (env_dir / relative_context).resolve()
+        assert worktree_dir.exists()
+        assert (worktree_dir / "hello.txt").exists()
+    finally:
+        cleanup_worktrees()

@@ -8,7 +8,10 @@ echo ""
 cd /app
 
 # Reinstall from source so agent edits are picked up
-uv tool install . --force 2>/dev/null
+# TEMPORARY WORKAROUND: litellm quarantined on PyPI (March 2026 supply chain attack).
+# Safe version installed from GitHub via uv override. Remove once PyPI restores litellm.
+echo 'litellm @ https://github.com/BerriAI/litellm/archive/refs/tags/v1.82.3.tar.gz' > /tmp/litellm-override.txt
+uv tool install . --force --override /tmp/litellm-override.txt 2>/dev/null
 
 echo "Step 1: CLI flag exists with correct help text..."
 echo "--------------------------------------"

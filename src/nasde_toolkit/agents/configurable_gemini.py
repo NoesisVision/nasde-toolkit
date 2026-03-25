@@ -75,21 +75,30 @@ async def _write_oauth_to_sandbox(environment: BaseEnvironment, oauth_creds_json
     This runs AFTER Harbor's setup which creates a minimal settings.json.
     We merge our auth config into it rather than overwriting.
     """
-    import shlex
+    import tempfile
 
-    await environment.exec(command="mkdir -p ~/.gemini")
-    await environment.exec(command=f"printf '%s' {shlex.quote(oauth_creds_json)} > ~/.gemini/oauth_creds.json")
-    await environment.exec(
-        command=(
-            'python3 -c "'
-            "import json, pathlib; "
-            "p = pathlib.Path.home() / '.gemini' / 'settings.json'; "
-            "d = json.loads(p.read_text()) if p.exists() else {}; "
-            "d.setdefault('security', {}).setdefault('auth', {})['selectedType'] = 'oauth-personal'; "
-            "p.write_text(json.dumps(d, indent=2))"
-            '"'
-        )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        f.write(oauth_creds_json)
+        tmp_creds = Path(f.name)
+
+    settings_json = json.dumps(
+        {
+            "experimental": {"skills": True},
+            "security": {"auth": {"selectedType": "oauth-personal"}},
+        },
+        indent=2,
     )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        f.write(settings_json)
+        tmp_settings = Path(f.name)
+
+    try:
+        await environment.exec(command="mkdir -p /root/.gemini")
+        await environment.upload_file(source_path=tmp_creds, target_path="/root/.gemini/oauth_creds.json")
+        await environment.upload_file(source_path=tmp_settings, target_path="/root/.gemini/settings.json")
+    finally:
+        tmp_creds.unlink(missing_ok=True)
+        tmp_settings.unlink(missing_ok=True)
 
 
 class ConfigurableGemini(GeminiCli):
@@ -133,7 +142,7 @@ class ConfigurableGemini(GeminiCli):
         await self._inject_oauth_if_needed(environment)
 
     async def _inject_oauth_if_needed(self, environment: BaseEnvironment) -> None:
-        """Write OAuth creds and auth config into the sandbox after setup."""
+        """Write OAuth creds and update settings.json in the sandbox after setup."""
         has_api_key = any(os.environ.get(var) for var in _API_KEY_VARS)
         if has_api_key:
             return
@@ -142,8 +151,9 @@ class ConfigurableGemini(GeminiCli):
         if not oauth_creds_json:
             return
 
-        logger.info("Using Gemini OAuth credentials from ~/.gemini/oauth_creds.json")
+        logger.info("Injecting Gemini OAuth credentials into sandbox")
         await _write_oauth_to_sandbox(environment, oauth_creds_json)
+        logger.info("Gemini OAuth injection complete")
 
     async def _ensure_dns_resolution(self, environment: BaseEnvironment) -> None:
         """Prepend public DNS resolvers if cloud sandbox cannot reach Google APIs."""

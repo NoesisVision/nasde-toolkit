@@ -2,7 +2,7 @@
 
 ## Overview
 
-NASDE evaluates AI coding agents (e.g. Claude Code, OpenAI Codex) on programming tasks. It uses **Harbor** as the execution engine running agents in isolated sandbox environments and **Opik** as the observability platform for tracking results.
+NASDE evaluates AI coding agents (e.g. Claude Code, OpenAI Codex, Gemini CLI) on programming tasks. It uses **Harbor** as the execution engine running agents in isolated sandbox environments and **Opik** as the observability platform for tracking results.
 
 Key design: evaluation is **two-stage** — Harbor assesses functional correctness (tests pass/fail), then a separate reviewer agent (Claude Code SDK) assesses architectural quality of the generated code.
 
@@ -20,8 +20,8 @@ flowchart TB
 
     subgraph HARBOR ["2. Harbor — trial execution (isolated sandbox)"]
         JOB --> SANDBOX["Sandbox environment\n(Docker, Daytona, Modal, E2B, etc.)"]
-        SANDBOX --> SETUP["ConfigurableClaude.setup()\n→ upload CLAUDE.md, .claude.json"]
-        SETUP --> AGENT["Claude Code agent\nworks on the task"]
+        SANDBOX --> SETUP["Configurable{Claude,Codex,Gemini}.setup()\n→ upload instruction files, skills, config"]
+        SETUP --> AGENT["AI coding agent\nworks on the task"]
         AGENT --> TEST["test.sh — functional verification"]
         TEST --> REWARD["reward: 0.0 or 1.0"]
         REWARD --> ARTIFACTS["Artifacts copied to host\n→ jobs/ts/trial/artifacts/"]
@@ -218,6 +218,11 @@ classDiagram
         +setup(environment)
         +solve(task)
     }
+    class GeminiCli {
+        <<Harbor built-in>>
+        +setup(environment)
+        +solve(task)
+    }
     class ConfigurableClaude {
         -_sandbox_files: dict~str, str~
         +setup(environment)
@@ -230,14 +235,23 @@ classDiagram
         -_upload_sandbox_files(environment)
         +name() str
     }
+    class ConfigurableGemini {
+        -_sandbox_files: dict~str, str~
+        +setup(environment)
+        -_upload_sandbox_files(environment)
+        +create_run_agent_commands(instruction) list
+        +name() str
+    }
     ClaudeCode <|-- ConfigurableClaude
     Codex <|-- ConfigurableCodex
+    GeminiCli <|-- ConfigurableGemini
 
     note for ConfigurableClaude "Injects CLAUDE.md, .claude/skills/ into sandbox"
     note for ConfigurableCodex "Injects AGENTS.md, .agents/skills/ into sandbox"
+    note for ConfigurableGemini "Injects GEMINI.md, .gemini/skills/ into sandbox\nAuto-injects OAuth creds from ~/.gemini/oauth_creds.json"
 ```
 
-Harbor natively handles auth, MCP servers, model selection, and timeout for both agents. `ConfigurableClaude` and `ConfigurableCodex` each add **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`. The agent type is auto-detected from the variant's instruction file (`CLAUDE.md` → Claude, `AGENTS.md` → Codex).
+Harbor natively handles auth, MCP servers, model selection, and timeout for all agents. `ConfigurableClaude`, `ConfigurableCodex`, and `ConfigurableGemini` each add **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`. `ConfigurableGemini` additionally handles OAuth credential injection and DNS resolution for cloud sandboxes. The agent type is auto-detected from the variant's instruction file (`CLAUDE.md` → Claude, `AGENTS.md` → Codex, `GEMINI.md` → Gemini).
 
 ---
 
@@ -246,15 +260,17 @@ Harbor natively handles auth, MCP servers, model selection, and timeout for both
 Each benchmark defines its **own set of variants** — there are no globally shared variants. A variant represents a specific agent configuration to be compared against other variants on the same set of tasks.
 
 Each variant is a directory under `variants/<variant-name>/` containing:
-- `variant.toml` — **required**, declares the agent type (`agent = "claude"` or `agent = "codex"`)
+- `variant.toml` — **required**, declares the agent type (`agent = "claude"`, `agent = "codex"`, or `agent = "gemini"`)
 - `CLAUDE.md` — Claude Code instructions injected into `/app/CLAUDE.md` (for Claude variants)
 - `AGENTS.md` — Codex instructions injected into `/app/AGENTS.md` (for Codex variants)
+- `GEMINI.md` — Gemini CLI instructions injected into `/app/GEMINI.md` (for Gemini variants)
 - `skills/` — Claude skill snapshots, each `skills/<name>/SKILL.md` injected into `/app/.claude/skills/<name>/SKILL.md` (optional)
 - `agents_skills/` — Codex skill snapshots, each `agents_skills/<name>/` injected recursively into `/app/.agents/skills/<name>/` (optional)
+- `gemini_skills/` — Gemini skill snapshots, each `gemini_skills/<name>/` injected recursively into `/app/.gemini/skills/<name>/` and `~/.gemini/skills/<name>/` (optional)
 - `harbor_config.json` — agent import path + `sandbox_files` mapping (auto-generated from `variant.toml` if absent)
 - `claude_config.json` — MCP server configuration, Claude only (optional)
 
-Variants can differ along many axes: agent type, instruction specificity, skill combinations, tool access, constraints, prompting techniques. Cross-agent comparison (e.g. Claude vs Codex on the same tasks) is a key use case.
+Variants can differ along many axes: agent type, instruction specificity, skill combinations, tool access, constraints, prompting techniques. Cross-agent comparison (e.g. Claude vs Codex vs Gemini on the same tasks) is a key use case.
 
 ---
 
@@ -348,4 +364,5 @@ src/nasde_toolkit/
   agents/
     configurable_claude.py # Harbor-compatible Claude Code agent with sandbox file injection
     configurable_codex.py  # Harbor-compatible Codex agent with sandbox file injection
+    configurable_gemini.py # Harbor-compatible Gemini CLI agent with sandbox file injection + OAuth
 ```

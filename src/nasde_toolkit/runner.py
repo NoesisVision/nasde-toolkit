@@ -148,6 +148,16 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
             return
         console.print("[red]ERROR: Set CODEX_API_KEY, OPENAI_API_KEY, or run 'codex login' for OAuth[/red]")
         raise SystemExit(1)
+    if _is_gemini_agent(agent_import_path):
+        if (
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            or Path.home().joinpath(".gemini", "oauth_creds.json").exists()
+        ):
+            return
+        console.print("[red]ERROR: Set GEMINI_API_KEY, GOOGLE_API_KEY, or run 'gemini login' for OAuth[/red]")
+        raise SystemExit(1)
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
         return
     console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
@@ -204,8 +214,12 @@ def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
     agents_md = variant_dir / "AGENTS.md"
     if agents_md.exists():
         sandbox_files["/app/AGENTS.md"] = str(agents_md)
+    gemini_md = variant_dir / "GEMINI.md"
+    if gemini_md.exists():
+        sandbox_files["/app/GEMINI.md"] = str(gemini_md)
     _collect_claude_skills(variant_dir, sandbox_files)
     _collect_codex_skills(variant_dir, sandbox_files)
+    _collect_gemini_skills(variant_dir, sandbox_files)
     return sandbox_files
 
 
@@ -234,7 +248,21 @@ def _collect_codex_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> N
                 sandbox_files[target] = str(file_path)
 
 
-_VALID_AGENT_TYPES = {"claude", "codex"}
+def _collect_gemini_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
+    gemini_skills_dir = variant_dir / "gemini_skills"
+    if not gemini_skills_dir.is_dir():
+        return
+    for skill_dir in sorted(gemini_skills_dir.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        for file_path in skill_dir.rglob("*"):
+            if file_path.is_file():
+                relative = file_path.relative_to(gemini_skills_dir)
+                target = f"/app/.gemini/skills/{relative}"
+                sandbox_files[target] = str(file_path)
+
+
+_VALID_AGENT_TYPES = {"claude", "codex", "gemini"}
 
 
 def load_variant_config(variant_dir: Path) -> dict:
@@ -274,11 +302,17 @@ def load_variant_agent_type(variant_dir: Path) -> str:
 def _agent_import_path(agent_type: str) -> str:
     if agent_type == "codex":
         return "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"
+    if agent_type == "gemini":
+        return "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini"
     return "nasde_toolkit.agents.configurable_claude:ConfigurableClaude"
 
 
 def _is_codex_agent(agent_import_path: str | None) -> bool:
     return bool(agent_import_path and "codex" in agent_import_path.lower())
+
+
+def _is_gemini_agent(agent_import_path: str | None) -> bool:
+    return bool(agent_import_path and "gemini" in agent_import_path.lower())
 
 
 def _read_agent_import_path(harbor_config_path: Path) -> str | None:

@@ -228,7 +228,7 @@ Each variant is a directory under `variants/<variant-name>/` with a required `va
 ### variant.toml (required)
 
 ```toml
-agent = "claude"   # or "codex"
+agent = "claude"   # or "codex" or "gemini"
 ```
 
 For Codex variants, **always** set the model explicitly to avoid inheriting the Claude model from `nasde.toml`:
@@ -247,6 +247,18 @@ model = "gpt-5.3-codex"   # Required for Codex — use an OpenAI model ID
 
 Without `model` in variant.toml, Codex inherits `nasde.toml`'s default (e.g. `claude-sonnet-4-6`), which silently produces garbage results.
 
+For Gemini CLI variants, **always** set the model with the `google/` prefix:
+
+```toml
+agent = "gemini"
+model = "google/gemini-3-flash-preview"   # Required format: google/<model-name>
+```
+
+**Gemini models** (recommended first, as of 2026-03):
+- `google/gemini-3.1-pro-preview` — advanced thinking model, best for deep reasoning
+- `google/gemini-3-flash-preview` — best quality/speed ratio, daily coding tasks
+- `google/gemini-3.1-flash-lite-preview` — fastest, simple and repetitive tasks
+
 ### Claude Code variant
 
 ```
@@ -263,6 +275,15 @@ variants/codex-baseline/
   variant.toml       # agent = "codex"
   AGENTS.md          # Instructions (injected to /app/AGENTS.md)
   agents_skills/     # Optional: skill snapshots (injected to /app/.agents/skills/)
+```
+
+### Gemini CLI variant
+
+```
+variants/gemini-baseline/
+  variant.toml       # agent = "gemini"
+  GEMINI.md          # Instructions (injected to /app/GEMINI.md)
+  gemini_skills/     # Optional: skill snapshots (injected to /app/.gemini/skills/)
 ```
 
 If no `harbor_config.json` exists, `nasde` auto-generates one from `variant.toml`. To customize (e.g., add MCP servers), create it explicitly:
@@ -293,7 +314,7 @@ Design variants to test specific hypotheses:
 - **Guided** — detailed domain-specific guidance, patterns to follow
 - **Skill-augmented** — skills injected for domain expertise (e.g., tactical DDD)
 - **Tool-augmented** — MCP server access (e.g., codebase search)
-- **Cross-agent** — same instructions for Claude and Codex to compare agent performance
+- **Cross-agent** — same instructions for Claude, Codex, and Gemini to compare agent performance
 
 Every benchmark needs at least one variant (typically `vanilla` or `baseline`).
 

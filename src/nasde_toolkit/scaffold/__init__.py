@@ -88,6 +88,10 @@ VARIANT_CLAUDE_MD_TEMPLATE = """\
 3. Write tests that match the style of existing test files.
 """
 
+VARIANT_TOML_TEMPLATE = """\
+agent = "claude"
+"""
+
 GITIGNORE_TEMPLATE = """\
 jobs/
 """
@@ -107,6 +111,7 @@ def create_project(project_dir: Path, name: str) -> None:
     variants_dir.mkdir(parents=True, exist_ok=True)
     jobs_dir.mkdir(parents=True, exist_ok=True)
 
+    _write_if_missing(variants_dir / "variant.toml", VARIANT_TOML_TEMPLATE)
     _write_if_missing(variants_dir / "CLAUDE.md", VARIANT_CLAUDE_MD_TEMPLATE)
 
     example_task_dir = tasks_dir / "example-task"
@@ -139,6 +144,7 @@ def create_project(project_dir: Path, name: str) -> None:
     console.print("  nasde.toml")
     console.print("  assessment_dimensions.json")
     console.print("  tasks/example-task/")
+    console.print("  variants/vanilla/variant.toml")
     console.print("  variants/vanilla/CLAUDE.md")
 
 

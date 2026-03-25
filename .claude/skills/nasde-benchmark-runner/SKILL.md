@@ -50,12 +50,34 @@ Or set directly: `export CODEX_API_KEY=sk-proj-...`
 
 API key always takes priority over OAuth when both are present.
 
+### Gemini CLI (Google account or API key)
+
+**Option 1: Google account OAuth** — uses Google account credits, no per-token API cost:
+
+```bash
+gemini login                                # one-time: authenticate via Google account
+source scripts/export_gemini_oauth_token.sh # validate tokens are present
+```
+
+NASDE auto-detects `~/.gemini/oauth_creds.json` and injects OAuth credentials into the sandbox. No env vars needed.
+
+**Option 2: API key** — billed through Google AI Studio or Vertex AI:
+
+```bash
+export GEMINI_API_KEY=your-key
+```
+
+Or for Vertex AI: `export GOOGLE_API_KEY=your-key` + `export GOOGLE_CLOUD_PROJECT=your-project`
+
+API key always takes priority over OAuth when both are present.
+
 ### Combined setup for cross-agent runs
 
 ```bash
-source scripts/export_oauth_token.sh  # Claude (subscription)
+source scripts/export_oauth_token.sh         # Claude (subscription)
 # Codex: either codex login (subscription) or:
-export $(grep CODEX_API_KEY .env)     # Codex (API key)
+export $(grep CODEX_API_KEY .env)            # Codex (API key)
+source scripts/export_gemini_oauth_token.sh  # Gemini (Google account)
 ```
 
 ## Running benchmarks
@@ -142,16 +164,43 @@ model = "gpt-5.4"
 ```
 This avoids accidentally inheriting the Claude model from `nasde.toml`.
 
-### Cross-agent comparison (Claude vs Codex)
+### Running Gemini CLI variants
 
-Set up both auth tokens first (see Authentication setup above), then run:
+Gemini variants use `GEMINI.md` (instead of `CLAUDE.md`) and require either `gemini login` (Google account) or `GEMINI_API_KEY`/`GOOGLE_API_KEY` (API billing).
+
+**CRITICAL: Gemini model must use `google/` prefix.** Harbor requires model names in `provider/model_name` format. Always set via `--model` flag or in `variant.toml`.
 
 ```bash
-source scripts/export_oauth_token.sh && export $(grep CODEX_API_KEY .env)
+# Option A: Google account OAuth (no env vars needed after gemini login)
+nasde run --variant gemini-vanilla --model google/gemini-3-flash-preview -C path/to/benchmark
 
-# Run Claude and Codex variants — Codex MUST have --model override
+# Option B: API key
+export GEMINI_API_KEY=your-key
+nasde run --variant gemini-vanilla --model google/gemini-3-flash-preview -C path/to/benchmark
+```
+
+**Gemini models** (recommended first, as of 2026-03):
+- `google/gemini-3.1-pro-preview` — advanced thinking model, deep reasoning
+- `google/gemini-3-flash-preview` — best quality/speed ratio, daily coding
+- `google/gemini-3.1-flash-lite-preview` — fastest, simple tasks
+
+**Setting model in variant.toml** (preferred over --model flag):
+```toml
+agent = "gemini"
+model = "google/gemini-3-flash-preview"
+```
+
+### Cross-agent comparison (Claude vs Codex vs Gemini)
+
+Set up all auth tokens first (see Authentication setup above), then run:
+
+```bash
+source scripts/export_oauth_token.sh && export $(grep CODEX_API_KEY .env) && source scripts/export_gemini_oauth_token.sh
+
+# Run Claude, Codex, and Gemini variants — non-Claude MUST have --model override
 nasde run --variant claude-vanilla -C path/to/benchmark --with-opik &
 nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark --with-opik &
+nasde run --variant gemini-vanilla --model google/gemini-3-flash-preview -C path/to/benchmark --with-opik &
 wait
 ```
 
@@ -181,6 +230,11 @@ When using `CLAUDE_CODE_OAUTH_TOKEN` (Claude subscription — no per-token cost)
 **Codex variants:**
 - **ChatGPT OAuth** (`codex login`): uses subscription credits, no per-token cost. Same heuristic as Claude subscription — run freely under 30 minutes.
 - **API key** (`CODEX_API_KEY`): billed per-token. Always ask before running. Codex uses significantly more input tokens than Claude Code (~1M vs ~250K per task).
+
+**Gemini CLI variants:**
+- **Google account OAuth** (`gemini login`): free tier via Gemini Code Assist license (1M token context). Run freely.
+- **API key** (`GEMINI_API_KEY`): billed per-token through Google AI Studio. Ask before running.
+- **Vertex AI** (`GOOGLE_API_KEY`): billed through Google Cloud. Ask before running.
 
 Task estimated times are in `task.json` → `estimated_time_minutes`. When `--tasks` filters are used, count only selected tasks.
 
@@ -310,6 +364,19 @@ Common causes:
 - **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-4-6`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-5.3-codex"` to `variant.toml` or using `--model gpt-5.3-codex`
 - **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools
 - **`Model metadata for 'X' not found`** — warning only, usually followed by the real error
+
+### Gemini trial fails immediately (reward 0, 0/100)
+
+Check the agent log for errors:
+```bash
+head -20 jobs/<ts>/<trial>/agent/gemini-cli.txt
+```
+
+Common causes:
+- **`GEMINI_API_KEY is not set`** — no auth configured. Either run `gemini login` or set `GEMINI_API_KEY`
+- **`Model name must be in the format provider/model_name`** — model must include `google/` prefix (e.g. `google/gemini-3-flash-preview`)
+- **Node.js errors** — Gemini CLI requires Node.js 22+. Check the Docker image includes nvm setup
+- **DNS resolution failures** — cloud sandboxes may not resolve `generativelanguage.googleapis.com`. ConfigurableGemini auto-fixes this, but custom configs may not
 
 ### Trial reward is 0 but code looks correct
 

@@ -66,48 +66,34 @@ def _read_gemini_oauth_creds() -> str | None:
 
 
 def _inject_oauth_creds(commands: list[ExecInput], oauth_creds_json: str) -> list[ExecInput]:
-    """Inject OAuth credentials into the sandbox environment."""
-    result: list[ExecInput] = []
-    for i, cmd in enumerate(commands):
-        env = dict(cmd.env) if cmd.env else {}
-        if i == 0:
-            env["_GEMINI_OAUTH_CREDS_JSON"] = oauth_creds_json
-            result.append(
-                ExecInput(
-                    command=_build_oauth_setup(cmd.command),
-                    env=env,
-                )
-            )
-        else:
-            result.append(ExecInput(command=cmd.command, env=env))
-    return result
-
-
-def _build_oauth_setup(original_setup: str) -> str:
-    """Build OAuth credential injection command, preserving original setup.
+    """Prepend an OAuth setup command before the existing commands.
 
     Gemini CLI requires both:
     1. ``~/.gemini/oauth_creds.json`` — the actual OAuth tokens
     2. ``~/.gemini/settings.json`` — with ``security.auth.selectedType`` set
        to ``"oauth-personal"`` so the CLI knows which auth method to use.
 
-    The settings.json write uses a JSON merge approach: if the file already
-    exists (e.g. from Harbor's MCP setup), we merge our auth config into it.
+    We insert a dedicated setup command rather than modifying existing
+    commands, because Harbor executes each ExecInput as a separate step.
     """
-    oauth_lines = (
-        "mkdir -p /tmp/gemini-secrets\n"
-        "printf '%s' \"$_GEMINI_OAUTH_CREDS_JSON\" > /tmp/gemini-secrets/oauth_creds.json\n"
-        "mkdir -p ~/.gemini\n"
-        "ln -sf /tmp/gemini-secrets/oauth_creds.json ~/.gemini/oauth_creds.json\n"
-        'python3 -c "\n'
-        "import json, pathlib\n"
-        "p = pathlib.Path.home() / '.gemini' / 'settings.json'\n"
-        "d = json.loads(p.read_text()) if p.exists() else {}\n"
-        "d.setdefault('security', {}).setdefault('auth', {})['selectedType'] = 'oauth-personal'\n"
-        "p.write_text(json.dumps(d, indent=2))\n"
+    setup_command = (
+        "mkdir -p /tmp/gemini-secrets && "
+        "printf '%s' \"$_GEMINI_OAUTH_CREDS_JSON\" > /tmp/gemini-secrets/oauth_creds.json && "
+        "mkdir -p ~/.gemini && "
+        "ln -sf /tmp/gemini-secrets/oauth_creds.json ~/.gemini/oauth_creds.json && "
+        'python3 -c "'
+        "import json, pathlib; "
+        "p = pathlib.Path.home() / '.gemini' / 'settings.json'; "
+        "d = json.loads(p.read_text()) if p.exists() else {}; "
+        "d.setdefault('security', {}).setdefault('auth', {})['selectedType'] = 'oauth-personal'; "
+        "p.write_text(json.dumps(d, indent=2))"
         '"'
     )
-    return oauth_lines + "\n" + original_setup
+    setup = ExecInput(
+        command=setup_command,
+        env={"_GEMINI_OAUTH_CREDS_JSON": oauth_creds_json},
+    )
+    return [setup, *commands]
 
 
 class ConfigurableGemini(GeminiCli):

@@ -166,8 +166,9 @@ def test_create_run_agent_commands_injects_oauth_when_no_api_key() -> None:
     ):
         result = agent.create_run_agent_commands("do stuff")
 
-    assert len(result) == 1
+    assert len(result) == 2
     assert "gemini-secrets" in result[0].command
+    assert "oauth-personal" in result[0].command
     assert "_GEMINI_OAUTH_CREDS_JSON" in result[0].env
 
 

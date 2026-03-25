@@ -37,7 +37,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from harbor.agents.installed.base import ExecInput
 from harbor.agents.installed.gemini_cli import GeminiCli
 from harbor.environments.base import BaseEnvironment
 
@@ -65,35 +64,32 @@ def _read_gemini_oauth_creds() -> str | None:
     return json.dumps(raw)
 
 
-def _inject_oauth_creds(commands: list[ExecInput], oauth_creds_json: str) -> list[ExecInput]:
-    """Prepend an OAuth setup command before the existing commands.
+async def _write_oauth_to_sandbox(environment: BaseEnvironment, oauth_creds_json: str) -> None:
+    """Write OAuth credentials and auth settings into the sandbox.
 
     Gemini CLI requires both:
     1. ``~/.gemini/oauth_creds.json`` — the actual OAuth tokens
     2. ``~/.gemini/settings.json`` — with ``security.auth.selectedType`` set
        to ``"oauth-personal"`` so the CLI knows which auth method to use.
 
-    We insert a dedicated setup command rather than modifying existing
-    commands, because Harbor executes each ExecInput as a separate step.
+    This runs AFTER Harbor's setup which creates a minimal settings.json.
+    We merge our auth config into it rather than overwriting.
     """
-    setup_command = (
-        "mkdir -p /tmp/gemini-secrets && "
-        "printf '%s' \"$_GEMINI_OAUTH_CREDS_JSON\" > /tmp/gemini-secrets/oauth_creds.json && "
-        "mkdir -p ~/.gemini && "
-        "ln -sf /tmp/gemini-secrets/oauth_creds.json ~/.gemini/oauth_creds.json && "
-        'python3 -c "'
-        "import json, pathlib; "
-        "p = pathlib.Path.home() / '.gemini' / 'settings.json'; "
-        "d = json.loads(p.read_text()) if p.exists() else {}; "
-        "d.setdefault('security', {}).setdefault('auth', {})['selectedType'] = 'oauth-personal'; "
-        "p.write_text(json.dumps(d, indent=2))"
-        '"'
+    import shlex
+
+    await environment.exec(command="mkdir -p ~/.gemini")
+    await environment.exec(command=f"printf '%s' {shlex.quote(oauth_creds_json)} > ~/.gemini/oauth_creds.json")
+    await environment.exec(
+        command=(
+            'python3 -c "'
+            "import json, pathlib; "
+            "p = pathlib.Path.home() / '.gemini' / 'settings.json'; "
+            "d = json.loads(p.read_text()) if p.exists() else {}; "
+            "d.setdefault('security', {}).setdefault('auth', {})['selectedType'] = 'oauth-personal'; "
+            "p.write_text(json.dumps(d, indent=2))"
+            '"'
+        )
     )
-    setup = ExecInput(
-        command=setup_command,
-        env={"_GEMINI_OAUTH_CREDS_JSON": oauth_creds_json},
-    )
-    return [setup, *commands]
 
 
 class ConfigurableGemini(GeminiCli):
@@ -119,36 +115,35 @@ class ConfigurableGemini(GeminiCli):
         return "configurable-gemini-cli"
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        """Fix cloud DNS, upload files, then run base setup.
+        """Fix cloud DNS, upload files, run base setup, then inject OAuth.
 
-        Files must be uploaded BEFORE super().setup() because Harbor's
-        GeminiCli.setup() writes MCP and skills configuration.  Our
-        sandbox_files that target ~/.gemini/skills/ need to be in place
-        before that happens.
+        Order matters:
+        1. DNS fix — cloud sandboxes may not resolve Google APIs
+        2. Upload sandbox files — skills must be in place before Harbor
+           discovers them during setup
+        3. super().setup() — Harbor installs Gemini CLI and writes a
+           minimal ~/.gemini/settings.json (with experimental.skills)
+        4. OAuth injection — AFTER super().setup() because Harbor's install
+           script overwrites ~/.gemini/settings.json.  We merge our auth
+           config into the file that Harbor created.
         """
         await self._ensure_dns_resolution(environment)
         await self._upload_sandbox_files(environment)
         await super().setup(environment)
+        await self._inject_oauth_if_needed(environment)
 
-    def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
-        """Inject OAuth credentials when no API key is set.
-
-        Priority:
-        1. GEMINI_API_KEY / GOOGLE_API_KEY / GOOGLE_APPLICATION_CREDENTIALS → API key mode
-        2. ~/.gemini/oauth_creds.json → OAuth mode (injected into sandbox)
-        """
-        commands: list[ExecInput] = super().create_run_agent_commands(instruction)
-
+    async def _inject_oauth_if_needed(self, environment: BaseEnvironment) -> None:
+        """Write OAuth creds and auth config into the sandbox after setup."""
         has_api_key = any(os.environ.get(var) for var in _API_KEY_VARS)
         if has_api_key:
-            return commands
+            return
 
         oauth_creds_json = _read_gemini_oauth_creds()
-        if oauth_creds_json:
-            logger.info("Using Gemini OAuth credentials from ~/.gemini/oauth_creds.json")
-            return _inject_oauth_creds(commands, oauth_creds_json)
+        if not oauth_creds_json:
+            return
 
-        return commands
+        logger.info("Using Gemini OAuth credentials from ~/.gemini/oauth_creds.json")
+        await _write_oauth_to_sandbox(environment, oauth_creds_json)
 
     async def _ensure_dns_resolution(self, environment: BaseEnvironment) -> None:
         """Prepend public DNS resolvers if cloud sandbox cannot reach Google APIs."""

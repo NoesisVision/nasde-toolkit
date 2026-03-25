@@ -64,6 +64,15 @@ See **[Use Cases](docs/use-cases.md)** for detailed scenarios with workflows:
 - **Evaluating your team's agent configuration** — mine your repo history for benchmark tasks, compare combinations of skills, `CLAUDE.md`, and MCP servers, run regression tests when configuration changes, compare results across different coding agents
 - **Building and validating a universal skill** — curate diverse public repos, test one skill across many codebases and languages, compare agent behavior across different coding agents
 
+## Example benchmark results
+
+See **[Benchmark Results](docs/benchmark-results.md)** for full tables from the three included example benchmarks (refactoring, DDD architecture, project-specific setup). Key findings:
+
+- **Claude and Codex perform comparably** on refactoring tasks (~81-83/100), but diverge on architectural challenges
+- **Guidance helps Claude (+3.5) but hurts Codex (-22.0)** on DDD tasks — the same skill has opposite effects on different agents
+- **Testing-focused skill** is the biggest lever for project-specific work (100% pass rate vs 67% vanilla)
+- **LLM-as-a-Judge evaluator is consistent** — identical agent output produces identical scores (σ=0.0)
+
 ## When to use NASDE vs built-in evals
 
 AI coding agents like Claude Code now ship built-in evaluation tools (e.g. Skill Creator evals) for testing individual skills. These are great for rapid iteration on a single skill. NASDE serves a different purpose:
@@ -124,7 +133,7 @@ nasde init my-benchmark
 nasde run --variant vanilla -C my-benchmark
 
 # 3. Run benchmark with Codex variant
-nasde run --variant codex-baseline --model o3 -C my-benchmark
+nasde run --variant codex-baseline --model gpt-5.3-codex -C my-benchmark
 
 # 4. Run specific tasks with Opik tracing
 nasde run --variant vanilla --tasks my-task -C my-benchmark --with-opik

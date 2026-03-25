@@ -16,7 +16,7 @@ NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (age
 
 What NASDE adds on top is an **agentic code review stage**. After a coding agent (e.g. Claude Code running inside Harbor) completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** — powered by Claude Code SDK — that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. Think of it as a "nasty" code reviewer who checks not just whether the code works, but *how well* it's written according to custom criteria.
 
-AI coding agents increasingly ship built-in eval tools that test individual skills with pass/fail assertions. NASDE operates at a different level: it evaluates your **complete agent configuration** — the combination of skills, `CLAUDE.md` files, MCP servers, and prompting strategies — in sandboxed environments, across **multiple coding agents**, and against **custom quality rubrics**. If built-in evals tell you whether a skill triggers correctly, NASDE tells you whether your setup produces better code.
+AI coding agents increasingly ship built-in eval tools that test individual skills with pass/fail assertions. NASDE operates at a different level: it evaluates your **complete agent configuration** — the combination of skills, `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` files, MCP servers, and prompting strategies — in sandboxed environments, across **multiple coding agents**, and against **custom quality rubrics**. If built-in evals tell you whether a skill triggers correctly, NASDE tells you whether your setup produces better code.
 
 ## Standard vs NASDE evaluation flow
 
@@ -80,7 +80,7 @@ AI coding agents like Claude Code now ship built-in evaluation tools (e.g. Skill
 | | Built-in evals (e.g. Skill Creator) | NASDE |
 |---|---|---|
 | **What you test** | One skill at a time | Full configuration (skill sets + `CLAUDE.md` + MCP) |
-| **Agents supported** | The host agent only | Any agent via Harbor (Claude Code, Codex, Cursor, ...) |
+| **Agents supported** | The host agent only | Any agent via Harbor (Claude Code, Codex, Gemini CLI, Cursor, ...) |
 | **Scoring** | Pass/fail, time, tokens | Multi-dimensional rubric (0–100, custom dimensions) |
 | **Execution** | Agent's own session | Isolated Docker or cloud sandbox per trial |
 | **Primary question** | "Does this skill trigger correctly?" | "Does this configuration produce better code?" |
@@ -126,6 +126,10 @@ export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
 # OpenAI Codex
 export CODEX_API_KEY=sk-...        # OpenAI API key (from platform.openai.com)
 
+# Gemini CLI (one of)
+export GEMINI_API_KEY=your-key     # Google AI Studio API key
+export GOOGLE_API_KEY=your-key     # Google Cloud / Vertex AI
+
 # 1. Scaffold a new evaluation project
 nasde init my-benchmark
 
@@ -135,13 +139,16 @@ nasde run --variant vanilla -C my-benchmark
 # 3. Run benchmark with Codex variant
 nasde run --variant codex-baseline --model gpt-5.3-codex -C my-benchmark
 
-# 4. Run specific tasks with Opik tracing
+# 4. Run benchmark with Gemini CLI variant
+nasde run --variant gemini-baseline --model google/gemini-3-flash-preview -C my-benchmark
+
+# 5. Run specific tasks with Opik tracing
 nasde run --variant vanilla --tasks my-task -C my-benchmark --with-opik
 
-# 5. Skip assessment evaluation (Harbor only)
+# 6. Skip assessment evaluation (Harbor only)
 nasde run --variant vanilla -C my-benchmark --without-eval
 
-# 6. Re-evaluate an existing job directory
+# 7. Re-evaluate an existing job directory
 nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 ```
 
@@ -297,7 +304,7 @@ nasde auto-generates the Docker environment — no custom `Dockerfile` needed. S
 |------|-------------|
 | `--variant` | Variant to run (defaults to config default) |
 | `--tasks` | Comma-separated task names to run |
-| `--model` | Model override (e.g. `claude-sonnet-4-6`) |
+| `--model` | Model override (e.g. `claude-sonnet-4-6`, `o3`, `google/gemini-3-flash-preview`) |
 | `--timeout` | Agent timeout in seconds |
 | `--with-opik` | Enable Opik tracing |
 | `--without-eval` | Skip assessment evaluation |
@@ -338,6 +345,15 @@ my-benchmark/
       agents_skills/           # Codex skills (injected to /app/.agents/skills/)
         my-skill/
           SKILL.md             # Requires YAML frontmatter (name + description)
+    gemini-baseline/           # Gemini CLI variant
+      variant.toml             # agent = "gemini"
+      GEMINI.md                # Gemini instructions (injected to /app/GEMINI.md)
+    gemini-with-skills/        # Gemini CLI variant with skills
+      variant.toml             # agent = "gemini"
+      GEMINI.md
+      gemini_skills/           # Gemini skills (injected to /app/.gemini/skills/)
+        my-skill/
+          SKILL.md
   evaluator_skills/            # Optional: skills for the evaluator agent
     code-review/
       SKILL.md
@@ -348,7 +364,7 @@ my-benchmark/
 Each variant must have a `variant.toml` declaring the agent type:
 
 ```toml
-agent = "claude"   # or "codex"
+agent = "claude"   # or "codex" or "gemini"
 ```
 
 ### `nasde.toml`
@@ -430,6 +446,35 @@ export CODEX_API_KEY=sk-...  # preferred
 
 API key always takes priority over OAuth when both are present.
 
+### Gemini CLI
+
+Gemini CLI variants support three authentication methods:
+
+**Option 1: API key (Google AI Studio)** — billed per-token through your Google AI Studio account.
+
+```bash
+export GEMINI_API_KEY=your-key
+```
+
+**Option 2: Google Cloud / Vertex AI** — uses your Google Cloud project billing.
+
+```bash
+export GOOGLE_API_KEY=your-key
+export GOOGLE_CLOUD_PROJECT=your-project
+```
+
+**Option 3: OAuth (Google account)** — uses your Gemini subscription credits.
+
+```bash
+gemini login                                  # authenticate via Google account (one-time)
+source scripts/export_gemini_oauth_token.sh   # validate tokens are present
+uv run nasde run --variant gemini-baseline -C my-benchmark
+```
+
+NASDE auto-detects `~/.gemini/oauth_creds.json` and injects the credentials into the sandbox. No env vars needed.
+
+API key env vars (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`) always take priority over OAuth when present.
+
 ### Opik tracing
 
 For Opik tracing, set credentials in `.env` (in project dir or parent):
@@ -444,9 +489,11 @@ OPIK_PROJECT_NAME=...
 - **Python 3.12+**
 - **Docker** (default) or a cloud sandbox provider — Harbor runs agents in isolated environments
 - **uv** — Package manager
+- **npm** — Required for Gemini CLI (`@google/gemini-cli` is installed automatically by Harbor)
 - **Agent credentials** (at least one):
   - Claude Code: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`
   - OpenAI Codex: `CODEX_API_KEY` (API key) or `codex login` (ChatGPT subscription OAuth)
+  - Gemini CLI: `GEMINI_API_KEY` (API key), `GOOGLE_API_KEY` (Vertex AI), or `gemini login` (Google account OAuth)
 - **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** — Also required for the assessment evaluator (which always uses Claude Code SDK)
 
 ## Verifying Opik results

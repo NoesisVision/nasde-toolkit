@@ -310,7 +310,8 @@ def _print_run_header(
     eval_str = "enabled" if with_eval else "[yellow]disabled[/yellow]"
     env_str = harbor_env or "docker"
     attempts_str = f"{attempts}" if attempts > 1 else "1"
-    agent_label = "Codex (OpenAI)" if agent_type == "codex" else "Claude Code"
+    agent_labels = {"codex": "Codex (OpenAI)", "gemini": "Gemini CLI (Google)"}
+    agent_label = agent_labels.get(agent_type, "Claude Code")
     console.print(
         Panel(
             f"[bold]Benchmark Runner[/bold]\n"

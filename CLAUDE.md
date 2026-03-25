@@ -18,6 +18,7 @@ src/nasde_toolkit/
     __init__.py
     configurable_claude.py # Harbor-compatible Claude Code agent with sandbox file injection
     configurable_codex.py  # Harbor-compatible Codex agent with sandbox file injection
+    configurable_gemini.py # Harbor-compatible Gemini CLI agent with sandbox file injection
 tests/
 pyproject.toml
 ```
@@ -55,8 +56,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **Configuration**: Two-layer config — `nasde.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.nasde/tasks/`) automatically.
 - **Benchmark runner**: Uses Harbor Python API (`Job`, `JobConfig`) directly instead of subprocess. The runner merges variant config with task registry into a dict, passes it to `JobConfig.model_validate()`, then runs `await job.run()`. Opik tracking via `track_harbor()` (monkey-patches Harbor at runtime).
 - **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Configurable via `[evaluation]` in `nasde.toml` — model, tools, MCP servers, skills, and system prompt can all be customized. Default model is `claude-opus-4-6` (best available for review quality). Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
-- **Variant system**: Each variant is a directory under `variants/` with a required `variant.toml` declaring the agent type (`agent = "claude"` or `agent = "codex"`). For Claude Code variants, `CLAUDE.md` is injected into `/app/CLAUDE.md`; for Codex variants, `AGENTS.md` is injected into `/app/AGENTS.md`. An optional `skills/` subdirectory contains Claude skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. An optional `agents_skills/` subdirectory contains Codex skill snapshots — all files under `agents_skills/<name>/` are injected into `/app/.agents/skills/<name>/`. If no `harbor_config.json` exists, one is auto-generated from `variant.toml`.
+- **Variant system**: Each variant is a directory under `variants/` with a required `variant.toml` declaring the agent type (`agent = "claude"`, `agent = "codex"`, or `agent = "gemini"`). For Claude Code variants, `CLAUDE.md` is injected into `/app/CLAUDE.md`; for Codex variants, `AGENTS.md` is injected into `/app/AGENTS.md`; for Gemini CLI variants, `GEMINI.md` is injected into `/app/GEMINI.md`. An optional `skills/` subdirectory contains Claude skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. An optional `agents_skills/` subdirectory contains Codex skill snapshots — all files under `agents_skills/<name>/` are injected into `/app/.agents/skills/<name>/`. An optional `gemini_skills/` subdirectory contains Gemini skill snapshots — all files under `gemini_skills/<name>/` are injected into `/app/.gemini/skills/<name>/`. If no `harbor_config.json` exists, one is auto-generated from `variant.toml`.
 - **Codex ChatGPT OAuth**: When `~/.codex/auth.json` contains `auth_mode: "chatgpt"` and no API key env var is set, `ConfigurableCodex` injects the full OAuth token structure into the sandbox via env var. API key always takes priority over OAuth. Tokens are not extracted back from sandbox after runs. Validate with `source scripts/export_codex_oauth_token.sh`.
+- **Gemini Google OAuth**: When `~/.gemini/oauth_creds.json` exists (created by `gemini login`) and no API key env var is set (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`), `ConfigurableGemini` injects the OAuth credentials into the sandbox via env var. API key always takes priority over OAuth. Validate with `source scripts/export_gemini_oauth_token.sh`.
 - **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
 - **Auto-generated Dockerfile**: When a task has no `environment/Dockerfile`, nasde generates one from `source.git` + `[docker]`. For local paths, also generates `docker-compose.yaml` to override the build context. See `docker.py:ensure_task_environment()`.
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
@@ -106,13 +108,17 @@ my-benchmark/
       solution/solve.sh         # Optional reference solution
   variants/
     <variant-name>/
-      variant.toml              # Required: agent type declaration (agent = "claude" or "codex")
+      variant.toml              # Required: agent type declaration (agent = "claude", "codex", or "gemini")
       CLAUDE.md                 # Claude Code instructions (injected into /app/CLAUDE.md)
       AGENTS.md                 # Codex instructions (injected into /app/AGENTS.md)
+      GEMINI.md                 # Gemini CLI instructions (injected into /app/GEMINI.md)
       skills/                   # Optional: Claude skill snapshots (injected into /app/.claude/skills/)
         <skill-name>/
           SKILL.md              # Skill content (snapshot for deterministic testing)
       agents_skills/            # Optional: Codex skill snapshots (injected into /app/.agents/skills/)
+        <skill-name>/
+          SKILL.md              # Skill content with YAML frontmatter (name + description)
+      gemini_skills/            # Optional: Gemini skill snapshots (injected into /app/.gemini/skills/)
         <skill-name>/
           SKILL.md              # Skill content with YAML frontmatter (name + description)
       harbor_config.json        # Optional: agent import path + sandbox_files mapping
@@ -257,8 +263,26 @@ Codex variant:
 }
 ```
 
+Gemini CLI variant:
+```json
+{
+  "agents": [
+    {
+      "import_path": "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini",
+      "name": "variant-name",
+      "model_name": "google/gemini-3-flash-preview",
+      "kwargs": {
+        "sandbox_files": {
+          "/app/GEMINI.md": "/absolute/path/to/variants/variant-name/GEMINI.md"
+        }
+      }
+    }
+  ]
+}
+```
+
 Critical: `"name"` field is REQUIRED — without it, Opik tagging breaks.
-If `harbor_config.json` is absent, `nasde` auto-generates one based on the instruction file present (`CLAUDE.md` → Claude, `AGENTS.md` → Codex).
+If `harbor_config.json` is absent, `nasde` auto-generates one based on `variant.toml` agent type (`CLAUDE.md` → Claude, `AGENTS.md` → Codex, `GEMINI.md` → Gemini).
 
 ### tests/test.sh (Harbor verifier)
 

@@ -18,6 +18,7 @@ from nasde_toolkit.runner import (
     _ensure_auth,
     _generate_harbor_config,
     _is_codex_agent,
+    _is_gemini_agent,
     collect_available_variants,
     load_variant_agent_type,
 )
@@ -168,6 +169,11 @@ def test_load_variant_agent_type_codex(tmp_path: Path) -> None:
     assert load_variant_agent_type(tmp_path) == "codex"
 
 
+def test_load_variant_agent_type_gemini(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "gemini"')
+    assert load_variant_agent_type(tmp_path) == "gemini"
+
+
 def test_load_variant_agent_type_missing_file_raises(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         load_variant_agent_type(tmp_path)
@@ -204,6 +210,27 @@ def test_is_codex_agent_with_claude_import_path() -> None:
 
 def test_is_codex_agent_with_none() -> None:
     assert not _is_codex_agent(None)
+
+
+# ---------------------------------------------------------------------------
+# _is_gemini_agent
+# ---------------------------------------------------------------------------
+
+
+def test_is_gemini_agent_with_gemini_import_path() -> None:
+    assert _is_gemini_agent("nasde_toolkit.agents.configurable_gemini:ConfigurableGemini")
+
+
+def test_is_gemini_agent_with_harbor_gemini() -> None:
+    assert _is_gemini_agent("harbor.agents.installed.gemini_cli:GeminiCli")
+
+
+def test_is_gemini_agent_with_claude_import_path() -> None:
+    assert not _is_gemini_agent("nasde_toolkit.agents.configurable_claude:ConfigurableClaude")
+
+
+def test_is_gemini_agent_with_none() -> None:
+    assert not _is_gemini_agent(None)
 
 
 # ---------------------------------------------------------------------------
@@ -292,3 +319,86 @@ def test_ensure_auth_codex_missing_raises() -> None:
         mock_home = mock_path_cls.home.return_value
         mock_home.joinpath.return_value.exists.return_value = False
         _ensure_auth(codex_path)
+
+
+# ---------------------------------------------------------------------------
+# _generate_harbor_config — gemini variant
+# ---------------------------------------------------------------------------
+
+
+def test_generate_harbor_config_gemini_variant(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "gemini-vanilla"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "GEMINI.md").write_text("# Gemini")
+    (variant_dir / "variant.toml").write_text('agent = "gemini"')
+
+    _generate_harbor_config(variant_dir, "gemini-vanilla")
+
+    config = json.loads((variant_dir / "harbor_config.json").read_text())
+    assert "configurable_gemini" in config["agents"][0]["import_path"]
+    assert config["agents"][0]["name"] == "gemini-vanilla"
+    assert "/app/GEMINI.md" in config["agents"][0]["kwargs"]["sandbox_files"]
+
+
+def test_generate_harbor_config_gemini_with_skills(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "gemini-skilled"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "GEMINI.md").write_text("# Gemini")
+    (variant_dir / "variant.toml").write_text('agent = "gemini"')
+    skill_dir = variant_dir / "gemini_skills" / "tactical-ddd"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# TDD Skill")
+
+    _generate_harbor_config(variant_dir, "gemini-skilled")
+
+    config = json.loads((variant_dir / "harbor_config.json").read_text())
+    sandbox = config["agents"][0]["kwargs"]["sandbox_files"]
+    assert "/app/.gemini/skills/tactical-ddd/SKILL.md" in sandbox
+
+
+# ---------------------------------------------------------------------------
+# _ensure_auth — gemini provider
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_auth_gemini_with_gemini_api_key() -> None:
+    gemini_path = "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini"
+    with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True):
+        _ensure_auth(gemini_path)
+
+
+def test_ensure_auth_gemini_with_google_api_key() -> None:
+    gemini_path = "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini"
+    with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"}, clear=True):
+        _ensure_auth(gemini_path)
+
+
+def test_ensure_auth_gemini_with_google_credentials() -> None:
+    gemini_path = "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini"
+    with patch.dict("os.environ", {"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json"}, clear=True):
+        _ensure_auth(gemini_path)
+
+
+def test_ensure_auth_gemini_with_oauth_file(tmp_path: Path) -> None:
+    gemini_path = "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini"
+    creds_file = tmp_path / ".gemini" / "oauth_creds.json"
+    creds_file.parent.mkdir(parents=True)
+    creds_file.write_text('{"access_token": "test"}')
+
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        patch("pathlib.Path.home", return_value=tmp_path),
+    ):
+        _ensure_auth(gemini_path)
+
+
+def test_ensure_auth_gemini_missing_raises() -> None:
+    gemini_path = "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini"
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        patch("nasde_toolkit.runner.Path") as mock_path_cls,
+        pytest.raises(SystemExit),
+    ):
+        mock_home = mock_path_cls.home.return_value
+        mock_home.joinpath.return_value.exists.return_value = False
+        _ensure_auth(gemini_path)

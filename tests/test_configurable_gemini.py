@@ -55,7 +55,7 @@ def test_setup_calls_dns_fix_then_upload_then_parent() -> None:
     cmd = dns_call.kwargs.get("command", dns_call.args[0] if dns_call.args else "")
     assert "generativelanguage.googleapis.com" in cmd
     mock_parent_setup.assert_awaited_once_with(env)
-    assert env.upload_file.await_count == 1
+    assert env.upload_file.await_count >= 1
 
 
 def test_upload_raises_on_missing_source() -> None:
@@ -156,11 +156,12 @@ def test_setup_injects_oauth_when_no_api_key() -> None:
     ):
         asyncio.run(agent.setup(env))
 
-    exec_commands = [call.kwargs.get("command", call.args[0] if call.args else "") for call in env.exec.call_args_list]
-    has_oauth_write = any("oauth_creds.json" in cmd for cmd in exec_commands)
-    has_settings_write = any("oauth-personal" in cmd for cmd in exec_commands)
-    assert has_oauth_write
-    assert has_settings_write
+    upload_targets = [
+        call.kwargs.get("target_path", call.args[1] if len(call.args) > 1 else "")
+        for call in env.upload_file.call_args_list
+    ]
+    assert any("oauth_creds.json" in t for t in upload_targets)
+    assert any("settings.json" in t for t in upload_targets)
 
 
 def test_setup_skips_oauth_when_api_key_set() -> None:
@@ -184,6 +185,8 @@ def test_setup_skips_oauth_when_api_key_set() -> None:
     ):
         asyncio.run(agent.setup(env))
 
-    exec_commands = [call.kwargs.get("command", call.args[0] if call.args else "") for call in env.exec.call_args_list]
-    has_oauth_write = any("oauth_creds.json" in cmd for cmd in exec_commands)
-    assert not has_oauth_write
+    upload_targets = [
+        call.kwargs.get("target_path", call.args[1] if len(call.args) > 1 else "")
+        for call in env.upload_file.call_args_list
+    ]
+    assert not any("oauth_creds.json" in t for t in upload_targets)

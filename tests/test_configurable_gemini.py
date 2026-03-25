@@ -135,73 +135,55 @@ def test_read_gemini_oauth_creds_returns_none_for_empty_json(tmp_path: Path) -> 
     assert result is None
 
 
-def test_create_run_agent_commands_injects_oauth_when_no_api_key() -> None:
-    from harbor.agents.installed.base import ExecInput
-
+def test_setup_injects_oauth_when_no_api_key() -> None:
     agent = ConfigurableGemini(
+        sandbox_files={},
         logs_dir=Path("/tmp/logs"),
         model_name="google/gemini-3-flash-preview",
     )
 
-    parent_commands = [
-        ExecInput(
-            command=". ~/.nvm/nvm.sh; gemini --yolo --model=gemini-3-flash-preview --prompt='do stuff'",
-            env={},
-        ),
-    ]
-
+    env = AsyncMock()
+    env.exec.return_value = MagicMock(return_code=0, stderr="")
     oauth_json = json.dumps(_SAMPLE_OAUTH_CREDS)
 
     with (
         patch.dict("os.environ", {}, clear=True),
-        patch.object(
-            ConfigurableGemini.__bases__[0],
-            "create_run_agent_commands",
-            return_value=parent_commands,
-        ),
+        patch.object(ConfigurableGemini.__bases__[0], "setup", new_callable=AsyncMock),
         patch(
             "nasde_toolkit.agents.configurable_gemini._read_gemini_oauth_creds",
             return_value=oauth_json,
         ),
     ):
-        result = agent.create_run_agent_commands("do stuff")
+        asyncio.run(agent.setup(env))
 
-    assert len(result) == 2
-    assert "gemini-secrets" in result[0].command
-    assert "oauth-personal" in result[0].command
-    assert "_GEMINI_OAUTH_CREDS_JSON" in result[0].env
+    exec_commands = [call.kwargs.get("command", call.args[0] if call.args else "") for call in env.exec.call_args_list]
+    has_oauth_write = any("oauth_creds.json" in cmd for cmd in exec_commands)
+    has_settings_write = any("oauth-personal" in cmd for cmd in exec_commands)
+    assert has_oauth_write
+    assert has_settings_write
 
 
-def test_create_run_agent_commands_prefers_api_key_over_oauth() -> None:
-    from harbor.agents.installed.base import ExecInput
-
+def test_setup_skips_oauth_when_api_key_set() -> None:
     agent = ConfigurableGemini(
+        sandbox_files={},
         logs_dir=Path("/tmp/logs"),
         model_name="google/gemini-3-flash-preview",
     )
 
-    parent_commands = [
-        ExecInput(
-            command=". ~/.nvm/nvm.sh; gemini --yolo --model=gemini-3-flash-preview --prompt='do stuff'",
-            env={"GEMINI_API_KEY": "test-key"},
-        ),
-    ]
-
+    env = AsyncMock()
+    env.exec.return_value = MagicMock(return_code=0, stderr="")
     oauth_json = json.dumps(_SAMPLE_OAUTH_CREDS)
 
     with (
         patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True),
-        patch.object(
-            ConfigurableGemini.__bases__[0],
-            "create_run_agent_commands",
-            return_value=parent_commands,
-        ),
+        patch.object(ConfigurableGemini.__bases__[0], "setup", new_callable=AsyncMock),
         patch(
             "nasde_toolkit.agents.configurable_gemini._read_gemini_oauth_creds",
             return_value=oauth_json,
         ),
     ):
-        result = agent.create_run_agent_commands("do stuff")
+        asyncio.run(agent.setup(env))
 
-    assert result[0].env["GEMINI_API_KEY"] == "test-key"
-    assert "_GEMINI_OAUTH_CREDS_JSON" not in result[0].env
+    exec_commands = [call.kwargs.get("command", call.args[0] if call.args else "") for call in env.exec.call_args_list]
+    has_oauth_write = any("oauth_creds.json" in cmd for cmd in exec_commands)
+    assert not has_oauth_write

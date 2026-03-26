@@ -459,9 +459,7 @@ def _patch_opik_deferred_metrics() -> None:
         try:
             client = opik_client.get_client_cached()
             span_project_name: str = (
-                getattr(trace_data, "project_name", None)
-                or os.environ.get("OPIK_PROJECT_NAME")
-                or "Default Project"
+                getattr(trace_data, "project_name", None) or os.environ.get("OPIK_PROJECT_NAME") or "Default Project"
             )
 
             input_dict: dict[str, Any] = {}
@@ -479,9 +477,7 @@ def _patch_opik_deferred_metrics() -> None:
 
             output_dict: dict[str, Any] | None = None
             if step.observation and step.observation.results:
-                output_dict = {
-                    "results": [{"content": r.content} for r in step.observation.results]
-                }
+                output_dict = {"results": [{"content": r.content} for r in step.observation.results]}
 
             metadata: dict[str, Any] = {
                 "source": step.source,

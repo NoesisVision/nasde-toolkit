@@ -107,16 +107,21 @@ To get started, open the project directory in Claude Code and describe what you 
 ## Installation
 
 ```bash
-# As a global tool (recommended)
-uv tool install .
+# Latest stable release (recommended)
+uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git@v0.1.1
 
-# For development
+# Latest development (HEAD)
+uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git
+
+# From local clone (for development)
 git clone git@github.com:NoesisVision/nasde-toolkit.git
 cd nasde-toolkit
 uv sync
 ```
 
 After installation, only `nasde` appears on PATH. Harbor, Opik, and Claude Code SDK are bundled as core dependencies — no separate installation needed.
+
+Check your installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.1.1`); dev installs show versions like `0.1.2.dev3+gabcdef`.
 
 ## Quick start
 

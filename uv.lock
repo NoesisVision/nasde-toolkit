@@ -1718,7 +1718,6 @@ wheels = [
 
 [[package]]
 name = "nasde-toolkit"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "claude-code-sdk" },

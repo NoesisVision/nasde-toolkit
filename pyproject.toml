@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "nasde-toolkit"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Noesis Agentic Software Development Evals Toolkit"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -20,6 +20,12 @@ dependencies = [
 
 [project.scripts]
 nasde = "nasde_toolkit.cli:app"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/nasde_toolkit/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nasde_toolkit"]

@@ -292,7 +292,7 @@ Final success must `echo 1 > /logs/verifier/reward.txt && exit 0`.
 ## Known issues and workarounds
 
 - **claude-code-sdk 0.0.25**: crashes on `rate_limit_event` — runtime monkeypatch in `evaluator.py`. Remove when SDK handles unknown message types.
-- **opik 1.10.x**: token usage=None for Harbor spans — file patch in `patches/`. Re-apply after `uv sync`.
+- **opik 1.10.x**: token usage=None for Harbor spans — runtime monkeypatch in `runner.py` (`_patch_opik_deferred_metrics`). Defers Step span creation to `__setattr__` because Harbor assigns metrics after `Step.__init__`. See ADR-006. Remove when opik fixes upstream.
 - **Nested Claude Code sessions**: SDK detects `CLAUDECODE` env var. Runner unsets it before assessment eval.
 - **Opik REST API auth**: use `authorization: <OPIK_API_KEY>` header (not `Comet-Api-Key`), plus `Comet-Workspace` header.
 - **Opik verification**: always use Python `urllib.request`, not curl (curl drops the `Comet-Workspace` header).

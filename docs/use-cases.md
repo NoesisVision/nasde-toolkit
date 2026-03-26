@@ -134,7 +134,7 @@ The task files are committed to the benchmark project repo — they're stable, v
 - NASDE supports local git repos and public remote repos. Private remote repos require local clones (not a practical limitation — you already have them).
 - Task creation from git history is manual when using `nasde-benchmark-creator` alone. The **`nasde-benchmark-from-history`** skill automates this — see below.
 
-### Skill: `nasde-benchmark-from-history` {#skill-nasde-benchmark-from-history}
+### Skill: nasde-benchmark-from-history
 
 NASDE includes a dedicated skill that accelerates Phase 1 by mining git history for benchmark candidates. Instead of manually browsing PRs and writing task files from scratch, you point the skill at a commit range and it does the heavy lifting.
 
@@ -258,7 +258,7 @@ As you discover edge cases (the skill fails on monorepos, or struggles with code
 - Each repo needs its own Dockerfile with potentially different base images, dependencies, and build steps.
 - The **`nasde-benchmark-from-public-repos`** skill addresses both of these — see below.
 
-### Skill: `nasde-benchmark-from-public-repos` {#skill-nasde-benchmark-from-public-repos}
+### Skill: nasde-benchmark-from-public-repos
 
 NASDE includes a dedicated skill for curating diverse benchmark suites from public repositories. Instead of manually searching GitHub and scaffolding Dockerfiles for each language, you describe your skill and the tool guides the curation process.
 

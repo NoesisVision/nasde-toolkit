@@ -10,32 +10,66 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import click
 import typer
 from rich.console import Console
 from rich.panel import Panel
-
-from nasde_toolkit import __version__
+from typer.core import TyperGroup
 
 if TYPE_CHECKING:
     from nasde_toolkit.config import ProjectConfig
 
+console = Console()
+
+
+class _BannerGroup(TyperGroup):
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        from nasde_toolkit.banner import print_banner
+
+        print_banner(console)
+        super().format_help(ctx, formatter)
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            original_format_help = cmd.format_help
+
+            def patched_format_help(ctx: click.Context, formatter: click.HelpFormatter) -> None:
+                from nasde_toolkit.banner import print_banner
+
+                print_banner(console)
+                original_format_help(ctx, formatter)
+
+            cmd.format_help = patched_format_help  # type: ignore[assignment]
+        return cmd
+
+
 app = typer.Typer(
     name="nasde",
     help="Noesis Agentic Software Development Evals Toolkit",
-    no_args_is_help=True,
     rich_markup_mode="rich",
+    cls=_BannerGroup,
 )
-console = Console()
 
 
 def _version_callback(value: bool) -> None:
     if value:
-        console.print(f"nasde [bold]{__version__}[/bold]")
+        from nasde_toolkit.banner import print_banner
+
+        print_banner(console)
         raise typer.Exit()
 
 
-@app.callback()
+def _no_banner_callback(value: bool) -> None:
+    if value:
+        from nasde_toolkit.banner import suppress_banner
+
+        suppress_banner()
+
+
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     version: bool = typer.Option(
         False,
         "--version",
@@ -44,8 +78,18 @@ def main(
         callback=_version_callback,
         is_eager=True,
     ),
+    no_banner: bool = typer.Option(
+        False,
+        "--no-banner",
+        help="Suppress ASCII banner. Also: NASDE_NO_BANNER=1.",
+        callback=_no_banner_callback,
+        is_eager=True,
+    ),
 ) -> None:
     """Noesis Agentic Software Development Evals Toolkit."""
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
+        raise typer.Exit()
 
 
 @app.command()
@@ -62,8 +106,10 @@ def init(
     ),
 ) -> None:
     """Scaffold a new evaluation project."""
+    from nasde_toolkit.banner import print_banner
     from nasde_toolkit.scaffold import create_project
 
+    print_banner(console)
     project_name = name or project_dir.resolve().name
     create_project(project_dir.resolve(), project_name)
 
@@ -247,6 +293,9 @@ def eval_command(
 
     config = load_project_config(project_dir.resolve())
 
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
     console.print(
         Panel(
             f"[bold]Assessment Evaluation[/bold]\nJob: {job_dir}\nOpik: {'enabled' if with_opik else 'disabled'}",
@@ -306,6 +355,10 @@ def _print_run_header(
     attempts: int = 1,
     agent_type: str = "claude",
 ) -> None:
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
+
     tasks_str = ", ".join(tasks_filter) if tasks_filter else "all"
     eval_str = "enabled" if with_eval else "[yellow]disabled[/yellow]"
     env_str = harbor_env or "docker"
@@ -336,6 +389,10 @@ def _confirm_multi_variant_run(
     attempts: int,
 ) -> None:
     from rich.table import Table
+
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
 
     task_names = [t.name for t in config.tasks]
     if tasks_filter:

@@ -11,3 +11,4 @@ harbor_config.json
 .claude/worktrees/
 nasde-registry-*.json
 pytest-of-*/
+src/nasde_toolkit/_version.py

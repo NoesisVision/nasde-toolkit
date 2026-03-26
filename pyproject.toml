@@ -40,6 +40,7 @@ dev = [
 [tool.ruff]
 target-version = "py312"
 line-length = 120
+exclude = ["src/nasde_toolkit/_version.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
@@ -47,12 +48,14 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.ruff.lint.per-file-ignores]
 "src/nasde_toolkit/cli.py" = ["B008", "E402"]
 
+
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
+exclude = ["src/nasde_toolkit/_version\\.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

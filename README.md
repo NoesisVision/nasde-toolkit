@@ -5,9 +5,11 @@
 
   <p>CLI toolkit for evaluating AI coding agents with multi-dimensional, agentic code review.</p>
 
+  <a href="https://noesis.vision/nasde/"><img src="https://img.shields.io/badge/Product%20Page-Noesis%20Vision-1a1a2e?style=for-the-badge&logoColor=white" alt="Product Page"></a>
   <a href="https://discord.gg/QF5PMX4Dqg"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
-
-  <p><sub>Built by <a href="https://noesis.vision/nasde/">Noesis</a></sub></p>
+  <br>
+  <a href="https://github.com/NoesisVision/nasde-toolkit/actions/workflows/quality-gate.yml"><img src="https://img.shields.io/github/actions/workflow/status/NoesisVision/nasde-toolkit/quality-gate.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
 </div>
 
 ---

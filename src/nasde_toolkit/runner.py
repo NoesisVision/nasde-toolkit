@@ -420,10 +420,9 @@ def _patch_opik_deferred_metrics() -> None:
     Origin: SDLC repo commit 66c2c11 (2026-03-09).
     Remove when: opik changelog mentions harbor token/metrics fix.
     """
-    from typing import Any, Dict, Optional, Tuple
+    from typing import Any
 
     from harbor.models.trajectories.step import Step
-
     from opik import datetime_helpers, id_helpers, opik_context
     from opik.api_objects import opik_client
 
@@ -432,10 +431,10 @@ def _patch_opik_deferred_metrics() -> None:
 
     def _build_usage_from_metrics(
         metrics: Any,
-    ) -> Tuple[Optional[Dict[str, Any]], Optional[float]]:
+    ) -> tuple[dict[str, Any] | None, float | None]:
         if not metrics:
             return None, None
-        usage: Dict[str, Any] = {}
+        usage: dict[str, Any] = {}
         if metrics.prompt_tokens is not None:
             usage["prompt_tokens"] = metrics.prompt_tokens
         if metrics.completion_tokens is not None:
@@ -444,26 +443,28 @@ def _patch_opik_deferred_metrics() -> None:
             usage["total_tokens"] = metrics.prompt_tokens + metrics.completion_tokens
         if not usage:
             return None, None
-        total_cost = getattr(metrics, "cost_usd", None)
+        total_cost: float | None = getattr(metrics, "cost_usd", None)
         return usage, total_cost
 
-    def _source_to_span_type(source: str) -> str:
+    from opik.types import SpanType
+
+    def _source_to_span_type(source: str) -> SpanType:
         return "llm" if source == "agent" else "general"
 
     def _create_span_for_step(step: Step) -> None:
         trace_data = getattr(step, "_opik_trace_data", None)
         if trace_data is None:
             return
-        parent_span_id = getattr(step, "_opik_parent_span_id", None)
+        parent_span_id: str | None = getattr(step, "_opik_parent_span_id", None)
         try:
             client = opik_client.get_client_cached()
-            project_name = (
+            span_project_name: str = (
                 getattr(trace_data, "project_name", None)
                 or os.environ.get("OPIK_PROJECT_NAME")
                 or "Default Project"
             )
 
-            input_dict: Dict[str, Any] = {}
+            input_dict: dict[str, Any] = {}
             if step.message:
                 input_dict["message"] = step.message
             if step.tool_calls:
@@ -476,13 +477,13 @@ def _patch_opik_deferred_metrics() -> None:
                     for tc in step.tool_calls
                 ]
 
-            output_dict: Optional[Dict[str, Any]] = None
+            output_dict: dict[str, Any] | None = None
             if step.observation and step.observation.results:
                 output_dict = {
                     "results": [{"content": r.content} for r in step.observation.results]
                 }
 
-            metadata: Dict[str, Any] = {
+            metadata: dict[str, Any] = {
                 "source": step.source,
                 "created_from": "harbor",
             }
@@ -505,7 +506,7 @@ def _patch_opik_deferred_metrics() -> None:
                 total_cost=total_cost,
                 model=step.model_name if step.source == "agent" else None,
                 tags=["harbor", step.source],
-                project_name=project_name,
+                project_name=span_project_name,
                 provider="anthropic" if step.source == "agent" else None,
             )
             object.__setattr__(step, "_opik_span_emitted", True)
@@ -528,9 +529,7 @@ def _patch_opik_deferred_metrics() -> None:
         object.__setattr__(self, "_opik_parent_span_id", parent_span_id)
         object.__setattr__(self, "_opik_span_emitted", False)
 
-        if self.metrics:
-            _create_span_for_step(self)
-        elif self.source != "agent":
+        if self.metrics or self.source != "agent":
             _create_span_for_step(self)
 
     original_setattr = Step.__setattr__

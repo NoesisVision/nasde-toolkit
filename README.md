@@ -1,11 +1,13 @@
 <div align="center">
-  <img src="nasde-toolkit-logo.png" alt="NASDE Toolkit" width="400">
+  <a href="https://noesis.vision/nasde/"><img src="nasde-toolkit-logo.png" alt="NASDE Toolkit" width="400"></a>
 
   <h3>Noesis Agentic Software Development Evals Toolkit</h3>
 
   <p>CLI toolkit for evaluating AI coding agents with multi-dimensional, agentic code review.</p>
 
   <a href="https://discord.gg/QF5PMX4Dqg"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
+
+  <p><sub>Built by <a href="https://noesis.vision/nasde/">Noesis</a></sub></p>
 </div>
 
 ---

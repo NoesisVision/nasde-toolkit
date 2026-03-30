@@ -11,7 +11,9 @@
 # The token is extracted from the macOS Keychain entry "Claude Code-credentials"
 # which is written by Claude Code when you authenticate via `claude` CLI.
 
-set -e
+# NOTE: Do NOT use `set -e` here — this script is sourced into the user's
+# shell, so errexit would persist and kill the terminal on any later non-zero
+# exit code. Each command already has its own `|| { ... }` error handling.
 
 _raw_creds="$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)" || {
     echo "ERROR: Could not read 'Claude Code-credentials' from macOS Keychain." >&2

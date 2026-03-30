@@ -11,7 +11,9 @@
 # Prerequisites: run `codex login` to authenticate via ChatGPT.
 # The token is read from ~/.codex/auth.json.
 
-set -e
+# NOTE: Do NOT use `set -e` here — this script is sourced into the user's
+# shell, so errexit would persist and kill the terminal on any later non-zero
+# exit code. Each command already has its own `|| { ... }` error handling.
 
 _codex_auth_path="$HOME/.codex/auth.json"
 

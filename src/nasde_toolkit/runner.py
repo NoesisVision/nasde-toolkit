@@ -164,6 +164,14 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
     raise SystemExit(1)
 
 
+def _validate_opik_env() -> None:
+    missing = [v for v in ("OPIK_API_KEY", "OPIK_WORKSPACE") if not os.environ.get(v)]
+    if missing:
+        console.print(f"[red]ERROR: Missing Opik env vars: {', '.join(missing)}[/red]")
+        console.print("[dim]Set them via .env or 'export OPIK_API_KEY=... OPIK_WORKSPACE=...'[/dim]")
+        raise SystemExit(1)
+
+
 def _load_env_file(project_dir: Path) -> None:
     for env_path in [project_dir / ".env", project_dir.parent / ".env"]:
         if env_path.exists():
@@ -220,6 +228,9 @@ def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
     _collect_claude_skills(variant_dir, sandbox_files)
     _collect_codex_skills(variant_dir, sandbox_files)
     _collect_gemini_skills(variant_dir, sandbox_files)
+    claude_config = variant_dir / "claude_config.json"
+    if claude_config.exists():
+        sandbox_files["/logs/agent/sessions/.claude.json"] = str(claude_config)
     return sandbox_files
 
 
@@ -638,6 +649,7 @@ async def _run_job(
     from harbor.models.job.config import JobConfig
 
     if with_opik:
+        _validate_opik_env()
         from opik.integrations.harbor import track_harbor
 
         console.print("Opik tracking enabled\n")

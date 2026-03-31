@@ -15,6 +15,7 @@ from nasde_toolkit.config import (
 )
 from nasde_toolkit.runner import (
     _build_merged_config,
+    _collect_sandbox_files,
     _ensure_auth,
     _generate_harbor_config,
     _is_codex_agent,
@@ -402,3 +403,28 @@ def test_ensure_auth_gemini_missing_raises() -> None:
         mock_home = mock_path_cls.home.return_value
         mock_home.joinpath.return_value.exists.return_value = False
         _ensure_auth(gemini_path)
+
+
+# ---------------------------------------------------------------------------
+# _collect_sandbox_files — claude_config.json
+# ---------------------------------------------------------------------------
+
+
+def test_collect_sandbox_files_includes_claude_config_json(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "with-mcp"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "claude_config.json").write_text('{"mcpServers": {}}')
+
+    result = _collect_sandbox_files(variant_dir)
+
+    assert "/logs/agent/sessions/.claude.json" in result
+    assert result["/logs/agent/sessions/.claude.json"] == str(variant_dir / "claude_config.json")
+
+
+def test_collect_sandbox_files_omits_claude_config_when_absent(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "vanilla"
+    variant_dir.mkdir(parents=True)
+
+    result = _collect_sandbox_files(variant_dir)
+
+    assert "/logs/agent/sessions/.claude.json" not in result

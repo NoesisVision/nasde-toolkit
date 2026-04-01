@@ -8,6 +8,7 @@ to Opik as feedback scores on existing traces.
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import re
@@ -18,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from claude_code_sdk import ClaudeCodeOptions, query
+from claude_code_sdk._errors import ProcessError
 from claude_code_sdk._internal import client as _sdk_client
 from claude_code_sdk._internal import message_parser as _mp
 from claude_code_sdk.types import AssistantMessage, TextBlock
@@ -451,9 +453,26 @@ async def _run_claude_code_evaluation(
                         text_parts.append(block.text)
 
         return "\n".join(text_parts)
+    except ProcessError as exc:
+        stderr_detail = _extract_stderr_detail(options)
+        raise RuntimeError(
+            f"Claude Code process failed (exit code {exc.exit_code}). "
+            f"Model: {eval_config.model}, cwd: {workspace_path}. "
+            f"{stderr_detail}"
+        ) from exc
     finally:
         if temp_dir:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _extract_stderr_detail(options: ClaudeCodeOptions) -> str:
+    buf = options.debug_stderr
+    if isinstance(buf, io.StringIO):
+        content = buf.getvalue().strip()
+        if content:
+            last_lines = "\n".join(content.splitlines()[-10:])
+            return f"stderr (last 10 lines):\n{last_lines}"
+    return "Enable debug-to-stderr for more details."
 
 
 def _build_claude_code_options(
@@ -484,6 +503,8 @@ def _build_claude_code_options(
     if eval_config.append_system_prompt:
         kwargs["append_system_prompt"] = eval_config.append_system_prompt
 
+    stderr_buf = io.StringIO()
+
     options = ClaudeCodeOptions(
         allowed_tools=allowed_tools,
         cwd=cwd,
@@ -491,6 +512,8 @@ def _build_claude_code_options(
         model=eval_config.model,
         env={"CLAUDECODE": ""},
         add_dirs=add_dirs,
+        extra_args={"debug-to-stderr": None},
+        debug_stderr=stderr_buf,
         **kwargs,
     )
 

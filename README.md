@@ -3,7 +3,7 @@
 
   <h3>Noesis Agentic Software Development Evals Toolkit</h3>
 
-  <p>CLI toolkit for evaluating AI coding agents with multi-dimensional, agentic code review.</p>
+  <p>Measure whether your AI coding agent configuration actually improves code quality.</p>
 
   <a href="https://noesis.vision/nasde/"><img src="https://img.shields.io/badge/Product%20Page-Noesis%20Vision-0B6623?style=for-the-badge&logoColor=white" alt="Product Page"></a>
   <a href="https://discord.gg/QF5PMX4Dqg"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
@@ -16,11 +16,23 @@
 
 ## What is NASDE?
 
-NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (agent execution in sandboxed environments — Docker locally or cloud providers for scaling) and [Opik](https://github.com/comet-ml/opik) (observability & experiment tracking). The toolkit can be extended in the future with alternative backends — different execution engines instead of Harbor, or different observability platforms instead of Opik.
+NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (sandboxed agent execution — Docker locally or cloud providers for scaling) and [Opik](https://github.com/comet-ml/opik) (observability & experiment tracking). The backends are swappable — different execution engines or observability platforms can be plugged in.
 
-What NASDE adds on top is an **agentic code review stage**. After a coding agent (e.g. Claude Code running inside Harbor) completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** — powered by Claude Code SDK — that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. Think of it as a "nasty" code reviewer who checks not just whether the code works, but *how well* it's written according to custom criteria.
+What NASDE adds on top is the **"nasty" reviewer** — that's where the name comes from. After a coding agent completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** (powered by Claude Code SDK) that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. It checks not just whether the code works, but *how well* it's written according to your custom criteria.
 
-AI coding agents increasingly ship built-in eval tools that test individual skills with pass/fail assertions. NASDE operates at a different level: it evaluates your **complete agent configuration** — the combination of skills, `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` files, MCP servers, and prompting strategies — in sandboxed environments, across **multiple coding agents**, and against **custom quality rubrics**. If built-in evals tell you whether a skill triggers correctly, NASDE tells you whether your setup produces better code.
+## Why NASDE?
+
+Agent configurations — `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` files, skills, MCP servers — affect code quality, token usage, and task completion time. But without controlled benchmarks, you can't tell which changes help and which regress. NASDE gives you repeatable experiments: build tasks from your team's real git history, run different configurations against them, and compare multi-dimensional scores.
+
+What you can measure:
+
+| Area | What NASDE shows you |
+|---|---|
+| **Code quality** | Per-dimension scores (architecture, testing, clarity...) across configurations |
+| **Consistency** | Score variance across trials — same config, same task, how stable? |
+| **Token efficiency** | Which configurations produce similar quality at lower cost |
+| **Agent comparison** | Same tasks, same rubric — Claude Code vs Codex vs Gemini |
+| **Regressions** | Re-run benchmarks after config changes, compare against baseline |
 
 ## Standard vs NASDE evaluation flow
 

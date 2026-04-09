@@ -8,7 +8,6 @@ to Opik as feedback scores on existing traces.
 from __future__ import annotations
 
 import asyncio
-import io
 import json
 import os
 import re
@@ -436,7 +435,7 @@ async def _run_claude_code_evaluation(
 ) -> str:
     eval_config = eval_config or EvaluationConfig()
     _validate_auth()
-    options, temp_dir = _build_claude_code_options(
+    options, temp_dir, stderr_path = _build_claude_code_options(
         workspace_path,
         eval_config,
         project_root,
@@ -454,7 +453,7 @@ async def _run_claude_code_evaluation(
 
         return "\n".join(text_parts)
     except ProcessError as exc:
-        stderr_detail = _extract_stderr_detail(options)
+        stderr_detail = _extract_stderr_detail(stderr_path)
         raise RuntimeError(
             f"Claude Code process failed (exit code {exc.exit_code}). "
             f"Model: {eval_config.model}, cwd: {workspace_path}. "
@@ -463,12 +462,13 @@ async def _run_claude_code_evaluation(
     finally:
         if temp_dir:
             shutil.rmtree(temp_dir, ignore_errors=True)
+        if stderr_path:
+            stderr_path.unlink(missing_ok=True)
 
 
-def _extract_stderr_detail(options: ClaudeCodeOptions) -> str:
-    buf = options.debug_stderr
-    if isinstance(buf, io.StringIO):
-        content = buf.getvalue().strip()
+def _extract_stderr_detail(stderr_path: Path | None) -> str:
+    if stderr_path and stderr_path.exists():
+        content = stderr_path.read_text().strip()
         if content:
             last_lines = "\n".join(content.splitlines()[-10:])
             return f"stderr (last 10 lines):\n{last_lines}"
@@ -479,7 +479,7 @@ def _build_claude_code_options(
     workspace_path: Path,
     eval_config: EvaluationConfig,
     project_root: Path,
-) -> tuple[ClaudeCodeOptions, Path | None]:
+) -> tuple[ClaudeCodeOptions, Path | None, Path | None]:
     allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
     cwd = str(workspace_path)
     add_dirs: list[str | Path] = []
@@ -503,7 +503,10 @@ def _build_claude_code_options(
     if eval_config.append_system_prompt:
         kwargs["append_system_prompt"] = eval_config.append_system_prompt
 
-    stderr_buf = io.StringIO()
+    stderr_file = tempfile.NamedTemporaryFile(
+        mode="w", prefix="nasde_stderr_", suffix=".log", delete=False
+    )
+    stderr_path = Path(stderr_file.name)
 
     options = ClaudeCodeOptions(
         allowed_tools=allowed_tools,
@@ -513,11 +516,11 @@ def _build_claude_code_options(
         env={"CLAUDECODE": ""},
         add_dirs=add_dirs,
         extra_args={"debug-to-stderr": None},
-        debug_stderr=stderr_buf,
+        debug_stderr=stderr_file,
         **kwargs,
     )
 
-    return options, temp_dir
+    return options, temp_dir, stderr_path
 
 
 def _prepare_skills_workspace(temp_dir: Path, skills_source: Path) -> None:

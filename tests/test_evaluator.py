@@ -50,6 +50,7 @@ def test_claude_code_options_adds_trial_dir_when_trajectory_enabled(tmp_path: Pa
 
     if temp_dir:
         import shutil
+
         shutil.rmtree(temp_dir, ignore_errors=True)
     if stderr_path:
         stderr_path.unlink(missing_ok=True)
@@ -71,6 +72,7 @@ def test_claude_code_options_no_trial_dir_when_trajectory_disabled(tmp_path: Pat
 
     if temp_dir:
         import shutil
+
         shutil.rmtree(temp_dir, ignore_errors=True)
     if stderr_path:
         stderr_path.unlink(missing_ok=True)

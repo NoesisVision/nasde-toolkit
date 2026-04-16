@@ -336,10 +336,12 @@ def _build_evaluator_prompt(
     expected_dimensions: list[dict] | None,
     ground_truth: str = "",
     artifacts_dir: str | None = None,
+    trajectory_path: str | None = None,
 ) -> str:
     """Build the evaluation prompt with optional dimension constraints and ground truth."""
     dimension_constraint = _format_dimension_constraint(expected_dimensions)
     ground_truth_section = _format_ground_truth_section(ground_truth)
+    trajectory_section = _format_trajectory_section(trajectory_path)
 
     location_hint = (
         f"Analyze the artifacts in `{artifacts_dir}`."
@@ -365,8 +367,7 @@ Follow the rubric EXACTLY — assign the score that matches the description, not
 <criteria>
 {criteria}
 </criteria>
-{ground_truth_section}
-## How to evaluate
+{ground_truth_section}{trajectory_section}## How to evaluate
 
 1. Use `Glob` to discover all output files in the workspace.
 2. Use `Read` to examine the content of each output file.
@@ -419,6 +420,22 @@ decisions should lower the score.
 <ground_truth>
 {ground_truth}
 </ground_truth>
+"""
+
+
+def _format_trajectory_section(trajectory_path: str | None) -> str:
+    if not trajectory_path:
+        return ""
+    return f"""
+## Agent trajectory
+
+The agent's full ATIF execution trajectory is available at `{trajectory_path}`.
+It contains the complete step-by-step record of the agent's work: messages, tool calls
+with arguments and results, token usage per step, timestamps, and errors.
+
+Use the Read tool to examine it when your assessment criteria require evaluating
+the agent's process, efficiency, or decision-making — not just the final output.
+
 """
 
 

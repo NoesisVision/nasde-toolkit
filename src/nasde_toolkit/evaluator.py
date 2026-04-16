@@ -538,7 +538,7 @@ def _build_claude_code_options(
     if eval_config.append_system_prompt:
         kwargs["append_system_prompt"] = eval_config.append_system_prompt
 
-    stderr_file = tempfile.NamedTemporaryFile(
+    stderr_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w", prefix="nasde_stderr_", suffix=".log", delete=False
     )
     stderr_path = Path(stderr_file.name)

@@ -229,6 +229,7 @@ async def evaluate_trial(
     ground_truth_path = task_dir / "ground_truth_decisions.json"
     ground_truth = ground_truth_path.read_text() if ground_truth_path.exists() else ""
 
+    trajectory_path = _resolve_trajectory_path(trial_dir, eval_config)
     artifacts_dir = str(workspace_path) if eval_config.skills_dir else None
     prompt = _build_evaluator_prompt(
         instruction,
@@ -236,6 +237,7 @@ async def evaluate_trial(
         expected_dimensions,
         ground_truth,
         artifacts_dir,
+        trajectory_path,
     )
     console.print(f"  Task: {task_name}")
     console.print(f"  Workspace: {workspace_path}")
@@ -246,6 +248,7 @@ async def evaluate_trial(
         workspace_path,
         eval_config,
         project_root,
+        trial_dir,
     )
     evaluation = _parse_evaluation_response(raw_response, expected_dimensions)
 
@@ -323,6 +326,15 @@ def _resolve_task_dir(result: dict, project_root: Path) -> Path:
 def _resolve_task_name(result: dict) -> str:
     name: str = result.get("task_name", "")
     return name
+
+
+def _resolve_trajectory_path(trial_dir: Path, eval_config: EvaluationConfig) -> str | None:
+    if not eval_config.include_trajectory:
+        return None
+    trajectory_file = trial_dir / "agent" / "trajectory.json"
+    if not trajectory_file.exists():
+        return None
+    return "../../agent/trajectory.json"
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +461,7 @@ async def _run_claude_code_evaluation(
     workspace_path: Path,
     eval_config: EvaluationConfig | None = None,
     project_root: Path = Path(),
+    trial_dir: Path | None = None,
 ) -> str:
     eval_config = eval_config or EvaluationConfig()
     _validate_auth()
@@ -456,6 +469,7 @@ async def _run_claude_code_evaluation(
         workspace_path,
         eval_config,
         project_root,
+        trial_dir,
     )
 
     try:
@@ -496,6 +510,7 @@ def _build_claude_code_options(
     workspace_path: Path,
     eval_config: EvaluationConfig,
     project_root: Path,
+    trial_dir: Path | None = None,
 ) -> tuple[ClaudeCodeOptions, Path | None, Path | None]:
     allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
     cwd = str(workspace_path)
@@ -508,6 +523,9 @@ def _build_claude_code_options(
         _prepare_skills_workspace(temp_dir, skills_source)
         add_dirs.append(str(workspace_path))
         cwd = str(temp_dir)
+
+    if eval_config.include_trajectory and trial_dir:
+        add_dirs.append(str(trial_dir))
 
     mcp_servers: dict | str | Path = {}
     if eval_config.mcp_config:

@@ -39,6 +39,7 @@ class EvaluationConfig:
     mcp_config: str | None = None
     skills_dir: str | None = None
     append_system_prompt: str | None = None
+    include_trajectory: bool = False
 
 
 @dataclass
@@ -131,6 +132,7 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
             mcp_config=eval_raw.get("mcp_config"),
             skills_dir=eval_raw.get("skills_dir"),
             append_system_prompt=eval_raw.get("append_system_prompt"),
+            include_trajectory=eval_raw.get("include_trajectory", False),
         ),
         reporting=ReportingConfig(
             platform=reporting_raw.get("platform", "opik"),

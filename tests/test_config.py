@@ -73,6 +73,7 @@ name = "test"
     assert config.evaluation.mcp_config is None
     assert config.evaluation.skills_dir is None
     assert config.evaluation.append_system_prompt is None
+    assert config.evaluation.include_trajectory is False
 
 
 def test_evaluation_all_fields_from_toml(tmp_path: Path) -> None:
@@ -119,3 +120,18 @@ max_turns = 15
     assert config.evaluation.max_turns == 15
     assert config.evaluation.mcp_config is None
     assert config.evaluation.skills_dir is None
+
+
+def test_evaluation_include_trajectory_from_toml(tmp_path: Path) -> None:
+    _write_nasde_toml(
+        tmp_path,
+        """
+[project]
+name = "test"
+
+[evaluation]
+include_trajectory = true
+""",
+    )
+    config = load_project_config(tmp_path)
+    assert config.evaluation.include_trajectory is True

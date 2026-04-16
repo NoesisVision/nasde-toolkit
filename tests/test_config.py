@@ -91,6 +91,7 @@ allowed_tools = ["Read", "Glob", "Grep", "Bash"]
 mcp_config = "./evaluator_mcp.json"
 skills_dir = "./evaluator_skills"
 append_system_prompt = "Focus on SOLID principles."
+include_trajectory = true
 """,
     )
     config = load_project_config(tmp_path)
@@ -101,6 +102,7 @@ append_system_prompt = "Focus on SOLID principles."
     assert config.evaluation.mcp_config == "./evaluator_mcp.json"
     assert config.evaluation.skills_dir == "./evaluator_skills"
     assert config.evaluation.append_system_prompt == "Focus on SOLID principles."
+    assert config.evaluation.include_trajectory is True
 
 
 def test_evaluation_partial_override(tmp_path: Path) -> None:

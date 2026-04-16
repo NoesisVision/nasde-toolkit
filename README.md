@@ -286,6 +286,9 @@ append_system_prompt = "Pay special attention to SOLID principles when scoring."
 | `mcp_config` | — | Path to MCP server config JSON |
 | `skills_dir` | — | Path to evaluator skills directory |
 | `append_system_prompt` | — | Extra system prompt text |
+| `include_trajectory` | `false` | Include ATIF trajectory in evaluation |
+
+When `include_trajectory` is enabled, the evaluator can read the agent's full execution trajectory (`agent/trajectory.json`) — tool calls, timestamps, token usage, errors. This enables assessment dimensions that evaluate the agent's *process* (efficiency, verification discipline, decision-making) alongside the final output. See [`examples/nasde-dev-skill`](examples/nasde-dev-skill) for a working example with trajectory-aware dimensions.
 
 ## Local repo benchmarks
 
@@ -413,6 +416,7 @@ dimensions_file = "assessment_dimensions.json"
 # mcp_config = "./evaluator_mcp.json"         # MCP server config for evaluator
 # skills_dir = "./evaluator_skills"           # Skills directory for evaluator
 # append_system_prompt = ""                   # Extra system prompt for evaluator
+# include_trajectory = false                   # Include ATIF trajectory in evaluation
 
 [reporting]
 platform = "opik"

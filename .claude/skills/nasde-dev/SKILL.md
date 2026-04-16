@@ -55,10 +55,18 @@ uv sync
 
 After any change to the evaluation pipeline, CLI flags, configuration schema, agent support, or sandbox/environment handling, update **all** of these:
 
+**Think DX-first:** For every new option or feature, ask "where will the user be when they need this?" and put the documentation there. A feature that exists only in CLAUDE.md is invisible to most users. Check every touchpoint:
+
 **Documentation:**
-- `ARCHITECTURE.md` — system architecture with mermaid diagrams (end-to-end flow, trial lifecycle, cloud sandbox providers, assessment evaluation)
-- `README.md` — user-facing documentation (CLI options table, nasde.toml example, prerequisites, authentication)
+- `README.md` — user-facing documentation (CLI options table, nasde.toml config reference, explanatory text). This is where most users look first.
 - `CLAUDE.md` — agent instructions (CLI reference, nasde.toml example, architecture decisions)
+- `ARCHITECTURE.md` — system architecture with mermaid diagrams (end-to-end flow, trial lifecycle, cloud sandbox providers, assessment evaluation)
+
+**Examples:**
+- At least one example benchmark in `examples/` should demonstrate the new feature in a working configuration.
+
+**Scaffold templates** (`src/nasde_toolkit/scaffold/__init__.py`):
+- If the feature is a new config option, add a commented-out example to the `NASDE_TOML_TEMPLATE` so users discover it when running `nasde init`.
 
 **Skills (update when relevant to the change):**
 - `.claude/skills/nasde-benchmark-runner/SKILL.md` — running benchmarks, supported models/agents, auth, troubleshooting

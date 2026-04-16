@@ -4,7 +4,13 @@
       "name": "verification_discipline",
       "title": "Verification Discipline",
       "max_score": 25,
-      "description": "Agent ran tests before and after changes, verified CLI help output, checked that flag parses correctly, did not leave regressions. Evidence of systematic verification in the workspace."
+      "description": "Agent ran tests before and after changes, verified CLI help output, checked that flag parses correctly, did not leave regressions. Evidence of systematic verification from ATIF trajectory and workspace artifacts."
+    },
+    {
+      "name": "execution_effectiveness",
+      "title": "Execution Effectiveness",
+      "max_score": 25,
+      "description": "How effectively the agent worked: purposeful actions without unnecessary repetition, efficient tool usage, no aimless exploration or backtracking, reasonable token/step budget for the task complexity. Evaluated from the ATIF trajectory."
     },
     {
       "name": "code_conventions",

@@ -229,6 +229,7 @@ async def evaluate_trial(
     ground_truth_path = task_dir / "ground_truth_decisions.json"
     ground_truth = ground_truth_path.read_text() if ground_truth_path.exists() else ""
 
+    trajectory_path = _resolve_trajectory_path(trial_dir, eval_config)
     artifacts_dir = str(workspace_path) if eval_config.skills_dir else None
     prompt = _build_evaluator_prompt(
         instruction,
@@ -236,6 +237,7 @@ async def evaluate_trial(
         expected_dimensions,
         ground_truth,
         artifacts_dir,
+        trajectory_path,
     )
     console.print(f"  Task: {task_name}")
     console.print(f"  Workspace: {workspace_path}")
@@ -246,6 +248,7 @@ async def evaluate_trial(
         workspace_path,
         eval_config,
         project_root,
+        trial_dir,
     )
     evaluation = _parse_evaluation_response(raw_response, expected_dimensions)
 
@@ -325,6 +328,15 @@ def _resolve_task_name(result: dict) -> str:
     return name
 
 
+def _resolve_trajectory_path(trial_dir: Path, eval_config: EvaluationConfig) -> str | None:
+    if not eval_config.include_trajectory:
+        return None
+    trajectory_file = trial_dir / "agent" / "trajectory.json"
+    if not trajectory_file.exists():
+        return None
+    return "../../agent/trajectory.json"
+
+
 # ---------------------------------------------------------------------------
 # Prompt construction
 # ---------------------------------------------------------------------------
@@ -336,10 +348,12 @@ def _build_evaluator_prompt(
     expected_dimensions: list[dict] | None,
     ground_truth: str = "",
     artifacts_dir: str | None = None,
+    trajectory_path: str | None = None,
 ) -> str:
     """Build the evaluation prompt with optional dimension constraints and ground truth."""
     dimension_constraint = _format_dimension_constraint(expected_dimensions)
     ground_truth_section = _format_ground_truth_section(ground_truth)
+    trajectory_section = _format_trajectory_section(trajectory_path)
 
     location_hint = (
         f"Analyze the artifacts in `{artifacts_dir}`."
@@ -365,8 +379,7 @@ Follow the rubric EXACTLY — assign the score that matches the description, not
 <criteria>
 {criteria}
 </criteria>
-{ground_truth_section}
-## How to evaluate
+{ground_truth_section}{trajectory_section}## How to evaluate
 
 1. Use `Glob` to discover all output files in the workspace.
 2. Use `Read` to examine the content of each output file.
@@ -422,6 +435,22 @@ decisions should lower the score.
 """
 
 
+def _format_trajectory_section(trajectory_path: str | None) -> str:
+    if not trajectory_path:
+        return ""
+    return f"""
+## Agent trajectory
+
+The agent's full ATIF execution trajectory is available at `{trajectory_path}`.
+It contains the complete step-by-step record of the agent's work: messages, tool calls
+with arguments and results, token usage per step, timestamps, and errors.
+
+Use the Read tool to examine it when your assessment criteria require evaluating
+the agent's process, efficiency, or decision-making — not just the final output.
+
+"""
+
+
 # ---------------------------------------------------------------------------
 # Claude Code SDK interaction
 # ---------------------------------------------------------------------------
@@ -432,6 +461,7 @@ async def _run_claude_code_evaluation(
     workspace_path: Path,
     eval_config: EvaluationConfig | None = None,
     project_root: Path = Path(),
+    trial_dir: Path | None = None,
 ) -> str:
     eval_config = eval_config or EvaluationConfig()
     _validate_auth()
@@ -439,6 +469,7 @@ async def _run_claude_code_evaluation(
         workspace_path,
         eval_config,
         project_root,
+        trial_dir,
     )
 
     try:
@@ -479,6 +510,7 @@ def _build_claude_code_options(
     workspace_path: Path,
     eval_config: EvaluationConfig,
     project_root: Path,
+    trial_dir: Path | None = None,
 ) -> tuple[ClaudeCodeOptions, Path | None, Path | None]:
     allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
     cwd = str(workspace_path)
@@ -492,6 +524,9 @@ def _build_claude_code_options(
         add_dirs.append(str(workspace_path))
         cwd = str(temp_dir)
 
+    if eval_config.include_trajectory and trial_dir:
+        add_dirs.append(str(trial_dir))
+
     mcp_servers: dict | str | Path = {}
     if eval_config.mcp_config:
         mcp_config_path = _resolve_path(eval_config.mcp_config, project_root)
@@ -503,7 +538,7 @@ def _build_claude_code_options(
     if eval_config.append_system_prompt:
         kwargs["append_system_prompt"] = eval_config.append_system_prompt
 
-    stderr_file = tempfile.NamedTemporaryFile(
+    stderr_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w", prefix="nasde_stderr_", suffix=".log", delete=False
     )
     stderr_path = Path(stderr_file.name)

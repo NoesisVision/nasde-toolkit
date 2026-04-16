@@ -23,6 +23,7 @@ build_commands = [
 [evaluation]
 model = "claude-sonnet-4-6"
 dimensions_file = "assessment_dimensions.json"
+include_trajectory = true
 
 [reporting]
 platform = "opik"

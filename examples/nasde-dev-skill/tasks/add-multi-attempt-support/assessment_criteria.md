@@ -2,6 +2,8 @@
 
 Evaluate the agent's solution across the following dimensions.
 
+**Note:** This benchmark uses `include_trajectory = true`. The ATIF trajectory file (`../../agent/trajectory.json`) contains the full step-by-step record of the agent's work — tool calls, timestamps, token usage, errors. Use it for dimensions that evaluate process (Verification Discipline, Execution Effectiveness).
+
 ## 1. Verification Discipline (0-25)
 
 | Score | Criteria |
@@ -12,13 +14,31 @@ Evaluate the agent's solution across the following dimensions.
 | 20    | Agent verified CLI help output, tested flag parsing, ran pytest before and after |
 | 25    | Systematic verification: test baseline before coding, CLI help check, flag parse test, regression check, all passing |
 
-**Key checks:**
-- Evidence in workspace that agent ran `uv run pytest` (look for test output in agent logs)
-- Evidence agent checked `nasde run --help` after adding flag
+**Key checks (use ATIF trajectory as primary evidence):**
+- Trajectory shows agent invoked `uv run pytest` (or equivalent) — check tool calls in trajectory for test execution
+- Trajectory shows agent checked `nasde run --help` after adding flag
+- Trajectory shows agent ran tests *before* starting implementation (baseline check) and *after* completing it
 - No pre-existing tests broken by the change
 - Agent wrote new tests for the feature (bonus, not required for pass)
 
-## 2. Code Conventions (0-25)
+## 2. Execution Effectiveness (0-25)
+
+| Score | Criteria |
+|-------|----------|
+| 0     | Chaotic process: agent went in circles, repeated same failing actions, no clear direction |
+| 8     | Agent completed the task but with significant waste — many unnecessary file reads, repeated failed attempts, excessive backtracking |
+| 15    | Reasonably efficient: agent had a clear direction, minor detours or retries but generally productive steps |
+| 20    | Efficient execution: agent read relevant files, made targeted changes, minimal unnecessary steps, good tool selection |
+| 25    | Surgical precision: every step was purposeful, agent went straight to the right files, made clean changes, no wasted effort |
+
+**Key checks (from ATIF trajectory):**
+- Ratio of productive steps (reading relevant code, making edits, running tests) vs. unproductive steps (reading irrelevant files, failed tool calls, undone changes)
+- Whether the agent explored the codebase methodically or wandered aimlessly
+- Number of times the agent retried the same action with the same or similar input
+- Whether tool choices were appropriate (e.g., using Grep to find code vs. reading entire files sequentially)
+- Overall trajectory length relative to task complexity — this is a focused feature addition, not a large refactoring
+
+## 3. Code Conventions (0-25)
 
 | Score | Criteria |
 |-------|----------|
@@ -34,7 +54,7 @@ Evaluate the agent's solution across the following dimensions.
 - No bare `print()` — all output via `console.print()` with Rich markup
 - `run_benchmark()` and `_build_merged_config()` parameter style matches existing functions
 
-## 3. Architecture Quality (0-25)
+## 4. Architecture Quality (0-25)
 
 | Score | Criteria |
 |-------|----------|
@@ -51,7 +71,7 @@ Evaluate the agent's solution across the following dimensions.
 - DNS fix runs before `super().setup()` (order matters for cloud environments)
 - n_attempts flows: CLI → run_benchmark() → _build_merged_config() → Harbor dict
 
-## 4. Documentation Completeness (0-25)
+## 5. Documentation Completeness (0-25)
 
 | Score | Criteria |
 |-------|----------|

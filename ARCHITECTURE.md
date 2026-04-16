@@ -197,6 +197,9 @@ The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All opti
 | `mcp_config` | — | Path to MCP server config JSON (same format as Claude Code MCP config) |
 | `skills_dir` | — | Path to skills directory (copied into evaluator's `.claude/skills/`) |
 | `append_system_prompt` | — | Extra text appended to evaluator's system prompt |
+| `include_trajectory` | `false` | Include ATIF trajectory data in evaluation (opt-in) |
+
+When `include_trajectory` is set to `true`, the evaluator prompt includes a reference to the agent's ATIF trajectory file (`agent/trajectory.json`), and the trial directory is added to `add_dirs` so the evaluator can read it. This enables assessment dimensions that evaluate the agent's process (tool usage, efficiency, decision-making) alongside the final output. The trajectory file is not preprocessed — the evaluator reads it directly via the Read tool.
 
 When `skills_dir` is set, the evaluator runs in a temporary workspace with skills installed. Trial artifacts are made accessible via `add_dirs`, and the prompt references the artifact path explicitly.
 

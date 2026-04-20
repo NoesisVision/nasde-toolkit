@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -165,7 +164,10 @@ def test_codex_backend_validate_auth_succeeds_with_codex_api_key(monkeypatch: py
     backend.validate_auth()
 
 
-def test_codex_backend_validate_auth_succeeds_with_chatgpt_oauth(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_codex_backend_validate_auth_succeeds_with_chatgpt_oauth(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("CODEX_API_KEY", raising=False)
     codex_home = tmp_path / ".codex"

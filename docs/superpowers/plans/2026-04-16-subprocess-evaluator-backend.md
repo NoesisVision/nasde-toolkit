@@ -354,7 +354,7 @@ def test_claude_backend_builds_command(tmp_path: Path) -> None:
     assert "claude-sonnet-4-6" in cmd
     assert "--max-turns" in cmd
     assert "10" in cmd
-    assert "--bare" in cmd
+    assert "--bare" not in cmd
     assert "--allowedTools" in cmd
 
 
@@ -433,6 +433,11 @@ class ClaudeSubprocessBackend:
     Uses `--output-format json` to get structured output with a `result`
     field containing the agent's text response. Authenticates via whatever
     credentials are configured (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN).
+
+    Does NOT use `--bare` mode — preserves OAuth/keychain auth reads
+    (required for subscription-based billing) and auto-discovery of user-level
+    skills. Trades a slightly slower startup for full compatibility with
+    subscription accounts.
     """
 
     async def run_evaluation(
@@ -466,7 +471,6 @@ class ClaudeSubprocessBackend:
             "claude",
             "-p",
             "--output-format", "json",
-            "--bare",
             "--no-session-persistence",
             "--model", eval_config.model,
             "--max-turns", str(eval_config.max_turns),

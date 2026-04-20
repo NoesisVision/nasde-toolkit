@@ -8,6 +8,7 @@ import pytest
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator_backends import EvaluatorBackend, create_backend
 from nasde_toolkit.evaluator_backends.claude_subprocess import ClaudeSubprocessBackend
+from nasde_toolkit.evaluator_backends.codex_subprocess import CodexSubprocessBackend
 
 
 def test_create_backend_returns_claude_by_default() -> None:
@@ -112,3 +113,53 @@ def test_claude_backend_command_includes_append_system_prompt(tmp_path: Path) ->
     )
     assert "--append-system-prompt" in cmd
     assert "Be strict." in cmd
+
+
+def test_codex_backend_validate_auth_succeeds_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+    backend = CodexSubprocessBackend()
+    backend.validate_auth()
+
+
+def test_codex_backend_validate_auth_succeeds_with_codex_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_API_KEY", "sk-test-key")
+    backend = CodexSubprocessBackend()
+    backend.validate_auth()
+
+
+def test_codex_backend_validate_auth_succeeds_with_chatgpt_oauth(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("CODEX_API_KEY", raising=False)
+    codex_home = tmp_path / ".codex"
+    codex_home.mkdir()
+    auth_file = codex_home / "auth.json"
+    auth_file.write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}')
+    monkeypatch.setenv("HOME", str(tmp_path))
+    backend = CodexSubprocessBackend()
+    backend.validate_auth()
+
+
+def test_codex_backend_validate_auth_fails_without_credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("CODEX_API_KEY", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    backend = CodexSubprocessBackend()
+    with pytest.raises(SystemExit):
+        backend.validate_auth()
+
+
+def test_codex_backend_builds_command(tmp_path: Path) -> None:
+    backend = CodexSubprocessBackend()
+    eval_config = EvaluationConfig(backend="codex", model="o3")
+    cmd = backend._build_command(
+        workspace_path=tmp_path,
+        eval_config=eval_config,
+    )
+    assert cmd[0] == "codex"
+    assert "exec" in cmd
+    assert "--json" in cmd
+    assert "--quiet" in cmd
+    assert "--full-auto" in cmd
+    assert "--model" in cmd
+    assert "o3" in cmd

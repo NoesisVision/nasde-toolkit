@@ -89,3 +89,25 @@ def test_all_variants_continues_on_failure(mock_run: AsyncMock, benchmark_projec
     assert mock_run.await_count == 2
     assert "FAILED" in result.output
     assert "OK" in result.output
+
+
+@patch("nasde_toolkit.evaluator.evaluate_job", new_callable=AsyncMock)
+def test_eval_command_forwards_evaluation_config(
+    mock_evaluate_job: AsyncMock, tmp_path: Path
+) -> None:
+    (tmp_path / "nasde.toml").write_text(
+        '[project]\nname = "test"\n'
+        '[defaults]\nvariant = "vanilla"\n'
+        "[evaluation]\ninclude_trajectory = true\n"
+    )
+    job_dir = tmp_path / "jobs" / "job1"
+    job_dir.mkdir(parents=True)
+
+    result = runner.invoke(
+        app,
+        ["eval", str(job_dir), "-C", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+    assert mock_evaluate_job.await_count == 1
+    eval_config = mock_evaluate_job.call_args.kwargs["eval_config"]
+    assert eval_config.include_trajectory is True

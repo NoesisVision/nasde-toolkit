@@ -115,6 +115,43 @@ def test_claude_backend_command_includes_append_system_prompt(tmp_path: Path) ->
     assert "Be strict." in cmd
 
 
+def test_claude_backend_command_includes_skills_dir_setup(tmp_path: Path) -> None:
+    skills_dir = tmp_path / "evaluator_skills" / "my-skill"
+    skills_dir.mkdir(parents=True)
+    (skills_dir / "SKILL.md").write_text("# Skill content")
+
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir()
+
+    backend = ClaudeSubprocessBackend()
+    eval_config = EvaluationConfig(skills_dir=str(tmp_path / "evaluator_skills"))
+    cmd, temp_dir = backend._build_command_with_skills(
+        workspace_path=workspace_path,
+        eval_config=eval_config,
+        project_root=tmp_path,
+        trial_dir=None,
+    )
+    assert temp_dir is not None
+    assert (temp_dir / ".claude" / "skills" / "my-skill" / "SKILL.md").exists()
+    assert "--add-dir" in cmd
+    assert str(workspace_path) in cmd
+
+    import shutil
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_claude_backend_no_skills_returns_no_temp_dir(tmp_path: Path) -> None:
+    backend = ClaudeSubprocessBackend()
+    eval_config = EvaluationConfig()  # no skills_dir
+    cmd, temp_dir = backend._build_command_with_skills(
+        workspace_path=tmp_path,
+        eval_config=eval_config,
+        project_root=tmp_path.parent,
+        trial_dir=None,
+    )
+    assert temp_dir is None
+
+
 def test_codex_backend_validate_auth_succeeds_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
     backend = CodexSubprocessBackend()

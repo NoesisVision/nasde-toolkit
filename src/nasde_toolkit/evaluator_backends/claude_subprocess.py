@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
+import tempfile
 from pathlib import Path
 
 from rich.console import Console
@@ -36,9 +38,16 @@ class ClaudeSubprocessBackend:
         trial_dir: Path | None = None,
     ) -> str:
         self.validate_auth()
-        cmd = self._build_command(workspace_path, eval_config, project_root, trial_dir)
+        cmd, temp_dir = self._build_command_with_skills(
+            workspace_path, eval_config, project_root, trial_dir
+        )
         env = self._build_env()
-        return await self._run_subprocess(cmd, prompt, workspace_path, env)
+        cwd = temp_dir if temp_dir else workspace_path
+        try:
+            return await self._run_subprocess(cmd, prompt, cwd, env)
+        finally:
+            if temp_dir:
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
     def validate_auth(self) -> None:
         has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
@@ -46,6 +55,26 @@ class ClaudeSubprocessBackend:
         if not has_api_key and not has_oauth:
             console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
             raise SystemExit(1)
+
+    def _build_command_with_skills(
+        self,
+        workspace_path: Path,
+        eval_config: EvaluationConfig,
+        project_root: Path,
+        trial_dir: Path | None,
+    ) -> tuple[list[str], Path | None]:
+        cmd = self._build_command(workspace_path, eval_config, project_root, trial_dir)
+        temp_dir: Path | None = None
+
+        if eval_config.skills_dir:
+            skills_source = _resolve_path(eval_config.skills_dir, project_root)
+            temp_dir = Path(tempfile.mkdtemp(prefix="nasde_eval_"))
+            target = temp_dir / ".claude" / "skills"
+            if skills_source.is_dir():
+                shutil.copytree(skills_source, target)
+            cmd.extend(["--add-dir", str(workspace_path)])
+
+        return cmd, temp_dir
 
     def _build_command(
         self,

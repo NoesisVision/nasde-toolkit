@@ -11,7 +11,12 @@ src/nasde_toolkit/
   cli.py                   # Typer CLI (init, run, eval + harbor/opik pass-through)
   config.py                # nasde.toml + task.json parsing into dataclasses
   runner.py                # Harbor Python API — variant resolution, config merging, Job execution
-  evaluator.py             # Post-hoc assessment via Claude Code SDK
+  evaluator.py             # Post-hoc assessment via pluggable CLI subprocess backends
+  evaluator_backends/
+    __init__.py
+    protocol.py            # EvaluatorBackend Protocol
+    claude_subprocess.py   # `claude -p` subprocess backend (default)
+    codex_subprocess.py    # `codex exec` subprocess backend
   docker.py                # Docker environment helpers
   scaffold/
     __init__.py            # Project scaffolding templates and file creation
@@ -56,11 +61,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **CLI framework**: Typer with Rich markup mode. The `app` object in `cli.py` is the entry point registered in `pyproject.toml` as `nasde`.
 - **Configuration**: Two-layer config — `nasde.toml` for project-level settings, `task.json` per task. Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.nasde/tasks/`) automatically.
 - **Benchmark runner**: Uses Harbor Python API (`Job`, `JobConfig`) directly instead of subprocess. The runner merges variant config with task registry into a dict, passes it to `JobConfig.model_validate()`, then runs `await job.run()`. Opik tracking via `track_harbor()` (monkey-patches Harbor at runtime).
-- **Evaluator**: Uses Claude Code SDK async API to run a Claude agent that reads trial artifacts and scores them against assessment criteria. Configurable via `[evaluation]` in `nasde.toml` — model, tools, MCP servers, skills, system prompt, and trajectory inclusion can all be customized. When `include_trajectory = true`, the evaluator also has access to the agent's ATIF trajectory (`agent/trajectory.json`), enabling assessment dimensions that evaluate the agent's process alongside its output. Default model is `claude-opus-4-6` (best available for review quality). Monkeypatches SDK's `parse_message` to handle unknown message types (remove when SDK fixes this). Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
+- **Evaluator**: Subprocess-based assessment evaluation with pluggable backends. The evaluator spawns a CLI agent (`claude -p` or `codex exec`) as a subprocess to read trial artifacts and score them against assessment criteria. Backend selection via `[evaluation] backend` in `nasde.toml` (`"claude"` default, `"codex"` available). Claude backend uses `--output-format json` (without `--bare` — preserves OAuth/keychain auth for subscription billing and skills auto-discovery). Codex backend uses `--json --quiet --full-auto` for JSONL event streaming. Both backends respect the user's existing CLI authentication (OAuth subscription or API key) — no Agent SDK required, which avoids Anthropic's SDK-billing restrictions on subscription accounts. Configurable via `[evaluation]` in `nasde.toml` — backend, model, tools, MCP servers, skills, system prompt, and trajectory inclusion can all be customized. When `include_trajectory = true`, the evaluator also has access to the agent's ATIF trajectory (`agent/trajectory.json`). Default Claude model is `claude-opus-4-6`. Skills dir is mounted via temp-dir + `cwd` with `--add-dir <workspace>` so Claude's auto-discovery picks them up. Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
 - **Variant system**: Each variant is a directory under `variants/` with a required `variant.toml` declaring the agent type (`agent = "claude"`, `agent = "codex"`, or `agent = "gemini"`). For Claude Code variants, `CLAUDE.md` is injected into `/app/CLAUDE.md`; for Codex variants, `AGENTS.md` is injected into `/app/AGENTS.md`; for Gemini CLI variants, `GEMINI.md` is injected into `/app/GEMINI.md`. An optional `skills/` subdirectory contains Claude skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. An optional `agents_skills/` subdirectory contains Codex skill snapshots — all files under `agents_skills/<name>/` are injected into `/app/.agents/skills/<name>/`. An optional `gemini_skills/` subdirectory contains Gemini skill snapshots — all files under `gemini_skills/<name>/` are injected into `/app/.gemini/skills/<name>/`. If no `harbor_config.json` exists, one is auto-generated from `variant.toml`.
 - **Codex ChatGPT OAuth**: When `~/.codex/auth.json` contains `auth_mode: "chatgpt"` and no API key env var is set, `ConfigurableCodex` injects the full OAuth token structure into the sandbox via env var. API key always takes priority over OAuth. Tokens are not extracted back from sandbox after runs. Validate with `source scripts/export_codex_oauth_token.sh`.
 - **Gemini Google OAuth**: When `~/.gemini/oauth_creds.json` exists (created by `gemini login`) and no API key env var is set (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`), `ConfigurableGemini` injects the OAuth credentials into the sandbox via env var. API key always takes priority over OAuth. Validate with `source scripts/export_gemini_oauth_token.sh`.
-- **All dependencies are core**: `harbor`, `opik`, `claude-code-sdk` are in `[project.dependencies]`. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
+- **All dependencies are core**: `harbor`, `opik` are in `[project.dependencies]`. The evaluator depends on having `claude` CLI (default) or `codex` CLI installed and authenticated on the host — not bundled. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
 - **Versioning**: Derived from git tags via `hatch-vcs` plugin. Tag `v0.1.0` → version `0.1.0`. Commits after a tag produce dev versions like `0.1.1.dev3+gabcdef`. `_version.py` is auto-generated at build time and gitignored. See ADR-007.
 - **Auto-generated Dockerfile**: When a task has no `environment/Dockerfile`, nasde generates one from `source.git` + `[docker]`. For local paths, also generates `docker-compose.yaml` to override the build context. See `docker.py:ensure_task_environment()`.
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
@@ -152,6 +157,7 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
+backend = "claude"                            # "claude" (default) | "codex"
 model = "claude-opus-4-6"
 dimensions_file = "assessment_dimensions.json"
 # max_turns = 30                              # Max evaluator conversation turns
@@ -294,8 +300,7 @@ Final success must `echo 1 > /logs/verifier/reward.txt && exit 0`.
 
 ## Known issues and workarounds
 
-- **claude-code-sdk 0.0.25**: crashes on `rate_limit_event` — runtime monkeypatch in `evaluator.py`. Remove when SDK handles unknown message types.
 - **opik 1.10.x**: token usage=None for Harbor spans — runtime monkeypatch in `runner.py` (`_patch_opik_deferred_metrics`). Defers Step span creation to `__setattr__` because Harbor assigns metrics after `Step.__init__`. See ADR-006. Remove when opik fixes upstream.
-- **Nested Claude Code sessions**: SDK detects `CLAUDECODE` env var. Runner unsets it before assessment eval.
+- **Nested Claude Code sessions**: `claude` CLI detects `CLAUDECODE` env var. Runner unsets it before assessment eval.
 - **Opik REST API auth**: use `authorization: <OPIK_API_KEY>` header (not `Comet-Api-Key`), plus `Comet-Workspace` header.
 - **Opik verification**: always use Python `urllib.request`, not curl (curl drops the `Comet-Workspace` header).

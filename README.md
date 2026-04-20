@@ -18,7 +18,7 @@
 
 NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (sandboxed agent execution — Docker locally or cloud providers for scaling) and [Opik](https://github.com/comet-ml/opik) (observability & experiment tracking). The backends are swappable — different execution engines or observability platforms can be plugged in.
 
-What NASDE adds on top is the **"nasty" reviewer** — that's where the name comes from. After a coding agent completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** (powered by Claude Code SDK) that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. It checks not just whether the code works, but *how well* it's written according to your custom criteria.
+What NASDE adds on top is the **"nasty" reviewer** — that's where the name comes from. After a coding agent completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** (powered by the `claude` or `codex` CLI as a subprocess, using your existing CLI auth) that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. It checks not just whether the code works, but *how well* it's written according to your custom criteria.
 
 ## Why NASDE?
 
@@ -131,7 +131,7 @@ cd nasde-toolkit
 uv sync
 ```
 
-After installation, only `nasde` appears on PATH. Harbor, Opik, and Claude Code SDK are bundled as core dependencies — no separate installation needed.
+After installation, only `nasde` appears on PATH. Harbor and Opik are bundled as core dependencies — no separate installation needed. The assessment evaluator spawns your already-installed `claude` or `codex` CLI as a subprocess (not bundled) so it reuses whatever authentication you've set up interactively.
 
 Check your installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.1.1`); dev installs show versions like `0.1.2.dev3+gabcdef`.
 
@@ -214,6 +214,22 @@ See the [Harbor documentation](https://harborframework.com/docs/cloud) for detai
 
 The reviewer agent (assessment evaluator) is configurable via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-4-6` with read-only tools (`Read`, `Glob`, `Grep`).
 
+### Evaluator backend
+
+By default, nasde uses Claude Code CLI for assessment evaluation. You can switch to Codex:
+
+```toml
+[evaluation]
+backend = "codex"      # "claude" (default) | "codex"
+model = "gpt-5.3-codex"
+```
+
+Supported backends:
+- `claude` (default) — requires `claude` CLI installed and authenticated
+- `codex` — requires `codex` CLI installed and authenticated
+
+Both backends use your existing CLI authentication (subscription OAuth or API key) — no additional setup required. The evaluator spawns the CLI as a subprocess, so you get the same billing treatment as interactive use.
+
 ### Model
 
 Use the best available model for review quality:
@@ -239,7 +255,7 @@ my-benchmark/
 skills_dir = "./evaluator_skills"
 ```
 
-Skills are copied into the evaluator's workspace and loaded natively by Claude Code. The evaluator's prompt automatically adjusts to reference artifact paths correctly.
+Skills are copied into the evaluator's workspace and loaded via the CLI's native auto-discovery (`claude --add-dir <workspace>`). The evaluator's prompt automatically adjusts to reference artifact paths correctly.
 
 ### MCP servers
 
@@ -279,6 +295,7 @@ append_system_prompt = "Pay special attention to SOLID principles when scoring."
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
+| `backend` | `claude` | Subprocess backend: `claude` or `codex` |
 | `model` | `claude-opus-4-6` | Evaluator model |
 | `dimensions_file` | `assessment_dimensions.json` | Scoring dimensions file |
 | `max_turns` | `30` | Max conversation turns |
@@ -409,6 +426,7 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
+backend = "claude"                            # "claude" (default) | "codex"
 model = "claude-opus-4-6"
 dimensions_file = "assessment_dimensions.json"
 # max_turns = 30                              # Max evaluator conversation turns
@@ -519,7 +537,7 @@ The Opik project name is automatically set to the benchmark name (from `nasde.to
   - Claude Code: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`
   - OpenAI Codex: `CODEX_API_KEY` (API key) or `codex login` (ChatGPT subscription OAuth)
   - Gemini CLI: `GEMINI_API_KEY` (API key), `GOOGLE_API_KEY` (Vertex AI), or `gemini login` (Google account OAuth)
-- **ANTHROPIC_API_KEY** or **CLAUDE_CODE_OAUTH_TOKEN** — Also required for the assessment evaluator (which always uses Claude Code SDK)
+- **Evaluator CLI** — the assessment evaluator spawns the `claude` CLI by default (or `codex` if `[evaluation] backend = "codex"`). That CLI must be installed and authenticated (OAuth subscription or API key — whichever you already use interactively)
 
 ## Verifying Opik results
 

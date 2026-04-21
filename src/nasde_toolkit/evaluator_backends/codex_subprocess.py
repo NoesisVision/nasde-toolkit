@@ -56,10 +56,7 @@ class CodexSubprocessBackend:
         has_codex_key = bool(os.environ.get("CODEX_API_KEY"))
         has_chatgpt_oauth = _has_chatgpt_oauth()
         if not has_openai_key and not has_codex_key and not has_chatgpt_oauth:
-            console.print(
-                "[red]ERROR: Set OPENAI_API_KEY, CODEX_API_KEY, "
-                "or log in via `codex login`[/red]"
-            )
+            console.print("[red]ERROR: Set OPENAI_API_KEY, CODEX_API_KEY, or log in via `codex login`[/red]")
             raise SystemExit(1)
 
     def _build_command(
@@ -73,8 +70,10 @@ class CodexSubprocessBackend:
             "--json",
             "--full-auto",
             "--skip-git-repo-check",
-            "--color", "never",
-            "--model", eval_config.model,
+            "--color",
+            "never",
+            "--model",
+            eval_config.model,
         ]
         return cmd
 
@@ -118,10 +117,7 @@ def _has_chatgpt_oauth() -> bool:
         raw = json.loads(auth_path.read_text())
     except (json.JSONDecodeError, OSError):
         return False
-    return (
-        raw.get("auth_mode") == "chatgpt"
-        and bool(raw.get("tokens", {}).get("access_token"))
-    )
+    return raw.get("auth_mode") == "chatgpt" and bool(raw.get("tokens", {}).get("access_token"))
 
 
 def _extract_agent_messages(stdout: str) -> str:

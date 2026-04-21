@@ -136,6 +136,7 @@ def test_claude_backend_command_includes_skills_dir_setup(tmp_path: Path) -> Non
     assert str(workspace_path) in cmd
 
     import shutil
+
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -213,9 +214,7 @@ def test_codex_backend_env_strips_api_keys_when_oauth_present(
 ) -> None:
     codex_home = tmp_path / ".codex"
     codex_home.mkdir()
-    (codex_home / "auth.json").write_text(
-        '{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}'
-    )
+    (codex_home / "auth.json").write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}')
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("CODEX_API_KEY", "sk-stale-key-from-dotenv")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -248,9 +247,7 @@ def test_codex_backend_env_preserves_openai_key_priority(
 ) -> None:
     codex_home = tmp_path / ".codex"
     codex_home.mkdir()
-    (codex_home / "auth.json").write_text(
-        '{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}'
-    )
+    (codex_home / "auth.json").write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}')
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("OPENAI_API_KEY", "sk-explicit-openai-key")
     monkeypatch.setenv("CODEX_API_KEY", "sk-stale-codex-key")

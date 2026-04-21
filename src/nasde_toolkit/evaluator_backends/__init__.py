@@ -18,7 +18,4 @@ def create_backend(eval_config: EvaluationConfig) -> EvaluatorBackend:
 
         return CodexSubprocessBackend()
     else:
-        raise ValueError(
-            f"Unknown evaluator backend: '{eval_config.backend}'. "
-            f"Supported: 'claude', 'codex'"
-        )
+        raise ValueError(f"Unknown evaluator backend: '{eval_config.backend}'. Supported: 'claude', 'codex'")

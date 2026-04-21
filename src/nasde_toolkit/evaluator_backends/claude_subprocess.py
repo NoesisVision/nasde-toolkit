@@ -38,9 +38,7 @@ class ClaudeSubprocessBackend:
         trial_dir: Path | None = None,
     ) -> str:
         self.validate_auth()
-        cmd, temp_dir = self._build_command_with_skills(
-            workspace_path, eval_config, project_root, trial_dir
-        )
+        cmd, temp_dir = self._build_command_with_skills(workspace_path, eval_config, project_root, trial_dir)
         env = self._build_env()
         cwd = temp_dir if temp_dir else workspace_path
         try:
@@ -86,10 +84,13 @@ class ClaudeSubprocessBackend:
         cmd = [
             "claude",
             "-p",
-            "--output-format", "json",
+            "--output-format",
+            "json",
             "--no-session-persistence",
-            "--model", eval_config.model,
-            "--max-turns", str(eval_config.max_turns),
+            "--model",
+            eval_config.model,
+            "--max-turns",
+            str(eval_config.max_turns),
         ]
 
         allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
@@ -152,6 +153,7 @@ def _resolve_path(relative_or_absolute: str, project_root: Path) -> Path:
 def _extract_result_text(stdout: str) -> str:
     try:
         data = json.loads(stdout)
-        return data.get("result", "")
     except json.JSONDecodeError:
         return stdout
+    result = data.get("result", "")
+    return result if isinstance(result, str) else ""

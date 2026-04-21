@@ -230,6 +230,12 @@ Supported backends:
 
 Both backends use your existing CLI authentication (subscription OAuth or API key) — no additional setup required. The evaluator spawns the CLI as a subprocess, so you get the same billing treatment as interactive use.
 
+See [`examples/nasde-dev-skill/nasde.codex.toml`](examples/nasde-dev-skill/nasde.codex.toml) for a ready-to-use Codex configuration — swap it in with:
+
+```bash
+cp examples/nasde-dev-skill/nasde.codex.toml examples/nasde-dev-skill/nasde.toml
+```
+
 ### Model
 
 Use the best available model for review quality:

@@ -15,7 +15,6 @@ dependencies = [
     "platformdirs>=4.0",
     "harbor>=0.1.40,<0.2",
     "opik>=1.10,<2",
-    "claude-code-sdk>=0.0.25,<1",
 ]
 
 [project.scripts]

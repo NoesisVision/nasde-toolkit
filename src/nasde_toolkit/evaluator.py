@@ -1,4 +1,4 @@
-"""Post-hoc assessment evaluation using Claude Code SDK.
+"""Post-hoc assessment evaluation via pluggable subprocess backends.
 
 Analyzes AI-generated artifacts from Harbor trials against assessment criteria
 and optional ground truth. Scores are written locally and optionally uploaded
@@ -9,51 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
-import shutil
-import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from claude_code_sdk import ClaudeCodeOptions, query
-from claude_code_sdk._errors import ProcessError
-from claude_code_sdk._internal import client as _sdk_client
-from claude_code_sdk._internal import message_parser as _mp
-from claude_code_sdk.types import AssistantMessage, TextBlock
 from rich.console import Console
 
 from nasde_toolkit.config import EvaluationConfig
-
-# ---------------------------------------------------------------------------
-# Monkeypatch: claude-code-sdk 0.0.25 — unknown message type crash
-#
-# Bug:     SDK's parse_message() raises MessageParseError on message types it
-#          doesn't recognize (e.g. "rate_limit_event"). This crashes the entire
-#          async query stream — there is no way to catch it per-message because
-#          the exception is raised inside the SDK's async generator.
-#
-# Fix:     Replace parse_message in the client module (where it's imported as a
-#          local name) with a wrapper that returns None for unknown types.
-#          The async for loop in _run_claude_code_evaluation() skips None.
-#
-# When to remove:  when claude-code-sdk handles unknown message types gracefully.
-#                  Check: `grep "Unknown message type" .venv/.../message_parser.py`
-#                  If the line raises logger.debug instead of MessageParseError,
-#                  this monkeypatch is no longer needed.
-# ---------------------------------------------------------------------------
-_original_parse_message = _mp.parse_message
-
-
-def _patched_parse_message(data: dict) -> object:
-    try:
-        return _original_parse_message(data)
-    except _mp.MessageParseError:
-        return None
-
-
-_sdk_client.parse_message = _patched_parse_message  # type: ignore[assignment]
+from nasde_toolkit.evaluator_backends import create_backend
 
 console = Console()
 
@@ -241,14 +205,15 @@ async def evaluate_trial(
     )
     console.print(f"  Task: {task_name}")
     console.print(f"  Workspace: {workspace_path}")
-    console.print("  Running Claude Code evaluation...")
+    console.print(f"  Running {eval_config.backend} evaluation...")
 
-    raw_response = await _run_claude_code_evaluation(
-        prompt,
-        workspace_path,
-        eval_config,
-        project_root,
-        trial_dir,
+    backend = create_backend(eval_config)
+    raw_response = await backend.run_evaluation(
+        prompt=prompt,
+        workspace_path=workspace_path,
+        eval_config=eval_config,
+        project_root=project_root,
+        trial_dir=trial_dir,
     )
     evaluation = _parse_evaluation_response(raw_response, expected_dimensions)
 
@@ -449,140 +414,6 @@ Use the Read tool to examine it when your assessment criteria require evaluating
 the agent's process, efficiency, or decision-making — not just the final output.
 
 """
-
-
-# ---------------------------------------------------------------------------
-# Claude Code SDK interaction
-# ---------------------------------------------------------------------------
-
-
-async def _run_claude_code_evaluation(
-    prompt: str,
-    workspace_path: Path,
-    eval_config: EvaluationConfig | None = None,
-    project_root: Path = Path(),
-    trial_dir: Path | None = None,
-) -> str:
-    eval_config = eval_config or EvaluationConfig()
-    _validate_auth()
-    options, temp_dir, stderr_path = _build_claude_code_options(
-        workspace_path,
-        eval_config,
-        project_root,
-        trial_dir,
-    )
-
-    try:
-        text_parts: list[str] = []
-        async for message in query(prompt=prompt, options=options):
-            if message is None:
-                continue
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        text_parts.append(block.text)
-
-        return "\n".join(text_parts)
-    except ProcessError as exc:
-        stderr_detail = _extract_stderr_detail(stderr_path)
-        raise RuntimeError(
-            f"Claude Code process failed (exit code {exc.exit_code}). "
-            f"Model: {eval_config.model}, cwd: {workspace_path}. "
-            f"{stderr_detail}"
-        ) from exc
-    finally:
-        if temp_dir:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        if stderr_path:
-            stderr_path.unlink(missing_ok=True)
-
-
-def _extract_stderr_detail(stderr_path: Path | None) -> str:
-    if stderr_path and stderr_path.exists():
-        content = stderr_path.read_text().strip()
-        if content:
-            last_lines = "\n".join(content.splitlines()[-10:])
-            return f"stderr (last 10 lines):\n{last_lines}"
-    return "Enable debug-to-stderr for more details."
-
-
-def _build_claude_code_options(
-    workspace_path: Path,
-    eval_config: EvaluationConfig,
-    project_root: Path,
-    trial_dir: Path | None = None,
-) -> tuple[ClaudeCodeOptions, Path | None, Path | None]:
-    allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
-    cwd = str(workspace_path)
-    add_dirs: list[str | Path] = []
-    temp_dir: Path | None = None
-
-    if eval_config.skills_dir:
-        temp_dir = Path(tempfile.mkdtemp(prefix="nasde_eval_"))
-        skills_source = _resolve_path(eval_config.skills_dir, project_root)
-        _prepare_skills_workspace(temp_dir, skills_source)
-        add_dirs.append(str(workspace_path))
-        cwd = str(temp_dir)
-
-    if eval_config.include_trajectory and trial_dir:
-        add_dirs.append(str(trial_dir))
-
-    mcp_servers: dict | str | Path = {}
-    if eval_config.mcp_config:
-        mcp_config_path = _resolve_path(eval_config.mcp_config, project_root)
-        mcp_servers = str(mcp_config_path)
-
-    kwargs: dict = {}
-    if mcp_servers:
-        kwargs["mcp_servers"] = mcp_servers
-    if eval_config.append_system_prompt:
-        kwargs["append_system_prompt"] = eval_config.append_system_prompt
-
-    stderr_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
-        mode="w", prefix="nasde_stderr_", suffix=".log", delete=False
-    )
-    stderr_path = Path(stderr_file.name)
-
-    options = ClaudeCodeOptions(
-        allowed_tools=allowed_tools,
-        cwd=cwd,
-        max_turns=eval_config.max_turns,
-        model=eval_config.model,
-        env={"CLAUDECODE": ""},
-        add_dirs=add_dirs,
-        extra_args={"debug-to-stderr": None},
-        debug_stderr=stderr_file,
-        **kwargs,
-    )
-
-    return options, temp_dir, stderr_path
-
-
-def _prepare_skills_workspace(temp_dir: Path, skills_source: Path) -> None:
-    if not skills_source.is_dir():
-        console.print(f"  [yellow]WARN: skills_dir '{skills_source}' not found or not a directory[/yellow]")
-        return
-    target_skills_dir = temp_dir / ".claude" / "skills"
-    shutil.copytree(skills_source, target_skills_dir)
-
-
-def _resolve_path(relative_or_absolute: str, project_root: Path) -> Path:
-    path = Path(relative_or_absolute)
-    if path.is_absolute():
-        return path
-    return project_root / path
-
-
-def _validate_auth() -> dict[str, str]:
-    env: dict[str, str] = {}
-    for key in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"):
-        val = os.environ.get(key)
-        if val:
-            env[key] = val
-    if not env:
-        console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
-        raise SystemExit(1)
-    return env
 
 
 # ---------------------------------------------------------------------------

@@ -23,7 +23,6 @@ Apply the fix as a **runtime monkey-patch** in `runner.py` instead of a vendor `
 - **Survives `uv sync`**: vendor `.patch` files must be re-applied after every dependency install. Runtime patches are applied each run automatically.
 - **No external scripts**: the SDLC approach required `apply_opik_patches.sh` — easy to forget after `uv sync`.
 - **Same fix, different delivery**: the logic is identical to the SDLC `.patch` file; only the application mechanism differs.
-- **Follows existing pattern**: `evaluator.py` already uses a runtime monkey-patch for the claude-code-sdk `parse_message` bug.
 
 ## Consequences
 

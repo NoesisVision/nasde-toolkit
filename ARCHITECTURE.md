@@ -4,7 +4,7 @@
 
 NASDE evaluates AI coding agents (e.g. Claude Code, OpenAI Codex, Gemini CLI) on programming tasks. It uses **Harbor** as the execution engine running agents in isolated sandbox environments and **Opik** as the observability platform for tracking results.
 
-Key design: evaluation is **two-stage** — Harbor assesses functional correctness (tests pass/fail), then a separate reviewer agent (Claude Code SDK) assesses architectural quality of the generated code.
+Key design: evaluation is **two-stage** — Harbor assesses functional correctness (tests pass/fail), then a separate reviewer agent (the `claude` or `codex` CLI, spawned as a subprocess) assesses architectural quality of the generated code.
 
 ---
 
@@ -33,7 +33,7 @@ flowchart TB
 
     subgraph ASSESSMENT ["3. Assessment evaluation (host machine, always local)"]
         ARTIFACTS -->|"Harbor done,\nsandboxes torn down"| EVAL["evaluator.evaluate_job()"]
-        EVAL --> SDK["Claude Code SDK\n(local subprocess, opus)\ntools: Read/Glob/Grep + MCP\ncwd = artifacts/workspace/\n+ optional skills & system prompt"]
+        EVAL --> SDK["Pluggable backend:\nClaudeSubprocessBackend ('claude -p')\nor CodexSubprocessBackend ('codex exec')\n(local subprocess, opus by default)\ntools: Read/Glob/Grep + MCP\ncwd = artifacts/workspace/\n+ optional skills & system prompt"]
         SDK --> SCORE["Score across N dimensions\n0-25 pts each"]
         SCORE --> JSON_OUT["assessment_eval.json"]
         SCORE --> OPIK_FB["Opik feedback scores\narch_*, reward, duration"]
@@ -159,9 +159,9 @@ flowchart TB
         INSTRUCTION["instruction.md\n(original task prompt)"]
     end
 
-    subgraph Evaluator["Claude Code SDK as evaluator"]
+    subgraph Evaluator["CLI subprocess as evaluator (pluggable backend)"]
         PROMPT["Composite prompt:\ninstruction + rubric +\ndimension constraints"]
-        SDK_RUN["query() with configurable:\nmodel (default: opus)\ntools (default: Read/Glob/Grep)\nMCP servers (optional)\nskills (optional)\nsystem prompt (optional)\nmax_turns (default: 30)"]
+        SDK_RUN["Backend subprocess call:\n  claude -p --output-format json (default)\n  codex exec --json --quiet --full-auto\nConfigurable:\nmodel (default: opus for claude)\ntools (default: Read/Glob/Grep)\nMCP servers (optional)\nskills (optional, via --add-dir + cwd)\nsystem prompt (optional)\nmax_turns (default: 30)"]
         PARSE["Parse JSON from\nlast json code block"]
     end
 
@@ -190,6 +190,7 @@ The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All opti
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
+| `backend` | `claude` | Subprocess backend: `claude` (`ClaudeSubprocessBackend`) or `codex` (`CodexSubprocessBackend`) |
 | `model` | `claude-opus-4-6` | Evaluator model (Opus recommended for review quality) |
 | `dimensions_file` | `assessment_dimensions.json` | Path to scoring dimensions |
 | `max_turns` | `30` | Max conversation turns for evaluator |
@@ -199,11 +200,16 @@ The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All opti
 | `append_system_prompt` | — | Extra text appended to evaluator's system prompt |
 | `include_trajectory` | `false` | Include ATIF trajectory data in evaluation (opt-in) |
 
-When `include_trajectory` is set to `true`, the evaluator prompt includes a reference to the agent's ATIF trajectory file (`agent/trajectory.json`), and the trial directory is added to `add_dirs` so the evaluator can read it. This enables assessment dimensions that evaluate the agent's process (tool usage, efficiency, decision-making) alongside the final output. The trajectory file is not preprocessed — the evaluator reads it directly via the Read tool.
+Backends are pluggable via the `EvaluatorBackend` Protocol in `src/nasde_toolkit/evaluator_backends/protocol.py`. Both current backends spawn a CLI subprocess — not a Python SDK call — so the evaluator inherits the user's existing CLI authentication (OAuth subscription or API key). This avoids Anthropic's SDK-billing restrictions on subscription accounts: running `claude -p` under your shell is billed the same as interactive use.
 
-When `skills_dir` is set, the evaluator runs in a temporary workspace with skills installed. Trial artifacts are made accessible via `add_dirs`, and the prompt references the artifact path explicitly.
+- `ClaudeSubprocessBackend` invokes `claude -p --output-format json --model <model> --allowed-tools ... [--append-system-prompt ...] [--mcp-config ...] [--add-dir ...]`. The `--bare` flag is deliberately omitted so the CLI reads OAuth tokens from the keychain and auto-discovers skills.
+- `CodexSubprocessBackend` invokes `codex exec --json --quiet --full-auto --model <model> [--sandbox ...]` and parses the JSONL event stream emitted to stdout.
 
-When `mcp_config` is set, MCP servers are loaded from the JSON file and passed to the Claude Code SDK. MCP tool names follow the `mcp__<server>__<tool>` convention and must be included in `allowed_tools` if that field is overridden.
+When `include_trajectory` is set to `true`, the evaluator prompt includes a reference to the agent's ATIF trajectory file (`agent/trajectory.json`), and the trial directory is added to the backend's `--add-dir` set so the evaluator can read it. This enables assessment dimensions that evaluate the agent's process (tool usage, efficiency, decision-making) alongside the final output. The trajectory file is not preprocessed — the evaluator reads it directly via the Read tool.
+
+When `skills_dir` is set, the `ClaudeSubprocessBackend` stages a temp-dir workspace with the skills copied under `.claude/skills/`, runs `claude` with `cwd` pointing there, and passes the artifact path via `--add-dir` so Claude's native skill auto-discovery picks up the skills.
+
+When `mcp_config` is set, its path is passed through to the backend CLI (`--mcp-config` for Claude). MCP tool names follow the `mcp__<server>__<tool>` convention and must be included in `allowed_tools` if that field is overridden.
 
 ---
 
@@ -361,7 +367,11 @@ src/nasde_toolkit/
   cli.py                   # Typer CLI (init, run, eval + harbor/opik pass-through)
   config.py                # nasde.toml + task.json parsing into dataclasses
   runner.py                # Harbor Python API — variant resolution, config merging, Job execution
-  evaluator.py             # Post-hoc assessment via Claude Code SDK
+  evaluator.py             # Post-hoc assessment — builds the prompt, delegates to a pluggable subprocess backend
+  evaluator_backends/
+    protocol.py            # EvaluatorBackend Protocol + factory
+    claude_subprocess.py   # `claude -p --output-format json` backend (default)
+    codex_subprocess.py    # `codex exec --json --quiet --full-auto` backend
   docker.py                # Docker environment helpers
   scaffold/                # Project scaffolding templates
   agents/

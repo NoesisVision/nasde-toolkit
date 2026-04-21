@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from nasde_toolkit.config import load_project_config
+from nasde_toolkit.config import EvaluationConfig, load_project_config
 
 
 def _write_nasde_toml(project_dir: Path, content: str) -> None:
@@ -137,3 +137,23 @@ include_trajectory = true
     )
     config = load_project_config(tmp_path)
     assert config.evaluation.include_trajectory is True
+
+
+def test_evaluation_config_default_backend() -> None:
+    config = EvaluationConfig()
+    assert config.backend == "claude"
+
+
+def test_evaluation_config_codex_backend(tmp_path: Path) -> None:
+    toml_content = """
+[project]
+name = "test"
+
+[evaluation]
+backend = "codex"
+model = "o3"
+"""
+    (tmp_path / "nasde.toml").write_text(toml_content)
+    config = load_project_config(tmp_path)
+    assert config.evaluation.backend == "codex"
+    assert config.evaluation.model == "o3"

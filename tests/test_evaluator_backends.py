@@ -198,7 +198,65 @@ def test_codex_backend_builds_command(tmp_path: Path) -> None:
     assert cmd[0] == "codex"
     assert "exec" in cmd
     assert "--json" in cmd
-    assert "--quiet" in cmd
     assert "--full-auto" in cmd
+    assert "--skip-git-repo-check" in cmd
+    assert "--color" in cmd
+    assert "never" in cmd
     assert "--model" in cmd
     assert "o3" in cmd
+    assert "--quiet" not in cmd
+
+
+def test_codex_backend_env_strips_api_keys_when_oauth_present(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    codex_home = tmp_path / ".codex"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}'
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_API_KEY", "sk-stale-key-from-dotenv")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    backend = CodexSubprocessBackend()
+    env = backend._build_env()
+
+    assert "CODEX_API_KEY" not in env
+    assert "OPENAI_API_KEY" not in env
+
+
+def test_codex_backend_env_promotes_codex_key_to_openai_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_API_KEY", "sk-codex-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    backend = CodexSubprocessBackend()
+    env = backend._build_env()
+
+    assert env["OPENAI_API_KEY"] == "sk-codex-key"
+    assert env["CODEX_API_KEY"] == "sk-codex-key"
+
+
+def test_codex_backend_env_preserves_openai_key_priority(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    codex_home = tmp_path / ".codex"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}'
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-explicit-openai-key")
+    monkeypatch.setenv("CODEX_API_KEY", "sk-stale-codex-key")
+
+    backend = CodexSubprocessBackend()
+    env = backend._build_env()
+
+    assert env["OPENAI_API_KEY"] == "sk-explicit-openai-key"
+    assert env.get("CODEX_API_KEY") == "sk-stale-codex-key"

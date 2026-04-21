@@ -17,10 +17,11 @@ console = Console()
 class CodexSubprocessBackend:
     """Evaluator backend that spawns `codex exec` as a subprocess.
 
-    Uses `--json` for JSONL event streaming. Extracts the final
-    agent_message from the event stream as the evaluation response.
-    Authenticates via OPENAI_API_KEY, CODEX_API_KEY, or ChatGPT OAuth
-    (`~/.codex/auth.json` created by `codex login`).
+    Uses `--json` for JSONL event streaming on stdout. The CLI writes clean
+    NDJSON to stdout (banner and diagnostics go to stderr), so parsing is
+    straightforward. Extracts the final `agent_message` items as the
+    evaluation response. Authenticates via OPENAI_API_KEY, CODEX_API_KEY, or
+    ChatGPT OAuth (`~/.codex/auth.json` created by `codex login`).
     """
 
     async def run_evaluation(
@@ -33,8 +34,22 @@ class CodexSubprocessBackend:
     ) -> str:
         self.validate_auth()
         cmd = self._build_command(workspace_path, eval_config)
-        cmd.append(prompt)
-        return await self._run_subprocess(cmd, workspace_path)
+        cmd.append("-")
+        env = self._build_env()
+        return await self._run_subprocess(cmd, prompt, workspace_path, env)
+
+    def _build_env(self) -> dict[str, str]:
+        env = dict(os.environ)
+        has_openai_key = bool(env.get("OPENAI_API_KEY"))
+        has_codex_key = bool(env.get("CODEX_API_KEY"))
+        if not has_openai_key and not has_codex_key:
+            return env
+        if _has_chatgpt_oauth() and not has_openai_key:
+            env.pop("CODEX_API_KEY", None)
+            return env
+        if has_codex_key and not has_openai_key:
+            env["OPENAI_API_KEY"] = env["CODEX_API_KEY"]
+        return env
 
     def validate_auth(self) -> None:
         has_openai_key = bool(os.environ.get("OPENAI_API_KEY"))
@@ -56,8 +71,9 @@ class CodexSubprocessBackend:
             "codex",
             "exec",
             "--json",
-            "--quiet",
             "--full-auto",
+            "--skip-git-repo-check",
+            "--color", "never",
             "--model", eval_config.model,
         ]
         return cmd
@@ -65,26 +81,33 @@ class CodexSubprocessBackend:
     async def _run_subprocess(
         self,
         cmd: list[str],
+        prompt: str,
         workspace_path: Path,
+        env: dict[str, str],
     ) -> str:
         process = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=str(workspace_path),
+            env=env,
         )
-        stdout_bytes, stderr_bytes = await process.communicate()
+        stdout_bytes, stderr_bytes = await process.communicate(input=prompt.encode())
 
+        stdout_text = stdout_bytes.decode(errors="replace")
         if process.returncode != 0:
             stderr_text = stderr_bytes.decode(errors="replace").strip()
-            last_lines = "\n".join(stderr_text.splitlines()[-10:]) if stderr_text else ""
+            stderr_tail = "\n".join(stderr_text.splitlines()[-10:]) or "<empty>"
+            stdout_tail = "\n".join(stdout_text.strip().splitlines()[-10:]) or "<empty>"
             raise RuntimeError(
                 f"Codex process failed (exit code {process.returncode}). "
                 f"cwd: {workspace_path}. "
-                f"stderr (last 10 lines):\n{last_lines}"
+                f"stderr (last 10 lines):\n{stderr_tail}\n"
+                f"stdout (last 10 lines):\n{stdout_tail}"
             )
 
-        return _extract_agent_messages(stdout_bytes.decode())
+        return _extract_agent_messages(stdout_text)
 
 
 def _has_chatgpt_oauth() -> bool:

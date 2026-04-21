@@ -5,7 +5,7 @@
 
 ## Context
 
-The eval pipeline requires three tools: Harbor (agent execution), Opik (observability), and Claude Code SDK (LLM-as-a-Judge). Originally orchestrated by a bash script (`run-benchmark.sh`) that called each tool via subprocess with `uv run` prefix. This forced users to either activate a venv or use `uv run` for every command — not viable for open-source distribution.
+The eval pipeline requires three tools: Harbor (agent execution), Opik (observability), and a CLI-based LLM judge (`claude` or `codex` spawned as a subprocess). Originally orchestrated by a bash script (`run-benchmark.sh`) that called each tool via subprocess with `uv run` prefix. This forced users to either activate a venv or use `uv run` for every command — not viable for open-source distribution.
 
 Three approaches were considered:
 

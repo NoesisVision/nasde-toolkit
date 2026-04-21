@@ -22,5 +22,5 @@ nasde run baseline -C examples/ddd-architectural-challenges --without-eval
 ## Consequences
 
 - Users get full value immediately without needing to know about the `--with-eval` flag
-- Running without eval is still possible for quick iteration (skips ~2 min of Claude Code SDK calls per trial)
+- Running without eval is still possible for quick iteration (skips ~2 min of evaluator subprocess calls per trial)
 - Opik tracing remains opt-in (`--with-opik`) because it requires external credentials and is not universally needed

@@ -5,7 +5,7 @@ description: |
   - Making changes to nasde-toolkit source code (CLI, runner, evaluator, config, agents)
   - Refactoring or adding features to the toolkit
   - Fixing bugs in the evaluation pipeline
-  - Updating dependencies or integration points (Harbor, Opik, Claude Code SDK)
+  - Updating dependencies or integration points (Harbor, Opik, `claude` / `codex` CLI subprocess backends)
   This skill defines the verification protocol that must be followed after any significant change.
 ---
 

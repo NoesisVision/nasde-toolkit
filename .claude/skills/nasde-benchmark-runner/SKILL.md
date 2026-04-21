@@ -25,7 +25,7 @@ Before running any benchmark, set up authentication tokens. Both are needed for 
 source scripts/export_oauth_token.sh
 ```
 
-This extracts `CLAUDE_CODE_OAUTH_TOKEN` from macOS Keychain (written by `claude` CLI login). Required for both Claude agent runs AND assessment evaluation (which uses Claude Code SDK).
+This extracts `CLAUDE_CODE_OAUTH_TOKEN` from macOS Keychain (written by `claude` CLI login). Required for both Claude agent runs AND assessment evaluation (which spawns the `claude` CLI as a subprocess when `[evaluation] backend = "claude"`).
 
 Alternatively, set `ANTHROPIC_API_KEY` for API billing.
 

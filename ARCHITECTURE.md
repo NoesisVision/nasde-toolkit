@@ -191,7 +191,7 @@ The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All opti
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `backend` | `claude` | Subprocess backend: `claude` (`ClaudeSubprocessBackend`) or `codex` (`CodexSubprocessBackend`) |
-| `model` | `claude-opus-4-6` | Evaluator model (Opus recommended for review quality) |
+| `model` | `claude-opus-4-7` | Evaluator model (Opus recommended for review quality) |
 | `dimensions_file` | `assessment_dimensions.json` | Path to scoring dimensions |
 | `max_turns` | `30` | Max conversation turns for evaluator |
 | `allowed_tools` | `["Read", "Glob", "Grep"]` | Tool whitelist for evaluator |

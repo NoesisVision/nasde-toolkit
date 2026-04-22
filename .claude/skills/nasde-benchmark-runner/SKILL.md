@@ -209,7 +209,7 @@ wait
 ### Custom model and timeout
 
 ```bash
-nasde run --variant baseline --model claude-opus-4-6 --timeout 1200 -C path/to/benchmark
+nasde run --variant baseline --model claude-opus-4-7 --timeout 1200 -C path/to/benchmark
 ```
 
 **Timeout priority**: `--timeout` flag overrides everything. Without it, Harbor uses `task.toml [agent] timeout_sec` per task. The `nasde.toml [defaults] timeout_sec` is NOT used as agent override — set timeouts in task.toml for per-task control.

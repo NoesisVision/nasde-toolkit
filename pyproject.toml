@@ -11,10 +11,10 @@ requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "typer>=0.15",
-    "rich>=13.0",
+    "rich>=14.1",
     "platformdirs>=4.0",
-    "harbor>=0.1.40,<0.2",
-    "opik>=1.10,<2",
+    "harbor>=0.4,<0.5",
+    "opik>=2,<3",
 ]
 
 [project.scripts]

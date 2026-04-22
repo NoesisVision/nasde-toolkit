@@ -140,9 +140,10 @@ def _resolve_model(
 
 def _ensure_auth(agent_import_path: str | None = None) -> None:
     if _is_codex_agent(agent_import_path):
+        if not os.environ.get("OPENAI_API_KEY") and os.environ.get("CODEX_API_KEY"):
+            os.environ["OPENAI_API_KEY"] = os.environ["CODEX_API_KEY"]
         if (
-            os.environ.get("CODEX_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
+            os.environ.get("OPENAI_API_KEY")
             or Path.home().joinpath(".codex", "auth.json").exists()
         ):
             return
@@ -405,7 +406,7 @@ def _build_merged_config(
         "datasets": [
             {
                 "name": config.name,
-                "registry": {"path": registry_path},
+                "registry_path": registry_path,
             }
         ],
         "artifacts": [{"source": "/app", "destination": "workspace"}],
@@ -664,7 +665,7 @@ async def _run_job(
 
     try:
         job_config = JobConfig.model_validate(config_dict)
-        job = Job(job_config)
+        job = await Job.create(job_config)
         if on_trial_ended:
             job.on_trial_ended(on_trial_ended)
         return await job.run()

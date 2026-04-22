@@ -43,7 +43,7 @@ The fastest path from zero to a working benchmark built from **your own git hist
 ### 1. Install the CLI
 
 ```bash
-uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git@v0.2.0
+uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git@v0.2.1
 nasde --version
 ```
 
@@ -219,12 +219,12 @@ uv sync
 Upgrading to a new stable release:
 
 ```bash
-uv tool install --reinstall git+https://github.com/NoesisVision/nasde-toolkit.git@v0.2.0
+uv tool install --reinstall git+https://github.com/NoesisVision/nasde-toolkit.git@v0.2.1
 ```
 
 After installation, only `nasde` appears on PATH. Harbor and Opik are bundled as core dependencies. The reviewer agent spawns your already-installed `claude` or `codex` CLI as a subprocess (not bundled), so it reuses whatever authentication you've set up interactively.
 
-Check the installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.2.0`); dev installs show versions like `0.2.1.dev3+gabcdef`.
+Check the installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.2.1`); dev installs show versions like `0.2.2.dev3+gabcdef`.
 
 Release notes for every tagged version live in [CHANGELOG.md](CHANGELOG.md). See [docs/RELEASING.md](docs/RELEASING.md) if you're cutting a release yourself.
 

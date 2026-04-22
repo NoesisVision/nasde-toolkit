@@ -65,6 +65,26 @@ change to those three is a major bump.
 - Any `### Added` or `### Changed` → at least a minor bump.
 - A `### Removed` entry or a `### Changed` marked *(breaking)* → major bump.
 
+**Dependency upgrades follow the impact on the user, not the upstream
+semver.** A `harbor 0.1 → 0.4` or `opik 1 → 2` in our lockfile is an
+implementation detail as long as the user's benchmark still runs the same
+way. Apply these three cases:
+
+- **Transitive or internal dep bump with no visible behavior change** →
+  patch. The user's `nasde.toml`, benchmark layout, and CLI output are
+  unchanged. The CVE noise in `### Security` and the lockfile churn in
+  `### Changed` stay in a patch release.
+- **Dep bump that changes `nasde.toml` schema, CLI output, benchmark
+  project layout, or the format of trial artifacts** → at least minor.
+  The user has to do something or notices something different.
+- **Dep bump that drops a supported integration or breaks existing
+  benchmarks** (e.g. Harbor drops a sandbox provider we exposed via
+  `--harbor-env`) → major.
+
+The rule is "what does the person running `nasde run` see differently",
+not "did an upstream major bump". Otherwise every quarterly refresh of
+`uv.lock` would push us toward `v2.x` without adding features.
+
 **How the version is actually set.** We use
 [`hatch-vcs`](https://github.com/ofek/hatch-vcs) (see
 `pyproject.toml` → `[tool.hatch.version] source = "vcs"`). The version is

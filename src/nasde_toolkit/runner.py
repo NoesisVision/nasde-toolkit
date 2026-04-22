@@ -142,10 +142,7 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
     if _is_codex_agent(agent_import_path):
         if not os.environ.get("OPENAI_API_KEY") and os.environ.get("CODEX_API_KEY"):
             os.environ["OPENAI_API_KEY"] = os.environ["CODEX_API_KEY"]
-        if (
-            os.environ.get("OPENAI_API_KEY")
-            or Path.home().joinpath(".codex", "auth.json").exists()
-        ):
+        if os.environ.get("OPENAI_API_KEY") or Path.home().joinpath(".codex", "auth.json").exists():
             return
         console.print("[red]ERROR: Set CODEX_API_KEY, OPENAI_API_KEY, or run 'codex login' for OAuth[/red]")
         raise SystemExit(1)

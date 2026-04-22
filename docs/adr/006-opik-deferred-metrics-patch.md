@@ -28,3 +28,17 @@ Apply the fix as a **runtime monkey-patch** in `runner.py` instead of a vendor `
 
 - The patch must be maintained alongside opik upgrades. If opik changes `_patch_step_class` internals, our re-patch may need adjustment.
 - Remove when: opik upstream fixes the timing issue (check changelog for "harbor" + "metrics" or "deferred" mentions).
+
+## 2026-04-22 update: still required under opik 2.x
+
+Opik 2.0.9 was inspected and still contains the same race condition in
+`opik.integrations.harbor.opik_tracker._patch_step_class.patched_init` —
+`self.metrics` is read synchronously during `Step.__init__`, before Harbor
+assigns it. The only 2.x-relevant change is the internal API rename:
+`opik_client.get_client_cached()` → `opik.get_global_client()`, and
+`client.span(...)` → `client.__internal_api__span__(...)`. The runtime
+monkey-patch in `runner.py` was adapted accordingly; semantics unchanged.
+
+The `__internal_api__span__` double-underscore naming is a deliberate
+"internal, may change" signal from Opik maintainers. Re-verify this patch
+at every opik minor bump.

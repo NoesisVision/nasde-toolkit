@@ -140,11 +140,9 @@ def _resolve_model(
 
 def _ensure_auth(agent_import_path: str | None = None) -> None:
     if _is_codex_agent(agent_import_path):
-        if (
-            os.environ.get("CODEX_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
-            or Path.home().joinpath(".codex", "auth.json").exists()
-        ):
+        if not os.environ.get("OPENAI_API_KEY") and os.environ.get("CODEX_API_KEY"):
+            os.environ["OPENAI_API_KEY"] = os.environ["CODEX_API_KEY"]
+        if os.environ.get("OPENAI_API_KEY") or Path.home().joinpath(".codex", "auth.json").exists():
             return
         console.print("[red]ERROR: Set CODEX_API_KEY, OPENAI_API_KEY, or run 'codex login' for OAuth[/red]")
         raise SystemExit(1)
@@ -405,7 +403,7 @@ def _build_merged_config(
         "datasets": [
             {
                 "name": config.name,
-                "registry": {"path": registry_path},
+                "registry_path": registry_path,
             }
         ],
         "artifacts": [{"source": "/app", "destination": "workspace"}],
@@ -467,9 +465,9 @@ def _patch_opik_deferred_metrics() -> None:
     """
     from typing import Any
 
+    import opik
     from harbor.models.trajectories.step import Step
     from opik import datetime_helpers, id_helpers, opik_context
-    from opik.api_objects import opik_client
 
     if getattr(_patch_opik_deferred_metrics, "_applied", False):
         return
@@ -502,7 +500,7 @@ def _patch_opik_deferred_metrics() -> None:
             return
         parent_span_id: str | None = getattr(step, "_opik_parent_span_id", None)
         try:
-            client = opik_client.get_client_cached()
+            client = opik.get_global_client()
             span_project_name: str = (
                 getattr(trace_data, "project_name", None) or os.environ.get("OPIK_PROJECT_NAME") or "Default Project"
             )
@@ -533,7 +531,7 @@ def _patch_opik_deferred_metrics() -> None:
 
             usage, total_cost = _build_usage_from_metrics(step.metrics)
 
-            client.span(
+            client.__internal_api__span__(
                 id=id_helpers.generate_id(),
                 trace_id=trace_data.id,
                 parent_span_id=parent_span_id,
@@ -664,7 +662,7 @@ async def _run_job(
 
     try:
         job_config = JobConfig.model_validate(config_dict)
-        job = Job(job_config)
+        job = await Job.create(job_config)
         if on_trial_ended:
             job.on_trial_ended(on_trial_ended)
         return await job.run()

@@ -95,7 +95,7 @@ This gives you a hard yes/no on correctness. It says nothing about *how* the res
 
 ### 2. Multi-dimensional assessment — scored by a reviewer agent (LLM-as-a-Judge)
 
-These rough tests only catch black-and-white failures. They don't tell you whether the produced workspace is well-structured, whether it respects your architecture, whether tests are meaningful (or just coverage padding), whether a generated document is clear, whether a migration is reversible. For that, NASDE runs a **second agent** — the reviewer — on the produced workspace.
+These rough tests only catch black-and-white failures. They don't tell you whether the produced workspace is well-structured, whether it respects your architecture, whether tests are meaningful (or just coverage padding), whether a generated document is clear, whether a migration is reversible. For that, NASDE runs a **second agent** (`claude` or `codex`) on the produced workspace.
 
 The reviewer's reference point is **two files you write** when creating the benchmark:
 
@@ -104,7 +104,9 @@ The reviewer's reference point is **two files you write** when creating the benc
 | `assessment_dimensions.json` | The list of dimensions to score on (e.g. *Domain Modeling*, *Test Quality*, *Documentation Clarity*), plus a max score per dimension | You — once, shared across all tasks in the benchmark |
 | `assessment_criteria.md` | Per-task criteria: for each dimension, what a low score looks like, what a high score looks like, what specific things to check | You — once per task, in plain prose |
 
-The reviewer agent reads the produced results (and optionally the agent's tool-call trajectory), then scores each dimension against your criteria. You decide how strict the criteria are — spell out a ground-truth structure, enumerate exact checks, or leave room for judgment. Whatever gives you a signal you trust.
+The workspace also contains the agent's full trace — tool-call trajectory, token usage, wall-clock duration — so your criteria can cover those too, alongside the produced artifacts. One local `nasde run` handles all of it, no separate LLM-as-a-judge stack required.
+
+You decide how strict the criteria are — spell out a ground-truth structure, enumerate exact checks, or leave room for judgment. Whatever gives you a signal you trust.
 
 **The reviewer is itself a coding agent** (`claude` or `codex` CLI). Instead of stuffing the whole workspace into a prompt, it navigates with real tools — `Read`, `Glob`, `Grep`, and optionally MCP analysis servers — reading only what each dimension actually needs. That's why reviews stay tractable on large workspaces.
 

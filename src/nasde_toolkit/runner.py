@@ -468,9 +468,9 @@ def _patch_opik_deferred_metrics() -> None:
     """
     from typing import Any
 
+    import opik
     from harbor.models.trajectories.step import Step
     from opik import datetime_helpers, id_helpers, opik_context
-    from opik.api_objects import opik_client
 
     if getattr(_patch_opik_deferred_metrics, "_applied", False):
         return
@@ -503,7 +503,7 @@ def _patch_opik_deferred_metrics() -> None:
             return
         parent_span_id: str | None = getattr(step, "_opik_parent_span_id", None)
         try:
-            client = opik_client.get_client_cached()
+            client = opik.get_global_client()
             span_project_name: str = (
                 getattr(trace_data, "project_name", None) or os.environ.get("OPIK_PROJECT_NAME") or "Default Project"
             )
@@ -534,7 +534,7 @@ def _patch_opik_deferred_metrics() -> None:
 
             usage, total_cost = _build_usage_from_metrics(step.metrics)
 
-            client.span(
+            client.__internal_api__span__(
                 id=id_helpers.generate_id(),
                 trace_id=trace_data.id,
                 parent_span_id=parent_span_id,

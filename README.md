@@ -14,11 +14,14 @@
 
 ---
 
-## What NASDE does — in three sentences
+## What NASDE does — in four steps
 
-1. **You give it a task you already understand** — an instruction, a repo snapshot, and a written description of what a good solution looks like (the assessment criteria). The task doesn't have to produce code — the produced result might be refactored code, a migration plan, a generated ADR, updated docs, a SQL script, whatever the coding agent outputs into its workspace.
-2. **NASDE runs an AI coding agent on that task inside an isolated container** — the agent can't touch your machine, and the run is repeatable, so you can compare configurations fairly.
-3. **After the agent is done, a separate reviewer agent reads the produced results and scores them against your criteria** — giving you numbers per dimension (e.g. *domain modeling*, *test quality*, *documentation clarity*), not just pass/fail. You pick the dimensions, their names, and their scoring scales.
+One `nasde run` command executes the whole chain.
+
+1. **You describe a task you already understand.** An instruction, a repo snapshot, and the assessment criteria describing what a good solution looks like. The output can be anything the agent writes into its workspace — code, a migration plan, an ADR, a SQL script, updated docs.
+2. **The agent solves it in a sandbox.** The agent works in a safe, isolated environment — it can't touch your machine or your real code. Every run starts from the same clean state, so different configurations get a fair comparison. When it's done, a quick `test.sh` check gives a rough pass/fail signal. Powered by [Harbor](https://github.com/cased/harbor), runs locally on Docker or in the cloud.
+3. **A reviewer agent assesses the result against your criteria.** After initial rough tests pass or fail, a second coding agent (`claude` or `codex`) navigates the workspace and scores your chosen dimensions (e.g. *domain modeling*, *test quality*) on whatever scale you picked. The review stays token-efficient even on large codebases.
+4. **Results land in a dashboard (optional).** Browse scores, compare variants, and track how your agent setup evolves over time — optionally via [Opik](https://www.comet.com/site/products/opik/).
 
 You're the one defining "what good looks like." NASDE just automates running the experiment and assessing it the same way every time.
 
@@ -68,7 +71,7 @@ Then run it:
 nasde run --all-variants -C path/to/generated-benchmark
 ```
 
-`--all-variants` runs every variant the skill scaffolded, so you don't need to know their names yet. Narrow down with `--variant NAME` once you start iterating.
+`--all-variants` runs every variant the skill scaffolded, so you don't need to know their names yet. If you'd rather burn fewer tokens on the first run, pick just one with `--variant NAME` — you can run the others later.
 
 ### Good to know
 
@@ -80,7 +83,7 @@ nasde run --all-variants -C path/to/generated-benchmark
 
 This is the question that trips most people up, so it's worth being explicit. There are **two independent kinds of scoring** in NASDE, and they answer different questions:
 
-### 1. Functional tests — deterministic pass/fail (reward 0 or 1)
+### 1. Initial rough tests — deterministic pass/fail (reward 0 or 1)
 
 This is the standard verifier pattern used by [Harbor](https://github.com/cased/harbor) and other coding-agent benchmarks — every task has a `tests/test.sh` script. After the agent finishes, the script runs inside the container and either passes (reward = 1) or fails (reward = 0). There's nothing AI about this step — it's just a shell script. What "passing" means is entirely up to you:
 
@@ -92,7 +95,7 @@ This gives you a hard yes/no on correctness. It says nothing about *how* the res
 
 ### 2. Multi-dimensional assessment — scored by a reviewer agent (LLM-as-a-Judge)
 
-Functional tests only catch black-and-white failures. They don't tell you whether the produced workspace is well-structured, whether it respects your architecture, whether tests are meaningful (or just coverage padding), whether a generated document is clear, whether a migration is reversible. For that, NASDE runs a **second agent** — the reviewer — on the produced workspace.
+These rough tests only catch black-and-white failures. They don't tell you whether the produced workspace is well-structured, whether it respects your architecture, whether tests are meaningful (or just coverage padding), whether a generated document is clear, whether a migration is reversible. For that, NASDE runs a **second agent** — the reviewer — on the produced workspace.
 
 The reviewer's reference point is **two files you write** when creating the benchmark:
 
@@ -110,7 +113,7 @@ The reviewer agent reads the produced results (and optionally the agent's tool-c
 ```mermaid
 flowchart LR
     A["Task:<br/>instruction.md<br/>+ test.sh<br/>+ assessment_criteria.md"] --> B["Coding agent solves task<br/>in an isolated container<br/>(Docker or cloud sandbox)"]
-    B --> C["test.sh:<br/>functional tests"]
+    B --> C["test.sh:<br/>initial rough tests"]
     C --> D["Binary reward<br/>0 or 1"]
     D --> E["Reviewer agent<br/>reads the produced<br/>workspace + trajectory"]
     E --> F["Per-dimension scores<br/>vs. your criteria"]
@@ -175,20 +178,6 @@ The criteria spell out what each score means for each dimension. Here is the ful
 - **Project-specific skill validation (NASDE's own repo)** — one task pulled from NASDE's git history; four skill combinations tested. *Takeaway:* the testing-discipline skill alone raised pass rate from 67% → 100%; the "full-stack, everything-on" variant scored *worse* than vanilla.
 
 See **[Benchmark Results](docs/benchmark-results.md)** for the full tables and methodology, and **[Use Cases](docs/use-cases.md)** for the end-to-end walkthrough of building a benchmark like these yourself.
-
-## How NASDE compares to built-in eval tools
-
-AI coding agents increasingly ship their own eval harnesses (e.g. Claude Code's Skill Creator evals). Those are great for what they do — **NASDE answers a different question**:
-
-| | Built-in skill evals | NASDE |
-|---|---|---|
-| **Question it answers** | "Does this skill trigger when it should?" | "Does this whole configuration produce better code?" |
-| **Unit under test** | One skill | The full setup: skills + `CLAUDE.md`/`AGENTS.md` + MCP servers |
-| **Agents supported** | The host agent only | Claude Code, Codex, Gemini CLI (anything Harbor supports) |
-| **Scoring** | Pass/fail, time, tokens | Pass/fail **plus** multi-dimensional assessment scores |
-| **Execution** | Agent's own session | Isolated container per trial (Docker or cloud sandbox) |
-
-Use built-in evals when iterating on a single skill. Use NASDE when you need a repeatable, cross-agent, multi-dimensional comparison — or just when you want to run an agent on a non-trivial task without it touching your filesystem.
 
 ## Authoring helpers (Claude Code skills)
 
@@ -255,7 +244,7 @@ nasde run --variant gemini-baseline --model google/gemini-3-flash-preview -C my-
 # Run a single task with experiment tracking
 nasde run --variant vanilla --tasks my-task -C my-benchmark --with-opik
 
-# Skip the reviewer (functional tests only, faster)
+# Skip the reviewer (rough tests only, faster)
 nasde run --variant vanilla -C my-benchmark --without-eval
 
 # Re-run the reviewer on an existing trial (no re-execution)
@@ -303,7 +292,7 @@ See the [Harbor documentation](https://harborframework.com/docs/cloud) for detai
 
 ## Configuring the reviewer agent
 
-The reviewer agent (assessment evaluator) is configurable via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-4-6` with read-only tools (`Read`, `Glob`, `Grep`).
+The reviewer agent (assessment evaluator) is configurable via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-4-7` with read-only tools (`Read`, `Glob`, `Grep`).
 
 ### Evaluator backend
 
@@ -333,7 +322,7 @@ Use the best available model for review quality:
 
 ```toml
 [evaluation]
-model = "claude-opus-4-6"   # Default — recommended for review quality
+model = "claude-opus-4-7"   # Default — recommended for review quality
 ```
 
 ### Skills
@@ -393,7 +382,7 @@ append_system_prompt = "Pay special attention to SOLID principles when scoring."
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `backend` | `claude` | Subprocess backend: `claude` or `codex` |
-| `model` | `claude-opus-4-6` | Evaluator model |
+| `model` | `claude-opus-4-7` | Evaluator model |
 | `dimensions_file` | `assessment_dimensions.json` | Scoring dimensions file |
 | `max_turns` | `30` | Max conversation turns |
 | `allowed_tools` | `["Read", "Glob", "Grep"]` | Tool whitelist |
@@ -525,7 +514,7 @@ build_commands = []
 
 [evaluation]
 backend = "claude"                            # "claude" (default) | "codex"
-model = "claude-opus-4-6"
+model = "claude-opus-4-7"
 dimensions_file = "assessment_dimensions.json"
 # max_turns = 30                              # Max evaluator conversation turns
 # allowed_tools = ["Read", "Glob", "Grep"]    # Override default tool whitelist
@@ -658,7 +647,7 @@ for s in sorted(scores, key=lambda x: x["name"]):
 Expected feedback scores after a full run with `--with-opik`:
 - `arch_<dimension>` (e.g. `arch_domain_modeling`) — normalized 0.0-1.0
 - `arch_total` — overall architecture score
-- `reward` — Harbor functional test result (0.0 or 1.0)
+- `reward` — Harbor rough-test result (0.0 or 1.0)
 - `duration_sec` — trial duration
 
 ## Community

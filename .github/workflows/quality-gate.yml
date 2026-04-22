@@ -89,7 +89,9 @@ jobs:
           python-version: "3.12"
 
       - name: Export lockfile as requirements
-        run: uv export --no-dev --no-hashes --format requirements-txt > requirements.txt
+        run: |
+          uv export --no-dev --no-hashes --no-emit-project --format requirements-txt \
+            > requirements.txt
 
       - name: Run pip-audit
         run: uvx --with pip pip-audit -r requirements.txt --strict

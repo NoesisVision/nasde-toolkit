@@ -9,6 +9,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-04-22
+
 ### Changed
 - Modernized dependencies: `harbor` 0.1.45 → 0.4.0, `opik` 1.10.39 → 2.0.9.
   Brings upstream bugfixes and removes a long-standing Opik monkey-patch that
@@ -24,6 +26,9 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   dependency tree, including 1 CRITICAL and 3 HIGH in `litellm` / `cbor2`.
   New vulnerabilities will now fail the quality gate instead of shipping
   silently. ([#25])
+
+### Added
+- `CHANGELOG.md`, `SECURITY.md`, `docs/RELEASING.md`. ([#26])
 
 ### Docs
 - README: unified "what NASDE does" opener around four steps, mentioning the
@@ -131,7 +136,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/NoesisVision/nasde-toolkit/releases/tag/v0.1.0
@@ -139,3 +145,4 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#23]: https://github.com/NoesisVision/nasde-toolkit/pull/23
 [#24]: https://github.com/NoesisVision/nasde-toolkit/pull/24
 [#25]: https://github.com/NoesisVision/nasde-toolkit/pull/25
+[#26]: https://github.com/NoesisVision/nasde-toolkit/pull/26

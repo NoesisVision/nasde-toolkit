@@ -12,8 +12,15 @@ out of date, fix the doc in the same PR as the release.
 git checkout main && git pull
 
 # 2. Move [Unreleased] section under the new version header in CHANGELOG.md,
-#    add a fresh empty [Unreleased] block, update compare links at the bottom
+#    add a fresh empty [Unreleased] block, update compare links, and add
+#    a new PR link-ref (`[#NN]: …/pull/NN`) at the bottom for any PR
+#    cited in this release's entries
 $EDITOR CHANGELOG.md
+
+# 2b. (Temporary — until PyPI.) Bump the pinned tag in user-facing docs
+#     so copy-paste installs land on the new version:
+#       grep -rn "@vOLD" README.md docs/ examples/
+#     then update every hit (README has two install commands).
 
 # 3. Commit the changelog and push the PR
 git checkout -b chore/release-vX.Y.Z
@@ -152,11 +159,46 @@ The source of truth for what's in each release is `CHANGELOG.md`.
    +[0.2.1]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.0...v0.2.1
    ```
 
-5. Open a PR titled `chore: release vX.Y.Z`. The PR body should be the
+5. **Also at the bottom, keep the PR link-ref table in sync.** The
+   `## [Unreleased]` section uses [Keep a Changelog][kac-linkrefs]-style
+   shortcuts like `([#25])` instead of inline URLs. Every PR number that
+   appears in a changelog entry needs a matching `[#NN]: …/pull/NN` line
+   at the bottom of the file. Add a row for any new PR referenced in
+   this release.
+
+   ```diff
+   +[#27]: https://github.com/NoesisVision/nasde-toolkit/pull/27
+   ```
+
+   [kac-linkrefs]: https://keepachangelog.com/en/1.1.0/#how
+
+6. **Bump the pinned version in user-facing docs** *(temporary — remove
+   this step once we publish to PyPI).* Until `nasde` is on PyPI, the
+   install command in the README pins to a specific git tag, and that
+   tag number has to be updated alongside the release. Otherwise a
+   copy-paste from the README installs a stale version and nobody
+   notices.
+
+   Find the stale pins:
+
+   ```bash
+   grep -rn "@v[0-9]" README.md docs/ examples/
+   ```
+
+   Expected hits today: two `uv tool install …@vOLD` lines in `README.md`
+   (one in *Quick start*, one in *Installation reference*), plus the
+   `(e.g. \`vOLD\`)` example sentence nearby. Update each to `vNEW`.
+   Anywhere else `@vOLD` appears in user-facing docs, update it too.
+
+   Skip: anything inside `CHANGELOG.md` (those pins are historical and
+   must stay on the version they described) and anywhere `vOLD` appears
+   as a reference for a diff/compare link.
+
+7. Open a PR titled `chore: release vX.Y.Z`. The PR body should be the
    changelog section for this release, so reviewers see exactly what
    goes out.
 
-6. **Wait for CI to go green, then merge.** Prefer a squash merge so the
+8. **Wait for CI to go green, then merge.** Prefer a squash merge so the
    release commit is a single entry.
 
 ## Step 2 — Tag and push
@@ -285,7 +327,10 @@ doc in the same PR so the promise matches reality.
 - **PyPI publishing.** We'll want a `publish-to-pypi.yml` workflow that
   triggers on tag push, uses PyPI Trusted Publishers (no long-lived token),
   and `uv publish` from the same wheel `hatch-vcs` produces. Document here
-  once set up and link back from the README.
+  once set up and link back from the README. **When this lands, delete
+  Step 6 ("Bump the pinned version in user-facing docs") and the matching
+  `# 2b` block in the TL;DR** — `pip install nasde-toolkit` is
+  version-agnostic, so the README pins go away too.
 - **Dependency automation.** Dependabot or Renovate would keep
   `uv.lock` fresh without a human in the loop. For now, the `pip-audit`
   CI gate catches anything that acquires a CVE.

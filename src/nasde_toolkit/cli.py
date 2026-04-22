@@ -114,6 +114,33 @@ def init(
     create_project(project_dir.resolve(), project_name)
 
 
+@app.command(name="install-skills")
+def install_skills(
+    scope: str = typer.Option(
+        "user",
+        "--scope",
+        help="Where to install: 'user' (~/.claude/skills) or 'project' (./.claude/skills).",
+    ),
+    target_dir: Path | None = typer.Option(
+        None,
+        "--target-dir",
+        help="Custom skills directory (overrides --scope).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Overwrite existing skill files.",
+    ),
+) -> None:
+    """Install NASDE authoring skills into a Claude Code skills directory."""
+    from nasde_toolkit.banner import print_banner
+    from nasde_toolkit.skills_installer import install_bundled_skills
+
+    print_banner(console)
+    install_bundled_skills(console=console, scope=scope, target_dir=target_dir, force=force)
+
+
 @app.command()
 def run(
     variant: str | None = typer.Option(

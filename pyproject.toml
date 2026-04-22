@@ -29,6 +29,12 @@ version-file = "src/nasde_toolkit/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/nasde_toolkit"]
 
+[tool.hatch.build.targets.wheel.force-include]
+".claude/skills/nasde-benchmark-creator" = "nasde_toolkit/_bundled_skills/nasde-benchmark-creator"
+".claude/skills/nasde-benchmark-from-history" = "nasde_toolkit/_bundled_skills/nasde-benchmark-from-history"
+".claude/skills/nasde-benchmark-from-public-repos" = "nasde_toolkit/_bundled_skills/nasde-benchmark-from-public-repos"
+".claude/skills/nasde-benchmark-runner" = "nasde_toolkit/_bundled_skills/nasde-benchmark-runner"
+
 [project.optional-dependencies]
 dev = [
     "ruff>=0.9",

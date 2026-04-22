@@ -3,7 +3,7 @@
 
   <h3>Noesis Agentic Software Development Evals Toolkit</h3>
 
-  <p>Measure whether your AI coding agent configuration actually improves code quality.</p>
+  <p>Run an AI coding agent on a task you already know the answer to. Score the result. Compare configurations.</p>
 
   <a href="https://noesis.vision/nasde/"><img src="https://img.shields.io/badge/Product%20Page-Noesis%20Vision-0B6623?style=for-the-badge&logoColor=white" alt="Product Page"></a>
   <a href="https://discord.gg/QF5PMX4Dqg"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
@@ -14,164 +14,255 @@
 
 ---
 
-## What is NASDE?
+## What NASDE does — in three sentences
 
-NASDE is a **wrapper layer** over [Harbor](https://github.com/cased/harbor) (sandboxed agent execution — Docker locally or cloud providers for scaling) and [Opik](https://github.com/comet-ml/opik) (observability & experiment tracking). The backends are swappable — different execution engines or observability platforms can be plugged in.
+1. **You give it a task you already understand** — an instruction, a repo snapshot, and a written description of what a good solution looks like (the assessment criteria). The task doesn't have to produce code — the produced result might be refactored code, a migration plan, a generated ADR, updated docs, a SQL script, whatever the coding agent outputs into its workspace.
+2. **NASDE runs an AI coding agent on that task inside an isolated container** — the agent can't touch your machine, and the run is repeatable, so you can compare configurations fairly.
+3. **After the agent is done, a separate reviewer agent reads the produced results and scores them against your criteria** — giving you numbers per dimension (e.g. *domain modeling*, *test quality*, *documentation clarity*), not just pass/fail. You pick the dimensions, their names, and their scoring scales.
 
-What NASDE adds on top is the **"nasty" reviewer** — that's where the name comes from. After a coding agent completes a task and passes functional tests, NASDE deploys a separate **reviewer agent** (powered by the `claude` or `codex` CLI as a subprocess, using your existing CLI auth) that freely navigates the produced codebase and scores it across multiple **dimensions** defined by the benchmark author. It checks not just whether the code works, but *how well* it's written according to your custom criteria.
+You're the one defining "what good looks like." NASDE just automates running the experiment and assessing it the same way every time.
 
-## Why NASDE?
+## What do I use it for?
 
-Agent configurations — `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` files, skills, MCP servers — affect code quality, token usage, and task completion time. But without controlled benchmarks, you can't tell which changes help and which regress. NASDE gives you repeatable experiments: build tasks from your team's real git history, run different configurations against them, and compare multi-dimensional scores.
+Anyone working with AI coding agents eventually hits the same wall: *"I changed my skill / `CLAUDE.md` / MCP setup — is the agent actually better now, or does it just feel that way?"* NASDE turns that gut feeling into a repeatable measurement.
 
-What you can measure:
+Typical things you'd do with it:
 
-| Area | What NASDE shows you |
-|---|---|
-| **Code quality** | Per-dimension scores (architecture, testing, clarity...) across configurations |
-| **Consistency** | Score variance across trials — same config, same task, how stable? |
-| **Token efficiency** | Which configurations produce similar quality at lower cost |
-| **Agent comparison** | Same tasks, same rubric — Claude Code vs Codex vs Gemini |
-| **Regressions** | Re-run benchmarks after config changes, compare against baseline |
+- **Run an agent safely on a realistic task** — a sandboxed container means the agent can `rm -rf`, install random packages, or run your tests in loops without wrecking your laptop.
+- **Compare two configurations of the same agent** — baseline vs. "with my new skill"; see whether the skill moves the score up or down, and on which dimensions.
+- **Compare different agents on the same task** — Claude Code vs. Codex vs. Gemini CLI against *your* workspace and *your* criteria.
+- **Build a regression suite for your AI setup** — once a task set exists, re-run it every time someone tweaks the prompt/skills/MCP and spot regressions before they ship.
 
-## Standard vs NASDE evaluation flow
+## Quick start (three steps)
 
-### Without NASDE (Harbor + Opik only)
+The fastest path from zero to a working benchmark built from **your own git history**:
 
-```mermaid
-flowchart LR
-    A["Task definition"] --> B["Harbor: Agent solves task\nin sandbox (Docker / cloud)"]
-    B --> C["test.sh:\nFunctional tests"]
-    C --> D["Binary reward\n0 or 1"]
-    D --> E["Opik:\nLog trace + reward"]
+### 1. Install the CLI
+
+```bash
+uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git@v0.2.0
+nasde --version
 ```
 
-The standard flow gives you a **binary pass/fail** — the code either works or it doesn't. No insight into *how* the agent solved the problem.
+### 2. Install the authoring skills for Claude Code
 
-### With NASDE (agentic code review)
+```bash
+nasde install-skills
+```
+
+This copies the bundled `nasde-benchmark-*` skills into `~/.claude/skills/` so they're available in every Claude Code session. Use `--scope project` to install into the current project's `.claude/skills/` instead, or `--force` to overwrite after a `nasde` upgrade.
+
+> **Note:** the authoring helpers are Claude Code skills. Codex and Gemini users can still run NASDE from the CLI — the skills just speed up *creating* benchmarks; they are not required to *run* them.
+
+### 3. From inside your own repo, ask the agent to build a benchmark from git history
+
+Open your own project in Claude Code and say something like:
+
+> *"Create a NASDE benchmark with a single task, based on a recent piece of work from this repo — a commit, a range of commits, or a merged PR."*
+
+Start with **one task**. Point the skill at whatever unit of work feels self-contained in your workflow — a single commit, a range, a merged MR/PR, or an issue that was closed by a set of commits. The `nasde-benchmark-from-history` skill proposes a good candidate, and generates one task directory with `instruction.md`, a Dockerfile, `test.sh`, and a starter `assessment_criteria.md`. You review each file before it's written.
+
+Then run it:
+
+```bash
+nasde run --all-variants -C path/to/generated-benchmark
+```
+
+`--all-variants` runs every variant the skill scaffolded, so you don't need to know their names yet. Narrow down with `--variant NAME` once you start iterating.
+
+### Good to know
+
+- **Start small.** One task is enough to validate the loop end to end. Scale up once it works — more tasks only pay off after you've seen what a task looks like in practice.
+- **Your subscription covers it.** Runs use your existing `claude` / `codex` / `gemini` CLI auth, so a Claude Max or ChatGPT Plus subscription is enough to get going. API keys are supported too when you have them — see [Authentication](#authentication) for the full picture.
+- **More docs.** See [Use Cases](docs/use-cases.md) for the end-to-end walkthrough and [Benchmark Results](docs/benchmark-results.md) for reference numbers.
+
+## How does the scoring actually work?
+
+This is the question that trips most people up, so it's worth being explicit. There are **two independent kinds of scoring** in NASDE, and they answer different questions:
+
+### 1. Functional tests — deterministic pass/fail (reward 0 or 1)
+
+This is the standard verifier pattern used by [Harbor](https://github.com/cased/harbor) and other coding-agent benchmarks — every task has a `tests/test.sh` script. After the agent finishes, the script runs inside the container and either passes (reward = 1) or fails (reward = 0). There's nothing AI about this step — it's just a shell script. What "passing" means is entirely up to you:
+
+- For a bug-fix task: *"the regression test that was failing now passes"*
+- For a refactor: *"the existing test suite still passes — no behavior change"*
+- For a feature: *"the new integration test I wrote passes"*
+
+This gives you a hard yes/no on correctness. It says nothing about *how* the result got there or whether its structure is any good.
+
+### 2. Multi-dimensional assessment — scored by a reviewer agent (LLM-as-a-Judge)
+
+Functional tests only catch black-and-white failures. They don't tell you whether the produced workspace is well-structured, whether it respects your architecture, whether tests are meaningful (or just coverage padding), whether a generated document is clear, whether a migration is reversible. For that, NASDE runs a **second agent** — the reviewer — on the produced workspace.
+
+The reviewer's reference point is **two files you write** when creating the benchmark:
+
+| File | What goes in it | Who writes it |
+|---|---|---|
+| `assessment_dimensions.json` | The list of dimensions to score on (e.g. *Domain Modeling*, *Test Quality*, *Documentation Clarity*), plus a max score per dimension | You — once, shared across all tasks in the benchmark |
+| `assessment_criteria.md` | Per-task criteria: for each dimension, what a low score looks like, what a high score looks like, what specific things to check | You — once per task, in plain prose |
+
+The reviewer agent reads the produced results (and optionally the agent's tool-call trajectory), then scores each dimension against your criteria. You decide how strict the criteria are — spell out a ground-truth structure, enumerate exact checks, or leave room for judgment. Whatever gives you a signal you trust.
+
+**The reviewer is itself a coding agent** (`claude` or `codex` CLI). Instead of stuffing the whole workspace into a prompt, it navigates with real tools — `Read`, `Glob`, `Grep`, and optionally MCP analysis servers — reading only what each dimension actually needs. That's why reviews stay tractable on large workspaces.
+
+## The evaluation pipeline, end to end
 
 ```mermaid
 flowchart LR
-    A["Task definition\n+ assessment criteria\n+ scoring dimensions"] --> B["Harbor: Agent solves task\nin sandbox (Docker / cloud)"]
-    B --> C["test.sh:\nFunctional tests"]
-    C --> D["Binary reward\n0 or 1"]
-    D --> E["NASDE Reviewer Agent\nnavigates the codebase"]
-    E --> F["Multi-dimensional scores\nN dimensions × 0-25 pts"]
-    F --> G["Opik:\nLog trace + reward\n+ dimension scores"]
+    A["Task:<br/>instruction.md<br/>+ test.sh<br/>+ assessment_criteria.md"] --> B["Coding agent solves task<br/>in an isolated container<br/>(Docker or cloud sandbox)"]
+    B --> C["test.sh:<br/>functional tests"]
+    C --> D["Binary reward<br/>0 or 1"]
+    D --> E["Reviewer agent<br/>reads the produced<br/>workspace + trajectory"]
+    E --> F["Per-dimension scores<br/>vs. your criteria"]
+    F --> G["Results logged<br/>(locally + optional<br/>experiment tracker)"]
 
     style E fill:#c0392b,color:#fff
 ```
 
-NASDE adds **Stage 2** — the reviewer agent analyzes the produced code against a rubric and returns scores across custom dimensions. This gives you a **multi-dimensional quality assessment**, not just pass/fail.
+Stage 1 (the agent does the work in a sandbox) comes from [Harbor](https://github.com/cased/harbor). The optional experiment-tracking stage at the end uses [Opik](https://github.com/comet-ml/opik). NASDE is the glue that connects them and adds the reviewer stage in between — plus the CLI, the benchmark project layout, and the authoring skills (see below).
 
-### Who defines the review criteria?
+## What a real task looks like
 
-The **benchmark author** controls what the reviewer evaluates:
+Everything above is easier to grasp on a concrete example. Here is one benchmark task from the repo — [`examples/ddd-architectural-challenges/tasks/ddd-weather-discount`](https://github.com/NoesisVision/nasde-toolkit/tree/main/examples/ddd-architectural-challenges/tasks/ddd-weather-discount) — shown end to end: the agent's instruction, the assessment criteria, and the resulting scores.
 
-- **`assessment_dimensions.json`** — defines the scoring dimensions (e.g. *domain modeling*, *error handling*, *code quality*), each with a max score, typically summing to 100
-- **`assessment_criteria.md`** (per task) — a detailed rubric describing what the reviewer should look for in each task
+### `instruction.md` — what the coding agent is asked to do
 
-The reviewer agent freely navigates the workspace, reads source files, analyzes architecture, and returns structured scores for each dimension.
+> **Task — Implement a weather-based discount.**
+>
+> You are working on an e-commerce system built using **Domain-Driven Design** and **hexagonal architecture** (.NET 8, C#). Implement a discount that:
+>
+> - Checks current weather in Warsaw via the Open-Meteo API.
+> - Applies a **10% discount** when `precipitation > 0`.
+> - Must be **extensible**: more weather-based discounts (temperature, wind, UV, humidity) will follow and should plug in without rewrites.
+>
+> **Quality expectations:** fit into the existing DDD architecture · handle API failures gracefully (do not break order processing) · write unit and integration tests · follow codebase conventions.
 
-## Use cases
+### `assessment_criteria.md` — what the reviewer scores against (excerpt)
 
-See **[Use Cases](docs/use-cases.md)** for detailed scenarios with workflows:
+The criteria spell out what each score means for each dimension. Here is the full ladder for the *Domain Modeling* dimension — in this benchmark the author chose a 0–25 scale (the scale is entirely up to you: 0–5, 0–10, 0–100, named levels, pass/fail only, whatever fits):
 
-- **Evaluating your team's agent configuration** — mine your repo history for benchmark tasks, compare combinations of skills, `CLAUDE.md`, and MCP servers, run regression tests when configuration changes, compare results across different coding agents
-- **Building and validating a universal skill** — curate diverse public repos, test one skill across many codebases and languages, compare agent behavior across different coding agents
+| Score | Criteria |
+|:---:|---|
+| **0**  | No domain types for weather — raw HTTP responses or primitives used directly in domain logic. |
+| **10** | Domain types exist for weather, but they leak infrastructure concerns (JSON annotations, HTTP status codes). |
+| **15** | Clean domain types (precipitation as a value object), but discount logic is *not* modeled as a domain service or policy. |
+| **20** | Good domain modeling and discount as a domain service, but error handling uses infrastructure exceptions instead of domain-appropriate patterns. |
+| **25** | Weather modeled as value objects · discount encapsulated in a domain service/policy · failures handled via domain patterns (Result type, domain exceptions, safe defaults) · domain layer has **zero** infrastructure dependencies. |
 
-## Example benchmark results
+**Key checks for the reviewer agent:**
 
-See **[Benchmark Results](docs/benchmark-results.md)** for full tables from the three included example benchmarks (refactoring, DDD architecture, project-specific setup). Key findings:
+- Is there a port / interface for weather data in the *domain* layer?
+- Does that port use domain types (not `HttpResponseMessage`, `JsonElement`)?
+- Is the discount rule inside a domain service / policy, or living in the HTTP adapter?
+- Are failure modes (API down) handled with domain-appropriate defaults?
 
-- **Claude and Codex perform comparably** on refactoring tasks (~81-83/100), but diverge on architectural challenges
-- **Guidance helps Claude (+3.5) but hurts Codex (-22.0)** on DDD tasks — the same skill has opposite effects on different agents
-- **Testing-focused skill** is the biggest lever for project-specific work (100% pass rate vs 67% vanilla)
-- **LLM-as-a-Judge evaluator is consistent** — identical agent output produces identical scores (σ=0.0)
+> The full assessment covers four more dimensions the benchmark author picked for this task (*Encapsulation* · *Architecture Compliance* · *Extensibility* · *Test Quality*), each with its own ladder and checks. Another author would have chosen different dimensions or different scales for the same task.
 
-## When to use NASDE vs built-in evals
+### Results — four agent configurations scored against the same criteria
 
-AI coding agents like Claude Code now ship built-in evaluation tools (e.g. Skill Creator evals) for testing individual skills. These are great for rapid iteration on a single skill. NASDE serves a different purpose:
+| Variant | Pass | Domain (/25) | Encaps. (/20) | Arch. (/20) | Ext. (/15) | Tests (/20) | Total (/100) |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `claude-vanilla` | 75% | 17.1 | 11.2 | 16.1 | 9.5 | 7.7 | **61.6** |
+| `claude-guided` (with a DDD skill) | 75% | 17.4 | 12.4 | 16.6 | 10.0 | 8.7 | **65.1** |
+| `codex-vanilla` | 89% | 18.8 | 13.8 | 16.8 | 11.4 | 8.7 | **69.4** |
+| `codex-guided` (same skill) | 50% | 11.5 | 9.6 | 12.9 | 7.4 | 6.0 | **47.4** |
 
-| | Built-in evals (e.g. Skill Creator) | NASDE |
+**The insight:** the same "DDD guidance" skill helps Claude a little (+3.5) and *badly* hurts Codex (-22). The per-dimension breakdown pinpoints *where* Codex regresses — domain modeling, encapsulation, extensibility — which would be invisible without this assessment. Skill optimization is agent-specific.
+
+### More benchmarks in the repo
+
+- **Refactoring katas (Java + Python)** — four classic refactorings scored on behavior preservation, clarity, technique, scope discipline. *Takeaway:* a candidate "refactoring skill" didn't move the score — shipping it would have been based on vibes.
+- **Project-specific skill validation (NASDE's own repo)** — one task pulled from NASDE's git history; four skill combinations tested. *Takeaway:* the testing-discipline skill alone raised pass rate from 67% → 100%; the "full-stack, everything-on" variant scored *worse* than vanilla.
+
+See **[Benchmark Results](docs/benchmark-results.md)** for the full tables and methodology, and **[Use Cases](docs/use-cases.md)** for the end-to-end walkthrough of building a benchmark like these yourself.
+
+## How NASDE compares to built-in eval tools
+
+AI coding agents increasingly ship their own eval harnesses (e.g. Claude Code's Skill Creator evals). Those are great for what they do — **NASDE answers a different question**:
+
+| | Built-in skill evals | NASDE |
 |---|---|---|
-| **What you test** | One skill at a time | Full configuration (skill sets + `CLAUDE.md` + MCP) |
-| **Agents supported** | The host agent only | Any agent via Harbor (Claude Code, Codex, Gemini CLI, Cursor, ...) |
-| **Scoring** | Pass/fail, time, tokens | Multi-dimensional rubric (0–100, custom dimensions) |
-| **Execution** | Agent's own session | Isolated Docker or cloud sandbox per trial |
-| **Primary question** | "Does this skill trigger correctly?" | "Does this configuration produce better code?" |
+| **Question it answers** | "Does this skill trigger when it should?" | "Does this whole configuration produce better code?" |
+| **Unit under test** | One skill | The full setup: skills + `CLAUDE.md`/`AGENTS.md` + MCP servers |
+| **Agents supported** | The host agent only | Claude Code, Codex, Gemini CLI (anything Harbor supports) |
+| **Scoring** | Pass/fail, time, tokens | Pass/fail **plus** multi-dimensional assessment scores |
+| **Execution** | Agent's own session | Isolated container per trial (Docker or cloud sandbox) |
 
-Use built-in evals for rapid iteration on individual skills. Use NASDE when you need to evaluate complete configurations, compare across agents, or measure quality beyond pass/fail.
+Use built-in evals when iterating on a single skill. Use NASDE when you need a repeatable, cross-agent, multi-dimensional comparison — or just when you want to run an agent on a non-trivial task without it touching your filesystem.
 
-## Claude Code skills
+## Authoring helpers (Claude Code skills)
 
-NASDE ships with built-in [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that guide you through creating and running benchmarks interactively. When you open the project in Claude Code, these skills are available automatically:
+Writing `assessment_criteria.md`, picking tasks from git history, and scaffolding Dockerfiles is the tedious part of building a benchmark. NASDE ships [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that take care of most of it — install them with one command:
+
+```bash
+nasde install-skills                  # → ~/.claude/skills/ (user-wide)
+nasde install-skills --scope project  # → ./.claude/skills/ (current repo)
+nasde install-skills --force          # overwrite after upgrading nasde
+```
+
+After installation, the skills activate automatically in any Claude Code session — just describe what you want.
 
 | Skill | What it does |
 |-------|-------------|
-| **nasde-benchmark-creator** | Walks you through creating a new benchmark — from scaffolding the project, adding tasks with Docker environments and test scripts, to defining assessment dimensions and scoring criteria. |
-| **nasde-benchmark-from-history** | Generates benchmark tasks by mining git history. Point it at a commit range or set of PRs, and it proposes tasks based on real problems your team already solved. |
-| **nasde-benchmark-from-public-repos** | Curates diverse benchmark suites from public GitHub repositories. Describe the skill you're testing and it builds a diversity matrix, finds repos, and generates task scaffolding. |
-| **nasde-benchmark-runner** | Guides running benchmarks, re-evaluating results, verifying Opik traces, and troubleshooting failures. Includes automatic Opik verification after each run. |
+| **nasde-benchmark-creator** | Interactive end-to-end scaffolding: project layout, tasks, Dockerfiles, test scripts, assessment criteria. |
+| **nasde-benchmark-from-history** | Point it at a commit range, a merged PR, or a closed issue from your own repo — it proposes tasks based on work your team already finished, and writes the task files for you to review. |
+| **nasde-benchmark-from-public-repos** | Describe a skill you want to test broadly; it builds a diversity matrix of public repos (languages, sizes, styles) and scaffolds one task per cell. |
+| **nasde-benchmark-runner** | Guides running benchmarks, re-running the reviewer on existing results, verifying the experiment tracker, and troubleshooting failed runs. |
 
-To get started, open the project directory in Claude Code and describe what you want to evaluate — the skills will take it from there.
+You don't *have* to use these — everything they do is just writing files that you could write by hand — but they save a lot of typing.
 
-## Installation
+## Installation reference
+
+The [Quick start](#quick-start-three-steps) above pins to the latest stable release. Alternative installation modes:
 
 ```bash
-# Latest stable release (recommended)
-uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git@v0.1.1
-
-# Latest development (HEAD)
+# Install the latest development build from main (may include unreleased changes)
 uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git
 
-# From local clone (for development)
+# Install from a local clone (for developing NASDE itself)
 git clone git@github.com:NoesisVision/nasde-toolkit.git
 cd nasde-toolkit
 uv sync
 ```
 
-After installation, only `nasde` appears on PATH. Harbor and Opik are bundled as core dependencies — no separate installation needed. The assessment evaluator spawns your already-installed `claude` or `codex` CLI as a subprocess (not bundled) so it reuses whatever authentication you've set up interactively.
-
-Check your installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.1.1`); dev installs show versions like `0.1.2.dev3+gabcdef`.
-
-## Quick start
+Upgrading to a new stable release:
 
 ```bash
-# Set authentication for the agent you want to use:
+uv tool install --reinstall git+https://github.com/NoesisVision/nasde-toolkit.git@v0.2.0
+```
 
-# Claude Code (one of)
-export ANTHROPIC_API_KEY=sk-ant-...
-export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+After installation, only `nasde` appears on PATH. Harbor and Opik are bundled as core dependencies. The reviewer agent spawns your already-installed `claude` or `codex` CLI as a subprocess (not bundled), so it reuses whatever authentication you've set up interactively.
 
-# OpenAI Codex
-export CODEX_API_KEY=sk-...        # OpenAI API key (from platform.openai.com)
+Check the installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.2.0`); dev installs show versions like `0.2.1.dev3+gabcdef`.
 
-# Gemini CLI (one of)
-export GEMINI_API_KEY=your-key     # Google AI Studio API key
-export GOOGLE_API_KEY=your-key     # Google Cloud / Vertex AI
+## CLI cheatsheet
 
-# 1. Scaffold a new evaluation project
+Most users only need `nasde run` — everything else is occasional. See [Commands](#commands) below for the full reference.
+
+```bash
+# Scaffold a new benchmark project from scratch
 nasde init my-benchmark
 
-# 2. Run benchmark with Claude Code variant
+# Run the default variant
 nasde run --variant vanilla -C my-benchmark
 
-# 3. Run benchmark with Codex variant
+# Codex variant (model name is OpenAI-side)
 nasde run --variant codex-baseline --model gpt-5.3-codex -C my-benchmark
 
-# 4. Run benchmark with Gemini CLI variant
+# Gemini CLI variant
 nasde run --variant gemini-baseline --model google/gemini-3-flash-preview -C my-benchmark
 
-# 5. Run specific tasks with Opik tracing
+# Run a single task with experiment tracking
 nasde run --variant vanilla --tasks my-task -C my-benchmark --with-opik
 
-# 6. Skip assessment evaluation (Harbor only)
+# Skip the reviewer (functional tests only, faster)
 nasde run --variant vanilla -C my-benchmark --without-eval
 
-# 7. Re-evaluate an existing job directory
+# Re-run the reviewer on an existing trial (no re-execution)
 nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 ```
+
+Authentication is covered in detail in the [Authentication](#authentication) section — in short, export an API key (`ANTHROPIC_API_KEY` / `CODEX_API_KEY` / `GEMINI_API_KEY`) **or** just use whatever OAuth subscription you're already logged into via `claude` / `codex` / `gemini login`.
 
 ## Cloud sandbox providers
 
@@ -337,6 +428,7 @@ nasde auto-generates the Docker environment — no custom `Dockerfile` needed. S
 | `nasde run` | Run benchmark: Harbor trial + assessment evaluation (default) |
 | `nasde eval <JOB_DIR>` | Re-run assessment evaluation on an existing job |
 | `nasde init [DIR]` | Scaffold a new evaluation project |
+| `nasde install-skills` | Install bundled Claude Code authoring skills into `~/.claude/skills/` (or `./.claude/skills/` with `--scope project`) |
 
 ### Pass-through
 
@@ -370,7 +462,7 @@ my-benchmark/
     feature-a/
       task.json                # Task source + evaluation config
       instruction.md           # Agent prompt
-      assessment_criteria.md   # Rubric for post-hoc evaluator
+      assessment_criteria.md   # Per-task criteria for post-hoc evaluator
       tests/
         test.sh                # Harbor verification script
   variants/

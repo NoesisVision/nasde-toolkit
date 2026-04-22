@@ -226,6 +226,8 @@ After installation, only `nasde` appears on PATH. Harbor and Opik are bundled as
 
 Check the installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.2.0`); dev installs show versions like `0.2.1.dev3+gabcdef`.
 
+Release notes for every tagged version live in [CHANGELOG.md](CHANGELOG.md). See [docs/RELEASING.md](docs/RELEASING.md) if you're cutting a release yourself.
+
 ## CLI cheatsheet
 
 Most users only need `nasde run` — everything else is occasional. See [Commands](#commands) below for the full reference.
@@ -657,3 +659,7 @@ Expected feedback scores after a full run with `--with-opik`:
 Have questions, want to share your benchmarks, or discuss AI agent evaluation strategies? Join our Discord community — we'd love to hear from you!
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/QF5PMX4Dqg)
+
+## Security
+
+Found a security issue? Please report it privately — see [SECURITY.md](SECURITY.md) for the reporting channels, response timeline, and what's in scope.

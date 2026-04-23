@@ -1,0 +1,10 @@
+# CODEOWNERS for nasde-toolkit
+#
+# GitHub uses this file to auto-request reviews from the listed owners
+# whenever a PR changes matching files. Docs:
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/customizing-your-repository/about-code-owners
+#
+# Last matching pattern wins, so more specific rules go at the bottom.
+
+# Default owner for everything in the repo.
+*                       @szjanikowski

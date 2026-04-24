@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+from textwrap import dedent
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -22,15 +22,22 @@ def benchmark_project(tmp_path: Path) -> Path:
         variant_dir = tmp_path / "variants" / variant_name
         variant_dir.mkdir(parents=True)
         (variant_dir / "CLAUDE.md").write_text(f"# {variant_name}")
+        (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "claude-sonnet-4-6"\n')
 
     task_dir = tmp_path / "tasks" / "sample"
     task_dir.mkdir(parents=True)
-    (task_dir / "task.json").write_text(
-        json.dumps(
-            {
-                "name": "sample",
-                "source": {"git": "https://example.com/repo.git", "ref": "main"},
-            }
+    (task_dir / "task.toml").write_text(
+        dedent(
+            """\
+            version = "1.0"
+
+            [task]
+            name = "nasde/sample"
+
+            [nasde.source]
+            git = "https://example.com/repo.git"
+            ref = "main"
+            """
         )
     )
 

@@ -15,3 +15,7 @@ memory_mb = 4096
 
 [verifier]
 timeout_sec = 300
+
+[nasde.source]
+git = "https://github.com/itlibrium/DDD-starter-dotnet.git"
+ref = "main"

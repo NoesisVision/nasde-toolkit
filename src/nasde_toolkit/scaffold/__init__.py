@@ -15,8 +15,6 @@ version = "1.0.0"
 
 [defaults]
 variant = "vanilla"
-model = "claude-sonnet-4-6"
-timeout_sec = 720
 
 [docker]
 base_image = "ubuntu:22.04"
@@ -62,20 +60,25 @@ ASSESSMENT_DIMENSIONS_TEMPLATE = """\
 }
 """
 
-TASK_JSON_TEMPLATE = """\
-{{
-  "name": "{task_name}",
-  "source": {{
-    "git": "",
-    "ref": "HEAD"
-  }},
-  "instruction": "./instruction.md",
-  "evaluation": {{
-    "type": "script",
-    "script": "./tests/test.sh",
-    "timeout_seconds": 300
-  }}
-}}
+TASK_TOML_TEMPLATE = """\
+version = "1.0"
+
+[task]
+name = "nasde/{task_name}"
+description = "Describe the task."
+
+[agent]
+timeout_sec = 1800
+
+[environment]
+memory_mb = 4096
+
+[verifier]
+timeout_sec = 300
+
+[nasde.source]
+git = ""
+ref = "HEAD"
 """
 
 VARIANT_CLAUDE_MD_TEMPLATE = """\
@@ -90,6 +93,7 @@ VARIANT_CLAUDE_MD_TEMPLATE = """\
 
 VARIANT_TOML_TEMPLATE = """\
 agent = "claude"
+model = "claude-sonnet-4-6"
 """
 
 GITIGNORE_TEMPLATE = """\
@@ -119,8 +123,8 @@ def create_project(project_dir: Path, name: str) -> None:
     (example_task_dir / "tests").mkdir(parents=True, exist_ok=True)
 
     _write_if_missing(
-        example_task_dir / "task.json",
-        TASK_JSON_TEMPLATE.format(task_name="example-task"),
+        example_task_dir / "task.toml",
+        TASK_TOML_TEMPLATE.format(task_name="example-task"),
     )
     instruction_content = (
         "# Task: Example\n\n"

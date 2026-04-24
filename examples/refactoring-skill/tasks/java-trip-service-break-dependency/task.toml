@@ -4,7 +4,11 @@ version = "1.0"
 language = "Java"
 framework = "JUnit"
 source_repo = "https://github.com/sandromancuso/trip-service-kata"
-diversity_axes = ["language:java", "size:small", "technique:dependency-injection"]
+diversity_axes = [
+    "language:java",
+    "size:small",
+    "technique:dependency-injection",
+]
 name = "java-trip-service-break-dependency"
 description = "Break static dependency, Extract Method, and introduce dependency injection in a legacy service"
 difficulty = "hard"
@@ -17,3 +21,7 @@ memory_mb = 4096
 
 [verifier]
 timeout_sec = 300
+
+[nasde.source]
+git = "https://github.com/sandromancuso/trip-service-kata.git"
+ref = "master"

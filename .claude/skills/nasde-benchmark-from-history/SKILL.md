@@ -84,67 +84,41 @@ For each selected candidate, proceed to Step 4.
 
 For each approved candidate, generate the full task directory structure. Work through each file with the user — present it, get approval or edits, then write it.
 
-### 4a: task.json
+### 4a: task.toml (single task config, shared with Harbor)
 
-Generate from the commit metadata:
-
-```json
-{
-  "name": "<slugified-commit-description>",
-  "description": "<commit message, cleaned up>",
-  "difficulty": "<estimated_difficulty>",
-  "estimated_time_minutes": 30,
-  "tags": ["<language>", "<domain-tags-from-files>"],
-  "source": {
-    "git": "<repo-url-or-local-path>",
-    "ref": "<before_ref>"
-  },
-  "environment": {
-    "type": "docker",
-    "dockerfile": "./environment/Dockerfile"
-  },
-  "instruction": "./instruction.md",
-  "evaluation": {
-    "type": "script",
-    "script": "./tests/test.sh",
-    "timeout_seconds": 300
-  },
-  "metadata": {
-    "language": "<detected-language>",
-    "framework": "<detected-framework>",
-    "source_commit": "<after_ref>"
-  }
-}
-```
-
-For `source.git`:
-- If the repo has a public remote: use the HTTPS clone URL
-- If the repo is local-only (no public remote): use the absolute local path
-- Ask the user if unsure
-
-### 4a-bis: task.toml (required — Harbor config)
-
-Harbor reads `task.toml`, not `task.json`. Every task directory MUST have both files. Generate `task.toml` alongside `task.json`:
+Generate from commit metadata. nasde-specific fields go under `[nasde.*]`.
 
 ```toml
 version = "1.0"
 
-[metadata]
-name = "<slugified-commit-description>"
+[task]
+name = "<benchmark-name>/<slugified-commit-description>"    # Harbor requires org/name format
 description = "<commit message, cleaned up>"
+
+[metadata]
 difficulty = "<estimated_difficulty>"
 language = "<detected-language>"
 framework = "<detected-framework>"
 source_commit = "<after_ref>"
 
 [agent]
-timeout_sec = 1800
+timeout_sec = 1800          # Rule of thumb: estimated_time_minutes × 60
+
+[environment]
+memory_mb = 4096            # Claude Code needs 4096+, default 2048 is too low.
 
 [verifier]
-timeout_sec = 300
+timeout_sec = 300           # Timeout for tests/test.sh
+
+[nasde.source]              # Only needed when task has no environment/Dockerfile (auto-generation).
+git = "<repo-url-or-local-path>"
+ref = "<before_ref>"
 ```
 
-The `agent.timeout_sec` should be `estimated_time_minutes × 60`. The `verifier.timeout_sec` matches `evaluation.timeout_seconds` from task.json.
+For `[nasde.source] git`:
+- If the repo has a public remote: use the HTTPS clone URL
+- If the repo is local-only (no public remote): use the absolute local path
+- Ask the user if unsure
 
 ### 4b: instruction.md
 

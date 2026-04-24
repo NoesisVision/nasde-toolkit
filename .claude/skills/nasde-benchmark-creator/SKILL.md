@@ -54,64 +54,38 @@ Rules:
 
 Each task lives in `tasks/<task-name>/` and needs these files:
 
-### task.json (required — nasde config)
+### task.toml (required — single task config)
 
-```json
-{
-  "name": "<task-name>",
-  "description": "Brief description",
-  "difficulty": "intermediate",
-  "estimated_time_minutes": 30,
-  "tags": ["relevant", "tags"],
-  "source": {
-    "git": "https://github.com/org/repo.git",
-    "ref": "main"
-  },
-  "environment": {
-    "type": "docker",
-    "dockerfile": "./environment/Dockerfile"
-  },
-  "instruction": "./instruction.md",
-  "evaluation": {
-    "type": "script",
-    "script": "./tests/test.sh",
-    "timeout_seconds": 300
-  },
-  "metadata": {
-    "language": "C#",
-    "framework": ".NET 8",
-    "domain": "E-Commerce"
-  }
-}
-```
-
-### task.toml (required — Harbor config)
-
-Harbor reads `task.toml`, not `task.json`. Every task directory MUST have both files. Generate `task.toml` alongside `task.json`:
+Single config file per task, shared with Harbor. nasde-specific fields live under `[nasde.*]`.
 
 ```toml
 version = "1.0"
 
-[metadata]
-name = "<task-name>"
+[task]
+name = "<benchmark-name>/<task-name>"   # Harbor requires org/name format
 description = "Brief description"
+
+[metadata]
 difficulty = "intermediate"
 language = "C#"
 framework = ".NET 8"
+domain = "E-Commerce"
 
 [agent]
-timeout_sec = 1800          # Primary agent timeout — this is the authoritative source
+timeout_sec = 1800          # Primary agent timeout. Rule of thumb: estimated_time_minutes × 60.
 
 [environment]
 memory_mb = 4096            # Container memory limit. Claude Code needs 4096+, default 2048 is too low.
 
 [verifier]
-timeout_sec = 300
+timeout_sec = 300           # Timeout for tests/test.sh.
+
+[nasde.source]              # Only needed when task has no environment/Dockerfile (nasde auto-generates one).
+git = "https://github.com/org/repo.git"
+ref = "main"
 ```
 
-The `agent.timeout_sec` should be `estimated_time_minutes × 60`. The `verifier.timeout_sec` matches `evaluation.timeout_seconds` from task.json.
-
-**Timeout priority**: `--timeout` CLI flag > task.toml `[agent] timeout_sec` > Harbor default. Set per-task timeouts here, not in nasde.toml.
+**Timeout priority**: `--timeout` CLI flag > task.toml `[agent] timeout_sec` > Harbor default. Timeouts are per-task — there is no project-wide default in nasde.toml.
 
 ### instruction.md (required)
 

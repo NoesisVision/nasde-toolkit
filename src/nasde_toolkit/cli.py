@@ -257,14 +257,15 @@ def run(
     else:
         assert variant is not None
         resolved_variant = variant
-        from nasde_toolkit.runner import load_variant_agent_type, resolve_variant_dir
+        from nasde_toolkit.runner import _resolve_model, load_variant_agent_type, resolve_variant_dir
 
         variant_dir = resolve_variant_dir(config.project_dir, resolved_variant)
         agent_type = load_variant_agent_type(variant_dir)
+        display_model = _resolve_model(resolved_model, variant_dir, config)
 
         _print_run_header(
             variant=resolved_variant,
-            model=resolved_model,
+            model=display_model,
             timeout=resolved_timeout,
             tasks_filter=tasks_filter,
             with_opik=with_opik,
@@ -391,6 +392,7 @@ def _print_run_header(
     eval_str = "enabled" if with_eval else "[yellow]disabled[/yellow]"
     env_str = harbor_env or "docker"
     attempts_str = f"{attempts}" if attempts > 1 else "1"
+    timeout_str = f"{timeout}s (override)" if timeout is not None else "per task.toml"
     agent_labels = {"codex": "Codex (OpenAI)", "gemini": "Gemini CLI (Google)"}
     agent_label = agent_labels.get(agent_type, "Claude Code")
     console.print(
@@ -399,7 +401,7 @@ def _print_run_header(
             f"Agent: {agent_label}\n"
             f"Variant: {variant}\n"
             f"Model: {model}\n"
-            f"Timeout: {timeout}s\n"
+            f"Timeout: {timeout_str}\n"
             f"Tasks: {tasks_str}\n"
             f"Attempts: {attempts_str}\n"
             f"Environment: {env_str}\n"

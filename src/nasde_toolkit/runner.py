@@ -71,7 +71,8 @@ async def run_benchmark(
     resolved_model = _resolve_model(model, variant_dir, config)
 
     for task in config.tasks:
-        ensure_task_environment(task.path, task.source, config.docker)
+        if task.source is not None:
+            ensure_task_environment(task.path, task.source, config.docker)
 
     merged_config = _build_merged_config(
         config=config,
@@ -115,10 +116,12 @@ def _resolve_model(
     variant_dir: Path,
     config: ProjectConfig,
 ) -> str:
-    """Resolve model from CLI flag, variant.toml, or nasde.toml.
+    """Resolve model from CLI flag or variant.toml.
 
-    Priority: --model flag > variant.toml model > nasde.toml [defaults] model.
-    Raises SystemExit if no model is found at any level.
+    Priority: --model flag > variant.toml model. Every variant must
+    declare a ``model`` field; the model defines the agent's behavior
+    and cannot meaningfully default across agent families (claude,
+    codex, gemini). Raises SystemExit if no model is found.
     """
     if cli_model:
         return cli_model
@@ -128,12 +131,9 @@ def _resolve_model(
     if variant_model:
         return variant_model
 
-    if config.default_model:
-        return config.default_model
-
     console.print(
-        "[red]ERROR: No model specified. Set model via --model flag, "
-        "variant.toml 'model' field, or nasde.toml [defaults] model.[/red]"
+        f"[red]ERROR: No model specified. Set 'model' in {variant_dir / 'variant.toml'} "
+        "or pass --model on the command line.[/red]"
     )
     raise SystemExit(1)
 

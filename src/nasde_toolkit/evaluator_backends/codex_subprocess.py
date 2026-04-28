@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 from pathlib import Path
 
 from rich.console import Console
@@ -32,6 +33,7 @@ class CodexSubprocessBackend:
         project_root: Path,
         trial_dir: Path | None = None,
     ) -> str:
+        self.validate_cli_installed()
         self.validate_auth()
         cmd = self._build_command(workspace_path, eval_config)
         cmd.append("-")
@@ -50,6 +52,18 @@ class CodexSubprocessBackend:
         if has_codex_key and not has_openai_key:
             env["OPENAI_API_KEY"] = env["CODEX_API_KEY"]
         return env
+
+    def validate_cli_installed(self) -> None:
+        if shutil.which("codex") is not None:
+            return
+        console.print(
+            "[red]ERROR: `codex` CLI not found on PATH.[/red]\n"
+            "[yellow]Assessment evaluation with the Codex backend requires the Codex CLI.[/yellow]\n"
+            "Install it from https://github.com/openai/codex, then re-run. "
+            "To use a different backend, set [evaluation] backend = \"claude\" in nasde.toml, "
+            "or pass --without-eval to skip assessment evaluation."
+        )
+        raise SystemExit(1)
 
     def validate_auth(self) -> None:
         has_openai_key = bool(os.environ.get("OPENAI_API_KEY"))

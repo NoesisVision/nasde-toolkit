@@ -93,63 +93,37 @@ Unlike `nasde-benchmark-from-history` (which uses a specific commit), here you c
 
 Always pin to a specific commit hash, not a branch name — branches move, hashes don't.
 
-### 4b: task.json
-
-```json
-{
-  "name": "<language>-<repo-slug>-<task-slug>",
-  "description": "<What the agent must do>",
-  "difficulty": "<easy|intermediate|hard>",
-  "estimated_time_minutes": 30,
-  "tags": ["<language>", "<skill-type>", "<project-size>"],
-  "source": {
-    "git": "https://github.com/<owner>/<repo>.git",
-    "ref": "<pinned-commit-hash>"
-  },
-  "environment": {
-    "type": "docker",
-    "dockerfile": "./environment/Dockerfile"
-  },
-  "instruction": "./instruction.md",
-  "evaluation": {
-    "type": "script",
-    "script": "./tests/test.sh",
-    "timeout_seconds": 300
-  },
-  "metadata": {
-    "language": "<language>",
-    "framework": "<framework>",
-    "source_repo": "https://github.com/<owner>/<repo>",
-    "diversity_axes": ["<axis:value>", "<axis:value>"]
-  }
-}
-```
-
-The `diversity_axes` metadata helps track coverage across the matrix.
-
-### 4b-bis: task.toml (required — Harbor config)
-
-Harbor reads `task.toml`, not `task.json`. Every task directory MUST have both files. Generate `task.toml` alongside `task.json`:
+### 4b: task.toml (single task config, shared with Harbor)
 
 ```toml
 version = "1.0"
 
-[metadata]
-name = "<language>-<repo-slug>-<task-slug>"
+[task]
+name = "<benchmark-name>/<language>-<repo-slug>-<task-slug>"   # Harbor requires org/name format
 description = "<What the agent must do>"
+
+[metadata]
 difficulty = "<easy|intermediate|hard>"
 language = "<language>"
 framework = "<framework>"
 source_repo = "https://github.com/<owner>/<repo>"
+diversity_axes = ["<axis:value>", "<axis:value>"]
 
 [agent]
-timeout_sec = 1800
+timeout_sec = 1800          # Rule of thumb: estimated_time_minutes × 60
+
+[environment]
+memory_mb = 4096            # Claude Code needs 4096+, default 2048 is too low.
 
 [verifier]
 timeout_sec = 300
+
+[nasde.source]              # Only needed when task has no environment/Dockerfile (auto-generation).
+git = "https://github.com/<owner>/<repo>.git"
+ref = "<pinned-commit-hash>"
 ```
 
-The `agent.timeout_sec` should be `estimated_time_minutes × 60`. The `verifier.timeout_sec` matches `evaluation.timeout_seconds` from task.json.
+The `[metadata] diversity_axes` helps track coverage across the matrix. Always pin `[nasde.source] ref` to a specific commit hash, not a branch name.
 
 ### 4c: instruction.md
 

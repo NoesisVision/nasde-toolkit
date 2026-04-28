@@ -1,12 +1,13 @@
 """Configuration parsing for nasde projects.
 
-Reads nasde.toml and task.json files to build a unified configuration
-for benchmark runs.
+Reads nasde.toml and task.toml files to build a unified configuration
+for benchmark runs. The [nasde.source] section in task.toml is the
+only nasde-specific addition on top of Harbor's standard task.toml
+schema — used to auto-generate a Dockerfile when one is not provided.
 """
 
 from __future__ import annotations
 
-import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,7 +15,7 @@ from pathlib import Path
 
 @dataclass
 class SourceConfig:
-    """Git source for a task's codebase."""
+    """Git source for a task's codebase — used to auto-generate a Dockerfile."""
 
     git: str
     ref: str
@@ -53,15 +54,16 @@ class ReportingConfig:
 
 @dataclass
 class TaskConfig:
-    """Configuration for a single benchmark task."""
+    """Configuration for a single benchmark task.
+
+    Source is optional — required only when the task has no
+    environment/Dockerfile and nasde must auto-generate one.
+    """
 
     name: str
     path: Path
-    source: SourceConfig
-    instruction: str = "./instruction.md"
+    source: SourceConfig | None = None
     docker: DockerConfig = field(default_factory=DockerConfig)
-    evaluation_script: str = "./tests/test.sh"
-    evaluation_timeout: int = 300
 
 
 @dataclass
@@ -72,8 +74,6 @@ class ProjectConfig:
     version: str = "1.0.0"
     project_dir: Path = field(default_factory=lambda: Path.cwd())
     default_variant: str = "vanilla"
-    default_model: str | None = None
-    default_timeout_sec: int = 720
     default_harbor_env: str | None = None
     docker: DockerConfig = field(default_factory=DockerConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
@@ -82,7 +82,7 @@ class ProjectConfig:
 
 
 def load_project_config(project_dir: Path | None = None) -> ProjectConfig:
-    """Load and merge nasde.toml with task.json files."""
+    """Load nasde.toml and discover task.toml files."""
     project_dir = _find_project_dir(project_dir)
     toml_path = project_dir / "nasde.toml"
 
@@ -118,8 +118,6 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
         version=project.get("version", "1.0.0"),
         project_dir=project_dir,
         default_variant=defaults.get("variant", "vanilla"),
-        default_model=defaults.get("model"),
-        default_timeout_sec=defaults.get("timeout_sec", 720),
         default_harbor_env=defaults.get("harbor_env"),
         docker=DockerConfig(
             base_image=docker_raw.get("base_image", "ubuntu:22.04"),
@@ -144,17 +142,17 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
 
 
 def _discover_tasks(project_dir: Path, default_docker: DockerConfig) -> list[TaskConfig]:
-    """Find all task directories and load their task.json."""
+    """Find all task directories and load their task.toml."""
     tasks_dir = _resolve_tasks_dir(project_dir)
     if not tasks_dir.exists():
         return []
 
     tasks = []
     for task_path in sorted(tasks_dir.iterdir()):
-        task_json_path = task_path / "task.json"
-        if not task_json_path.exists():
+        task_toml_path = task_path / "task.toml"
+        if not task_toml_path.exists():
             continue
-        task = _load_task(task_path, task_json_path, default_docker)
+        task = _load_task(task_path, task_toml_path, default_docker)
         tasks.append(task)
 
     return tasks
@@ -170,28 +168,39 @@ def _resolve_tasks_dir(project_dir: Path) -> Path:
 
 def _load_task(
     task_path: Path,
-    task_json_path: Path,
+    task_toml_path: Path,
     default_docker: DockerConfig,
 ) -> TaskConfig:
-    with open(task_json_path) as f:
-        raw = json.load(f)
+    with open(task_toml_path, "rb") as f:
+        raw = tomllib.load(f)
 
-    source_raw = raw.get("source", {})
-    docker_raw = raw.get("docker", {})
-    eval_raw = raw.get("evaluation", {})
+    nasde_raw = raw.get("nasde", {})
+    source_raw = nasde_raw.get("source", {})
+    docker_raw = nasde_raw.get("docker", {})
+
+    source: SourceConfig | None = None
+    if source_raw.get("git"):
+        source = SourceConfig(
+            git=source_raw["git"],
+            ref=source_raw.get("ref", "HEAD"),
+        )
+
+    task_section = raw.get("task", {})
+    name = _resolve_task_name(task_section.get("name"), task_path)
 
     return TaskConfig(
-        name=raw.get("name", task_path.name),
+        name=name,
         path=task_path,
-        source=SourceConfig(
-            git=source_raw.get("git", ""),
-            ref=source_raw.get("ref", "HEAD"),
-        ),
-        instruction=raw.get("instruction", "./instruction.md"),
+        source=source,
         docker=DockerConfig(
             base_image=docker_raw.get("base_image", default_docker.base_image),
             build_commands=docker_raw.get("build_commands", default_docker.build_commands),
         ),
-        evaluation_script=eval_raw.get("script", "./tests/test.sh"),
-        evaluation_timeout=eval_raw.get("timeout_seconds", 300),
     )
+
+
+def _resolve_task_name(raw_name: str | None, task_path: Path) -> str:
+    """Strip Harbor's 'org/' prefix from task name; fall back to directory name."""
+    if not raw_name:
+        return task_path.name
+    return raw_name.split("/", 1)[-1]

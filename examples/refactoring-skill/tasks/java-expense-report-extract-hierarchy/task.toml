@@ -4,7 +4,11 @@ version = "1.0"
 language = "Java"
 framework = "JUnit"
 source_repo = "https://github.com/christianhujer/expensereport"
-diversity_axes = ["language:java", "size:small", "technique:extract-class"]
+diversity_axes = [
+    "language:java",
+    "size:small",
+    "technique:extract-class",
+]
 name = "java-expense-report-extract-hierarchy"
 description = "Extract expense type hierarchy and separate formatting from calculation in a procedural expense report"
 difficulty = "intermediate"
@@ -17,3 +21,7 @@ memory_mb = 4096
 
 [verifier]
 timeout_sec = 300
+
+[nasde.source]
+git = "https://github.com/christianhujer/expensereport.git"
+ref = "trunk"

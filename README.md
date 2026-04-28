@@ -453,35 +453,36 @@ my-benchmark/
   assessment_dimensions.json   # Scoring dimensions (shared across tasks)
   tasks/
     feature-a/
-      task.json                # Task source + evaluation config
+      task.toml                # Task config (Harbor sections + [nasde.source])
       instruction.md           # Agent prompt
       assessment_criteria.md   # Per-task criteria for post-hoc evaluator
+      environment/             # Optional: custom Dockerfile (else auto-generated from [nasde.source])
       tests/
         test.sh                # Harbor verification script
   variants/
     vanilla/                   # Claude Code variant
-      variant.toml             # agent = "claude"
+      variant.toml             # agent = "claude", model = "claude-sonnet-4-6"
       CLAUDE.md                # Agent system prompt (injected to /app/CLAUDE.md)
     guided/                    # Claude Code variant with skills
-      variant.toml             # agent = "claude"
+      variant.toml
       CLAUDE.md
       skills/                  # Claude skills (injected to /app/.claude/skills/)
         my-skill/
           SKILL.md
     codex-baseline/            # Codex variant
-      variant.toml             # agent = "codex"
+      variant.toml             # agent = "codex", model = "gpt-5.3-codex"
       AGENTS.md                # Codex instructions (injected to /app/AGENTS.md)
     codex-with-skills/         # Codex variant with skills
-      variant.toml             # agent = "codex"
+      variant.toml
       AGENTS.md
       agents_skills/           # Codex skills (injected to /app/.agents/skills/)
         my-skill/
           SKILL.md             # Requires YAML frontmatter (name + description)
     gemini-baseline/           # Gemini CLI variant
-      variant.toml             # agent = "gemini"
+      variant.toml             # agent = "gemini", model = "google/gemini-3-flash-preview"
       GEMINI.md                # Gemini instructions (injected to /app/GEMINI.md)
     gemini-with-skills/        # Gemini CLI variant with skills
-      variant.toml             # agent = "gemini"
+      variant.toml
       GEMINI.md
       gemini_skills/           # Gemini skills (injected to /app/.gemini/skills/)
         my-skill/
@@ -493,10 +494,11 @@ my-benchmark/
   jobs/                        # Trial output (gitignored)
 ```
 
-Each variant must have a `variant.toml` declaring the agent type:
+Each variant must have a `variant.toml` declaring the agent type **and** the model:
 
 ```toml
-agent = "claude"   # or "codex" or "gemini"
+agent = "claude"                   # "claude" | "codex" | "gemini"
+model = "claude-sonnet-4-6"        # model appropriate for the agent family
 ```
 
 ### `nasde.toml`
@@ -508,9 +510,7 @@ version = "1.0.0"
 
 [defaults]
 variant = "vanilla"
-model = "claude-sonnet-4-6"
-timeout_sec = 720
-# harbor_env = "daytona"  # Optional: cloud sandbox provider
+# harbor_env = "daytona"  # Optional: cloud sandbox provider (default: docker)
 
 [docker]
 base_image = "ubuntu:22.04"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from textwrap import dedent
 from unittest.mock import patch
 
 import pytest
@@ -29,12 +30,18 @@ from nasde_toolkit.runner import (
 def tmp_project(tmp_path: Path) -> ProjectConfig:
     task_dir = tmp_path / "tasks" / "sample-task"
     task_dir.mkdir(parents=True)
-    (task_dir / "task.json").write_text(
-        json.dumps(
-            {
-                "name": "sample-task",
-                "source": {"git": "https://example.com/repo.git", "ref": "main"},
-            }
+    (task_dir / "task.toml").write_text(
+        dedent(
+            """\
+            version = "1.0"
+
+            [task]
+            name = "nasde/sample-task"
+
+            [nasde.source]
+            git = "https://example.com/repo.git"
+            ref = "main"
+            """
         )
     )
 

@@ -4,20 +4,14 @@ version = "1.0.0"
 
 [defaults]
 variant = "claude-vanilla"
-model = "claude-sonnet-4-6"
-timeout_sec = 1800
 
 [docker]
 base_image = "python:3.12-slim"
-# TEMPORARY WORKAROUND: litellm is quarantined on PyPI (March 2026 supply chain attack —
-# versions 1.82.7-1.82.8 contained infostealer malware). PyPI blocked ALL versions pending
-# review. We install a safe version (v1.82.3) from GitHub as a uv override.
-# Remove override lines once litellm is restored on PyPI.
 build_commands = [
-  "pip install uv",
-  "echo 'litellm @ https://github.com/BerriAI/litellm/archive/refs/tags/v1.82.3.tar.gz' > /tmp/litellm-override.txt",
-  "uv tool install . --override /tmp/litellm-override.txt",
-  "nasde --version",
+    "pip install uv",
+    "echo 'litellm @ https://github.com/BerriAI/litellm/archive/refs/tags/v1.82.3.tar.gz' > /tmp/litellm-override.txt",
+    "uv tool install . --override /tmp/litellm-override.txt",
+    "nasde --version",
 ]
 
 [evaluation]

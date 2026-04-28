@@ -212,7 +212,7 @@ wait
 nasde run --variant baseline --model claude-opus-4-7 --timeout 1200 -C path/to/benchmark
 ```
 
-**Timeout priority**: `--timeout` flag overrides everything. Without it, Harbor uses `task.toml [agent] timeout_sec` per task. The `nasde.toml [defaults] timeout_sec` is NOT used as agent override — set timeouts in task.toml for per-task control.
+**Timeout priority**: `--timeout` flag overrides everything. Without it, Harbor uses `task.toml [agent] timeout_sec` per task. Timeouts are per-task only — there is no project-wide default in nasde.toml.
 
 ### Re-evaluate existing results
 
@@ -236,7 +236,7 @@ When using `CLAUDE_CODE_OAUTH_TOKEN` (Claude subscription — no per-token cost)
 - **API key** (`GEMINI_API_KEY`): billed per-token through Google AI Studio. Ask before running.
 - **Vertex AI** (`GOOGLE_API_KEY`): billed through Google Cloud. Ask before running.
 
-Task estimated times are in `task.json` → `estimated_time_minutes`. When `--tasks` filters are used, count only selected tasks.
+Task estimated times are derived from `task.toml [agent] timeout_sec` (timeout_sec / 60 is a rough upper bound; agents typically finish faster). When `--tasks` filters are used, count only selected tasks.
 
 ## Viewing results
 

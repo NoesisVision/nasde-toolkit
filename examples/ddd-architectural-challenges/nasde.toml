@@ -4,8 +4,6 @@ version = "1.0.0"
 
 [defaults]
 variant = "claude-vanilla"
-model = "claude-sonnet-4-6"
-timeout_sec = 720
 
 [docker]
 base_image = "ubuntu:22.04"

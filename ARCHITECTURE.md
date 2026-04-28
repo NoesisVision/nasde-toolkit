@@ -365,7 +365,7 @@ jobs/2026-03-12__14-30-00/
 ```
 src/nasde_toolkit/
   cli.py                   # Typer CLI (init, run, eval + harbor/opik pass-through)
-  config.py                # nasde.toml + task.json parsing into dataclasses
+  config.py                # nasde.toml + task.toml parsing into dataclasses
   runner.py                # Harbor Python API — variant resolution, config merging, Job execution
   evaluator.py             # Post-hoc assessment — builds the prompt, delegates to a pluggable subprocess backend
   evaluator_backends/

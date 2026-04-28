@@ -62,7 +62,7 @@ email can get lost in spam, and GitHub notifications occasionally slip past.
 Issues in **nasde-toolkit itself**, including:
 
 - **CLI handling** — argument parsing, subprocess invocation, command
-  injection via task / variant config files (`nasde.toml`, `task.json`,
+  injection via task / variant config files (`nasde.toml`, `task.toml`,
   `variant.toml`, `harbor_config.json`, `claude_config.json`).
 - **Sandbox file injection** — the `sandbox_files` mapping in the
   Configurable{Claude,Codex,Gemini} agents and the way skills / MCP configs
@@ -75,7 +75,7 @@ Issues in **nasde-toolkit itself**, including:
   trajectory files), and any path traversal or deserialization risk in
   processing them.
 - **Auto-generated Dockerfile / docker-compose** — anything in
-  `docker.py:ensure_task_environment()` that could let a crafted `task.json`
+  `docker.py:ensure_task_environment()` that could let a crafted `task.toml`
   escape the intended build context.
 - **Reporting integrations** — Opik upload path, Harbor-span patching,
   anything that could leak secrets into external systems.
@@ -90,7 +90,7 @@ Issues in **nasde-toolkit itself**, including:
   Anthropic / OpenAI / Google respectively.
 - **Issues that require an attacker to already have `nasde` running
   arbitrary local code.** nasde-toolkit runs trusted benchmark definitions
-  on the user's own machine; a malicious `task.json` from an untrusted
+  on the user's own machine; a malicious `task.toml` from an untrusted
   source is out of scope *unless* it can escape the agent sandbox or
   exfiltrate credentials beyond what running the CLI itself would allow.
 - **Denial-of-service** against a user's own workstation (a task that

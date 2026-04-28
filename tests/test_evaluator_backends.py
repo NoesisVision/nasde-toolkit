@@ -28,6 +28,26 @@ def test_create_backend_raises_on_unknown() -> None:
         create_backend(config)
 
 
+def test_claude_backend_validate_cli_installed_succeeds_when_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("nasde_toolkit.evaluator_backends.claude_subprocess.shutil.which", lambda _: "/usr/local/bin/claude")
+    backend = ClaudeSubprocessBackend()
+    backend.validate_cli_installed()
+
+
+def test_claude_backend_validate_cli_installed_fails_with_install_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("nasde_toolkit.evaluator_backends.claude_subprocess.shutil.which", lambda _: None)
+    backend = ClaudeSubprocessBackend()
+    with pytest.raises(SystemExit):
+        backend.validate_cli_installed()
+    captured = capsys.readouterr()
+    assert "claude" in captured.out.lower()
+    assert "cli not found" in captured.out.lower()
+    assert "install" in captured.out.lower()
+
+
 def test_claude_backend_validate_auth_succeeds_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
     monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
@@ -150,6 +170,26 @@ def test_claude_backend_no_skills_returns_no_temp_dir(tmp_path: Path) -> None:
         trial_dir=None,
     )
     assert temp_dir is None
+
+
+def test_codex_backend_validate_cli_installed_succeeds_when_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("nasde_toolkit.evaluator_backends.codex_subprocess.shutil.which", lambda _: "/usr/local/bin/codex")
+    backend = CodexSubprocessBackend()
+    backend.validate_cli_installed()
+
+
+def test_codex_backend_validate_cli_installed_fails_with_install_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("nasde_toolkit.evaluator_backends.codex_subprocess.shutil.which", lambda _: None)
+    backend = CodexSubprocessBackend()
+    with pytest.raises(SystemExit):
+        backend.validate_cli_installed()
+    captured = capsys.readouterr()
+    assert "codex" in captured.out.lower()
+    assert "cli not found" in captured.out.lower()
+    assert "install" in captured.out.lower()
 
 
 def test_codex_backend_validate_auth_succeeds_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:

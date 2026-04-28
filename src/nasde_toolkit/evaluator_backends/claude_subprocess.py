@@ -37,6 +37,7 @@ class ClaudeSubprocessBackend:
         project_root: Path,
         trial_dir: Path | None = None,
     ) -> str:
+        self.validate_cli_installed()
         self.validate_auth()
         cmd, temp_dir = self._build_command_with_skills(workspace_path, eval_config, project_root, trial_dir)
         env = self._build_env()
@@ -46,6 +47,18 @@ class ClaudeSubprocessBackend:
         finally:
             if temp_dir:
                 shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def validate_cli_installed(self) -> None:
+        if shutil.which("claude") is not None:
+            return
+        console.print(
+            "[red]ERROR: `claude` CLI not found on PATH.[/red]\n"
+            "[yellow]Assessment evaluation with the Claude backend requires the Claude Code CLI.[/yellow]\n"
+            "Install it from https://docs.claude.com/en/docs/claude-code/setup, "
+            "then re-run. To use a different backend, set [evaluation] backend = \"codex\" "
+            "in nasde.toml, or pass --without-eval to skip assessment evaluation."
+        )
+        raise SystemExit(1)
 
     def validate_auth(self) -> None:
         has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))

@@ -1,5 +1,9 @@
 version = "1.0"
 
+[task]
+name = "ddd-architectural-challenges/ddd-weather-discount"
+description = "Implement a weather-based discount feature in a complex DDD e-commerce system using external API"
+
 [metadata]
 name = "ddd-weather-discount"
 description = "Implement a weather-based discount feature in a complex DDD e-commerce system using external API"

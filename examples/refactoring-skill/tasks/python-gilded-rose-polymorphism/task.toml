@@ -1,5 +1,9 @@
 version = "1.0"
 
+[task]
+name = "refactoring-skill/python-gilded-rose-polymorphism"
+description = "Replace nested conditionals with polymorphism in the Gilded Rose kata and add Conjured items support"
+
 [metadata]
 language = "Python"
 framework = "pytest"

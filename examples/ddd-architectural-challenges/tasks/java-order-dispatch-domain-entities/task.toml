@@ -1,5 +1,9 @@
 version = "1.0"
 
+[task]
+name = "ddd-architectural-challenges/java-order-dispatch-domain-entities"
+description = "Move order dispatch logic from service layer into domain entities in a refactoring kata"
+
 [metadata]
 language = "Java"
 framework = "plain Java"

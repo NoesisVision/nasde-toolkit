@@ -1,5 +1,9 @@
 version = "1.0"
 
+[task]
+name = "ddd-architectural-challenges/ddd-threshold-discount"
+description = "Implement a threshold-based discount type in a complex DDD e-commerce system by extending an existing discriminated union"
+
 [metadata]
 name = "ddd-threshold-discount"
 description = "Implement a threshold-based discount type in a complex DDD e-commerce system by extending an existing discriminated union"

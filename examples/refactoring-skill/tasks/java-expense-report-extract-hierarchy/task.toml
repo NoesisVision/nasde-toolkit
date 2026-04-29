@@ -1,5 +1,9 @@
 version = "1.0"
 
+[task]
+name = "refactoring-skill/java-expense-report-extract-hierarchy"
+description = "Extract expense type hierarchy and separate formatting from calculation in a procedural expense report"
+
 [metadata]
 language = "Java"
 framework = "JUnit"

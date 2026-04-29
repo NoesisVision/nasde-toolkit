@@ -1,5 +1,9 @@
 version = "1.0"
 
+[task]
+name = "nasde-dev-skill/add-multi-attempt-support"
+description = "Add --attempts/-n flag for multiple independent trial attempts per task"
+
 [metadata]
 name = "add-multi-attempt-support"
 description = "Add --attempts/-n flag for multiple independent trial attempts per task"

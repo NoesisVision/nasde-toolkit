@@ -1,5 +1,9 @@
 version = "1.0"
 
+[task]
+name = "refactoring-skill/python-theatrical-players-extract-method"
+description = "Extract Method and Replace Conditional with Polymorphism on a statement rendering function"
+
 [metadata]
 language = "Python"
 framework = "pytest"

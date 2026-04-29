@@ -60,7 +60,7 @@ class CodexSubprocessBackend:
             "[red]ERROR: `codex` CLI not found on PATH.[/red]\n"
             "[yellow]Assessment evaluation with the Codex backend requires the Codex CLI.[/yellow]\n"
             "Install it from https://github.com/openai/codex, then re-run. "
-            "To use a different backend, set [evaluation] backend = \"claude\" in nasde.toml, "
+            'To use a different backend, set [evaluation] backend = "claude" in nasde.toml, '
             "or pass --without-eval to skip assessment evaluation."
         )
         raise SystemExit(1)

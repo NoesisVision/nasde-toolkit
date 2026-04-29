@@ -29,7 +29,8 @@ def test_create_backend_raises_on_unknown() -> None:
 
 
 def test_claude_backend_validate_cli_installed_succeeds_when_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("nasde_toolkit.evaluator_backends.claude_subprocess.shutil.which", lambda _: "/usr/local/bin/claude")
+    target = "nasde_toolkit.evaluator_backends.claude_subprocess.shutil.which"
+    monkeypatch.setattr(target, lambda _: "/usr/local/bin/claude")
     backend = ClaudeSubprocessBackend()
     backend.validate_cli_installed()
 
@@ -173,7 +174,8 @@ def test_claude_backend_no_skills_returns_no_temp_dir(tmp_path: Path) -> None:
 
 
 def test_codex_backend_validate_cli_installed_succeeds_when_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("nasde_toolkit.evaluator_backends.codex_subprocess.shutil.which", lambda _: "/usr/local/bin/codex")
+    target = "nasde_toolkit.evaluator_backends.codex_subprocess.shutil.which"
+    monkeypatch.setattr(target, lambda _: "/usr/local/bin/codex")
     backend = CodexSubprocessBackend()
     backend.validate_cli_installed()
 

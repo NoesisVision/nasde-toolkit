@@ -47,6 +47,9 @@ def test_claude_backend_validate_cli_installed_fails_with_install_hint(
     assert "claude" in captured.out.lower()
     assert "cli not found" in captured.out.lower()
     assert "install" in captured.out.lower()
+    assert "[evaluation]" in captured.out
+    assert "nasde.toml" in captured.out
+    assert "--without-eval" in captured.out
 
 
 def test_claude_backend_validate_auth_succeeds_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -192,6 +195,9 @@ def test_codex_backend_validate_cli_installed_fails_with_install_hint(
     assert "codex" in captured.out.lower()
     assert "cli not found" in captured.out.lower()
     assert "install" in captured.out.lower()
+    assert "[evaluation]" in captured.out
+    assert "nasde.toml" in captured.out
+    assert "--without-eval" in captured.out
 
 
 def test_codex_backend_validate_auth_succeeds_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:

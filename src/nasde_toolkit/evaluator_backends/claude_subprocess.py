@@ -55,7 +55,7 @@ class ClaudeSubprocessBackend:
             "[red]ERROR: `claude` CLI not found on PATH.[/red]\n"
             "[yellow]Assessment evaluation with the Claude backend requires the Claude Code CLI.[/yellow]\n"
             "Install it from https://docs.claude.com/en/docs/claude-code/setup, "
-            'then re-run. To use a different backend, set [evaluation] backend = "codex" '
+            'then re-run. To use a different backend, set \\[evaluation] backend = "codex" '
             "in nasde.toml, or pass --without-eval to skip assessment evaluation."
         )
         raise SystemExit(1)

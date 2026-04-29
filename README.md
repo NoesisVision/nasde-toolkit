@@ -19,7 +19,7 @@
 One `nasde run` command executes the whole chain.
 
 1. **You describe a task you already understand.** An instruction, a repo snapshot, and the assessment criteria describing what a good solution looks like. The output can be anything the agent writes into its workspace — code, a migration plan, an ADR, a SQL script, updated docs.
-2. **The agent solves it in a sandbox.** The agent works in a safe, isolated environment — it can't touch your machine or your real code. Every run starts from the same clean state, so different configurations get a fair comparison. When it's done, a quick `test.sh` check gives a rough pass/fail signal. Powered by [Harbor](https://github.com/cased/harbor), runs locally on Docker or in the cloud.
+2. **The agent solves it in a sandbox.** The agent works in a safe, isolated environment — it can't touch your machine or your real code. Every run starts from the same clean state, so different configurations get a fair comparison. When it's done, a quick `test.sh` check gives a rough pass/fail signal. Powered by [Harbor](https://www.harborframework.com/), runs locally on Docker or in the cloud.
 3. **A reviewer agent assesses the result against your criteria.** After initial rough tests pass or fail, a second coding agent (`claude` or `codex`) navigates the workspace and scores your chosen dimensions (e.g. *domain modeling*, *test quality*) on whatever scale you picked. The review stays token-efficient even on large codebases.
 4. **Results land in a dashboard (optional).** Browse scores, compare variants, and track how your agent setup evolves over time — optionally via [Opik](https://www.comet.com/site/products/opik/).
 
@@ -85,7 +85,7 @@ This is the question that trips most people up, so it's worth being explicit. Th
 
 ### 1. Initial rough tests — deterministic pass/fail (reward 0 or 1)
 
-This is the standard verifier pattern used by [Harbor](https://github.com/cased/harbor) and other coding-agent benchmarks — every task has a `tests/test.sh` script. After the agent finishes, the script runs inside the container and either passes (reward = 1) or fails (reward = 0). There's nothing AI about this step — it's just a shell script. What "passing" means is entirely up to you:
+This is the standard verifier pattern used by [Harbor](https://www.harborframework.com/) and other coding-agent benchmarks — every task has a `tests/test.sh` script. After the agent finishes, the script runs inside the container and either passes (reward = 1) or fails (reward = 0). There's nothing AI about this step — it's just a shell script. What "passing" means is entirely up to you:
 
 - For a bug-fix task: *"the regression test that was failing now passes"*
 - For a refactor: *"the existing test suite still passes — no behavior change"*
@@ -124,7 +124,7 @@ flowchart LR
     style E fill:#c0392b,color:#fff
 ```
 
-Stage 1 (the agent does the work in a sandbox) comes from [Harbor](https://github.com/cased/harbor). The optional experiment-tracking stage at the end uses [Opik](https://github.com/comet-ml/opik). NASDE is the glue that connects them and adds the reviewer stage in between — plus the CLI, the benchmark project layout, and the authoring skills (see below).
+Stage 1 (the agent does the work in a sandbox) comes from [Harbor](https://www.harborframework.com/). The optional experiment-tracking stage at the end uses [Opik](https://github.com/comet-ml/opik). NASDE is the glue that connects them and adds the reviewer stage in between — plus the CLI, the benchmark project layout, and the authoring skills (see below).
 
 ## What a real task looks like
 

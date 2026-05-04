@@ -31,29 +31,30 @@ project_name = "{name}"
 
 ASSESSMENT_DIMENSIONS_TEMPLATE = """\
 {
+  "_comment": "Independent per-dimension max_score. See docs/adr/008.",
   "dimensions": [
     {
       "name": "domain_modeling",
       "title": "Domain Modeling",
-      "max_score": 25,
+      "max_score": 20,
       "description": "Correct use of DDD building blocks or simpler patterns as appropriate for domain complexity"
     },
     {
       "name": "architecture_compliance",
       "title": "Architecture Compliance",
-      "max_score": 25,
+      "max_score": 10,
       "description": "Respecting layer boundaries, project conventions, separation of concerns"
     },
     {
       "name": "extensibility",
       "title": "Extensibility",
-      "max_score": 25,
+      "max_score": 5,
       "description": "OCP, Strategy/Policy patterns, ease of adding similar features"
     },
     {
       "name": "test_quality",
       "title": "Test Quality",
-      "max_score": 25,
+      "max_score": 15,
       "description": "Coverage, isolation from externals, edge cases, test conventions"
     }
   ]

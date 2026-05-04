@@ -110,7 +110,7 @@ A benchmark project managed by `nasde` has this layout:
 ```
 my-benchmark/
   nasde.toml                # Project config (name, defaults, docker, evaluation, reporting)
-  assessment_dimensions.json    # Scoring dimensions (benchmark-wide, 3-5 dimensions, sum to 100)
+  assessment_dimensions.json    # Scoring dimensions (benchmark-wide, each with independent max_score)
   tasks/
     <task-name>/
       task.toml                 # Task config: Harbor sections + [nasde.source] for auto-Dockerfile
@@ -184,14 +184,14 @@ project_name = "my-benchmark"
     {
       "name": "snake_case_name",
       "title": "Human-Readable Title",
-      "max_score": 25,
-      "description": "What this dimension measures"
+      "max_score": 10,
+      "description": "What this dimension measures (max_score can be any positive integer — pick what fits the granularity)"
     }
   ]
 }
 ```
 
-Dimensions are benchmark-specific. Total scores should sum to 100. Typically 3-5 dimensions.
+Dimensions are benchmark-specific. Each dimension declares its own `max_score` (any positive integer) — there is no requirement that scores sum to a particular total or that you use a particular dimension count. Pick the scale per dimension that matches the granularity you can actually distinguish; `normalized_score` is computed from the actual sum of `max_score` values. See [ADR-008](docs/adr/008-independent-dimension-scales.md).
 
 ### task.toml
 

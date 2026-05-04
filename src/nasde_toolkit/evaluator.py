@@ -33,7 +33,7 @@ class DimensionScore:
 
     name: str
     score: int
-    max_score: int = 25
+    max_score: int
     reasoning: str = ""
 
 
@@ -229,7 +229,8 @@ async def evaluate_trial(
     evaluation.evaluator_model = eval_config.model
     evaluation.timestamp = datetime.now(UTC).isoformat()
 
-    console.print(f"  Score: {evaluation.total_score}/100 ({evaluation.normalized_score:.2f})")
+    total_max = sum(dim.max_score for dim in evaluation.dimensions)
+    console.print(f"  Score: {evaluation.total_score}/{total_max} ({evaluation.normalized_score:.2f})")
     for dim in evaluation.dimensions:
         console.print(f"    {dim.name}: {dim.score}/{dim.max_score}")
 
@@ -265,7 +266,26 @@ def _load_expected_dimensions(dimensions_path: Path) -> list[dict] | None:
         return None
     data = _load_json(dimensions_path)
     dims: list[dict] | None = data.get("dimensions", [])
+    _validate_expected_dimensions(dims, dimensions_path)
     return dims
+
+
+def _validate_expected_dimensions(dims: list[dict] | None, source: Path) -> None:
+    if not dims:
+        return
+    for index, dim in enumerate(dims):
+        name = dim.get("name") or f"<dimension #{index}>"
+        if "max_score" not in dim:
+            raise ValueError(
+                f"{source}: dimension '{name}' is missing required field 'max_score'. "
+                "Each dimension must declare its own scale (any positive integer)."
+            )
+        max_score = dim["max_score"]
+        if not isinstance(max_score, int) or max_score <= 0:
+            raise ValueError(
+                f"{source}: dimension '{name}' has invalid max_score={max_score!r}. "
+                "max_score must be a positive integer."
+            )
 
 
 def _resolve_agent_name(trial_dir: Path) -> str:
@@ -316,7 +336,10 @@ def _build_evaluator_prompt(
     trajectory_path: str | None = None,
 ) -> str:
     """Build the evaluation prompt with optional dimension constraints and ground truth."""
+    scoring_guidance = _format_scoring_guidance(expected_dimensions)
     dimension_constraint = _format_dimension_constraint(expected_dimensions)
+    output_schema = _format_output_schema(expected_dimensions)
+    dimension_count_rule = _format_dimension_count_rule(expected_dimensions)
     ground_truth_section = _format_ground_truth_section(ground_truth)
     trajectory_section = _format_trajectory_section(trajectory_path)
 
@@ -338,9 +361,12 @@ def _build_evaluator_prompt(
 
 ## Evaluation criteria
 
-Score the output on the following dimensions. Each dimension is 0–25 points.
-Follow the rubric EXACTLY — assign the score that matches the description, not higher.
+Score the output on the dimensions defined below. Each dimension has its own
+independent scale — use the exact range listed for each one, do NOT assume a
+shared scale across dimensions. Follow the rubric EXACTLY — assign the score
+that matches the description, not higher.
 
+{scoring_guidance}
 <criteria>
 {criteria}
 </criteria>
@@ -357,23 +383,21 @@ After your analysis, output a single JSON block with your evaluation.
 The JSON MUST be the last code block in your response:
 
 ```json
-{{
-  "dimensions": [
-    {{"name": "<dimension_snake_case>", "score": <0-25>, "max_score": 25,
-      "reasoning": "<1-3 sentences with specific evidence references>"}},
-    ...
-  ],
-  "total_score": <sum of all dimension scores>,
-  "normalized_score": <total_score / 100.0>,
-  "summary": "<2-3 sentence overall assessment>"
-}}
+{output_schema}
 ```
 
 IMPORTANT:
 - Be precise — reference specific files and content you found.
 - Do NOT inflate scores. If evidence is missing, score lower.
-{dimension_constraint}- Output exactly {len(expected_dimensions) if expected_dimensions else 4} dimensions.
-"""
+- Each dimension's `score` must be between 0 and that dimension's `max_score`.
+{dimension_constraint}{dimension_count_rule}"""
+
+
+def _format_scoring_guidance(expected_dimensions: list[dict] | None) -> str:
+    if not expected_dimensions:
+        return ""
+    lines = [f"- `{d['name']}`: 0–{d['max_score']} points" for d in expected_dimensions]
+    return "Score ranges per dimension:\n" + "\n".join(lines) + "\n"
 
 
 def _format_dimension_constraint(expected_dimensions: list[dict] | None) -> str:
@@ -382,6 +406,43 @@ def _format_dimension_constraint(expected_dimensions: list[dict] | None) -> str:
     names = [d["name"] for d in expected_dimensions]
     names_list = ", ".join(f"`{n}`" for n in names)
     return f"- Output EXACTLY these dimension names in this order: {names_list}.\n"
+
+
+def _format_dimension_count_rule(expected_dimensions: list[dict] | None) -> str:
+    if not expected_dimensions:
+        return ""
+    return f"- Output exactly {len(expected_dimensions)} dimensions.\n"
+
+
+def _format_output_schema(expected_dimensions: list[dict] | None) -> str:
+    if not expected_dimensions:
+        return (
+            "{\n"
+            '  "dimensions": [\n'
+            '    {"name": "<dimension_snake_case>", "score": <int>, "max_score": <int>,\n'
+            '      "reasoning": "<1-3 sentences with specific evidence references>"}\n'
+            "  ],\n"
+            '  "total_score": <sum of all dimension scores>,\n'
+            '  "normalized_score": <total_score / sum of all max_score values>,\n'
+            '  "summary": "<2-3 sentence overall assessment>"\n'
+            "}"
+        )
+    dim_lines = ",\n".join(
+        f'    {{"name": "{d["name"]}", "score": <0-{d["max_score"]}>, "max_score": {d["max_score"]},\n'
+        f'      "reasoning": "<1-3 sentences with specific evidence references>"}}'
+        for d in expected_dimensions
+    )
+    total_max = sum(d["max_score"] for d in expected_dimensions)
+    return (
+        "{\n"
+        '  "dimensions": [\n'
+        f"{dim_lines}\n"
+        "  ],\n"
+        f'  "total_score": <sum of all dimension scores, max {total_max}>,\n'
+        f'  "normalized_score": <total_score / {total_max}>,\n'
+        '  "summary": "<2-3 sentence overall assessment>"\n'
+        "}"
+    )
 
 
 def _format_ground_truth_section(ground_truth: str) -> str:
@@ -435,19 +496,14 @@ def _parse_evaluation_response(
     except json.JSONDecodeError:
         return None
 
-    dimensions = [
-        DimensionScore(
-            name=d["name"],
-            score=max(0, min(25, int(d["score"]))),
-            max_score=d.get("max_score", 25),
-            reasoning=d.get("reasoning", ""),
-        )
-        for d in data.get("dimensions", [])
-    ]
+    expected_by_name = {d["name"]: d for d in (expected_dimensions or [])}
+    dimensions = [_build_dimension_score(d, expected_by_name) for d in data.get("dimensions", [])]
 
     _validate_dimensions(dimensions, expected_dimensions)
 
     total = sum(d.score for d in dimensions)
+    total_max = sum(d.max_score for d in dimensions)
+    normalized = round(total / total_max, 4) if total_max > 0 else 0.0
 
     return EvaluationResult(
         task_name="",
@@ -457,8 +513,26 @@ def _parse_evaluation_response(
         timestamp="",
         dimensions=dimensions,
         total_score=total,
-        normalized_score=round(total / 100.0, 4),
+        normalized_score=normalized,
         summary=data.get("summary", ""),
+    )
+
+
+def _build_dimension_score(raw: dict, expected_by_name: dict[str, dict]) -> DimensionScore:
+    name = raw["name"]
+    expected = expected_by_name.get(name, {})
+    max_score = int(raw.get("max_score") or expected.get("max_score") or 0)
+    if max_score <= 0:
+        raise ValueError(
+            f"Dimension '{name}' has no usable max_score (evaluator response did not include one "
+            "and assessment_dimensions.json did not provide it either)."
+        )
+    score = max(0, min(max_score, int(raw["score"])))
+    return DimensionScore(
+        name=name,
+        score=score,
+        max_score=max_score,
+        reasoning=raw.get("reasoning", ""),
     )
 
 

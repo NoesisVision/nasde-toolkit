@@ -46,7 +46,8 @@ Examples by domain:
 - **DDD**: `domain_modeling`, `architecture_compliance`, `extensibility`, `test_quality`
 
 Rules:
-- 3-5 dimensions, scores summing to 100
+- Pick whatever number of dimensions actually captures the quality you care about — there is no required minimum or maximum.
+- Each dimension declares its own `max_score` (any positive integer). Scales are independent — a coarse pass/fail-ish dimension can be 0–3 while a richly graded one can be 0–50 in the same rubric. There is no requirement for the total to sum to 100. `normalized_score` is computed automatically from the actual sum of `max_score` values. See ADR-008.
 - Names in snake_case
 - Each dimension has: `name`, `title`, `max_score`, `description`
 
@@ -175,21 +176,25 @@ Per-task rubric. Structure:
 ```markdown
 # Assessment Criteria: <Task Name>
 
-Evaluate across N dimensions. Each dimension is scored 0–<max_score> points.
+Evaluate across N dimensions. Each dimension uses its own scale (0–`max_score`),
+defined in `assessment_dimensions.json`. The ladder below shows what each score
+means for one specific dimension — repeat for each dimension.
 
 ## 1. <Dimension Name> (0–<max_score>)
 
 | Score | Criteria |
 |-------|----------|
-| 0     | <worst case> |
-| 12    | <middle case> |
-| 25    | <best case> |
+| 0           | <worst case> |
+| <middle>    | <middle case> |
+| <max_score> | <best case> |
 
 **Key checks:**
 - Specific things to look for
 ```
 
-Scores should have at least 5 levels for granularity.
+Pick a `max_score` that matches the granularity you can actually distinguish.
+A coarse pass/fail-ish dimension might be 0–3; a richly graded one might be 0–50.
+Choose the resolution per dimension, independently.
 
 ### solution/solve.sh (optional)
 

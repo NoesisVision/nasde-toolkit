@@ -9,6 +9,44 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-05
+
+### Changed
+- **Breaking: per-task config consolidated into a single `task.toml`.** The
+  previous split between `task.json` (nasde-only) and `task.toml` (Harbor) is
+  gone — Harbor sections (`[task]`, `[agent]`, `[environment]`, `[verifier]`,
+  `[metadata]`) and nasde-specific fields (`[nasde.source]`) now live side by
+  side in one file. All bundled examples migrated. ([#29])
+- **Breaking: `model` is now required in every `variant.toml`.** There is no
+  project-level model default in `nasde.toml` anymore — different agent
+  families need different models, so each variant declares its own. Missing
+  model fails fast with a clear error. CLI `--model` still overrides. ([#29])
+
+### Added
+- **Independent per-dimension scoring scales (ADR-008).** Each dimension in
+  `assessment_dimensions.json` declares its own `max_score` (any positive
+  integer). `normalized_score` is computed from the actual sum of per-dimension
+  maxima — pick the granularity that matches what you can distinguish, instead
+  of forcing every benchmark into a fixed total. ([#34])
+
+### Fixed
+- Evaluator now prints a clear, actionable error when the underlying `claude`
+  or `codex` CLI is missing, instead of failing with a confusing subprocess
+  trace. ([#30])
+- The "missing CLI" hint now prints `[evaluation]` correctly instead of
+  hiding it as Rich markup.
+
+### Security
+- Pin `litellm>=1.83.7` to address [GHSA-xqmj-j6mv-4862][gh-litellm-2026-04]. ([#31])
+
+### Docs
+- README: clarified how NASDE is meant to be used end-to-end.
+- README: Harbor links now point at `harborframework.com` instead of the GitHub
+  repo, matching Harbor's primary site.
+
+### Internal
+- `CODEOWNERS` added so PRs auto-request review from the right people.
+
 ## [0.2.1] — 2026-04-22
 
 ### Changed
@@ -136,7 +174,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.1.0...v0.1.1
@@ -146,3 +185,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#24]: https://github.com/NoesisVision/nasde-toolkit/pull/24
 [#25]: https://github.com/NoesisVision/nasde-toolkit/pull/25
 [#26]: https://github.com/NoesisVision/nasde-toolkit/pull/26
+[#29]: https://github.com/NoesisVision/nasde-toolkit/pull/29
+[#30]: https://github.com/NoesisVision/nasde-toolkit/pull/30
+[#31]: https://github.com/NoesisVision/nasde-toolkit/pull/31
+[#34]: https://github.com/NoesisVision/nasde-toolkit/pull/34
+[gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

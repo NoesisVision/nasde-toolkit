@@ -87,6 +87,10 @@ def main(
     ),
 ) -> None:
     """Noesis Agentic Software Development Evals Toolkit."""
+    from nasde_toolkit._version import __version__
+    from nasde_toolkit.update_check import maybe_notify_update
+
+    maybe_notify_update(console, current_version=__version__)
     if ctx.invoked_subcommand is None:
         console.print(ctx.get_help())
         raise typer.Exit()

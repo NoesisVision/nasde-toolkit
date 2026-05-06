@@ -9,15 +9,35 @@ description = "Noesis Agentic Software Development Evals Toolkit"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+keywords = ["evaluation", "agents", "llm", "coding-agents", "evals", "harbor", "opik"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "typer>=0.15",
     "rich>=14.1",
     "platformdirs>=4.0",
+    "packaging>=25,<26",
     "harbor>=0.4,<0.5",
     "opik>=2,<3",
     # Transitive via harbor/opik. Pinned to fix GHSA-xqmj-j6mv-4862 (litellm <1.83.7).
     "litellm>=1.83.7",
 ]
+
+[project.urls]
+Homepage = "https://noesis.vision/nasde/"
+Source = "https://github.com/NoesisVision/nasde-toolkit"
+Issues = "https://github.com/NoesisVision/nasde-toolkit/issues"
+Changelog = "https://github.com/NoesisVision/nasde-toolkit/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/NoesisVision/nasde-toolkit/tree/main/docs"
 
 [project.scripts]
 nasde = "nasde_toolkit.cli:app"

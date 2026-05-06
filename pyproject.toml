@@ -26,7 +26,7 @@ dependencies = [
     "rich>=14.1",
     "platformdirs>=4.0",
     "packaging>=25,<26",
-    "harbor>=0.4,<0.5",
+    "harbor>=0.6,<0.7",
     "opik>=2,<3",
     # Transitive via harbor/opik. Pinned to fix GHSA-xqmj-j6mv-4862 (litellm <1.83.7).
     "litellm>=1.83.7",
@@ -44,6 +44,7 @@ nasde = "nasde_toolkit.cli:app"
 
 [tool.hatch.version]
 source = "vcs"
+raw-options = { local_scheme = "no-local-version" }
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/nasde_toolkit/_version.py"

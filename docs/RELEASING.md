@@ -17,11 +17,6 @@ git checkout main && git pull
 #    cited in this release's entries
 $EDITOR CHANGELOG.md
 
-# 2b. (Temporary — until PyPI.) Bump the pinned tag in user-facing docs
-#     so copy-paste installs land on the new version:
-#       grep -rn "@vOLD" README.md docs/ examples/
-#     then update every hit (README has two install commands).
-
 # 3. Commit the changelog and push the PR
 git checkout -b chore/release-vX.Y.Z
 git add CHANGELOG.md
@@ -34,19 +29,22 @@ git checkout main && git pull
 git tag vX.Y.Z
 git push origin vX.Y.Z
 
-# 5. Publish the GitHub Release from the tag
-gh release create vX.Y.Z \
-  --title "vX.Y.Z — <one-line theme>" \
-  --notes-file .release-notes.tmp \
-  --latest
+# That's it. The tag push triggers publish.yml which:
+#   - runs quality-gate (lint/mypy/test/audit)
+#   - builds wheel + sdist
+#   - publishes to TestPyPI
+#   - smoke-tests fresh install from TestPyPI in a clean venv
+#   - publishes to PyPI (gated by the smoke test passing)
+#   - smoke-tests fresh install from PyPI
+#   - creates a GitHub Release with auto-generated notes
 
-# Optional sanity check: version derived from the tag
-uv build
-ls dist/    # should contain nasde_toolkit-X.Y.Z-*.whl and *.tar.gz
+# Watch the run:
+gh run watch
 ```
 
-The rest of this document explains each step, how to pick the version
-number, how to hotfix an older release, and what **not** to do.
+The rest of this document explains each step, how the publish workflow
+works in detail, how to pick the version number, how to hotfix an older
+release, and what **not** to do.
 
 ## Versioning
 
@@ -123,6 +121,14 @@ Before you start the release commit, confirm on `main`:
       already enforces this; double-check locally with
       `uv run pip-audit` if you're paranoid).
 - [ ] **Working tree is clean** — `git status` should be spotless.
+- [ ] **TestPyPI dry-run from main is green** (recommended for non-trivial
+      releases — dep bumps, build config changes, etc.):
+      ```bash
+      gh workflow run publish.yml --ref main
+      gh run watch
+      ```
+      If it fails, the same failure will block your tag-push release.
+      Skipping this check is fine for pure CHANGELOG-only releases.
 
 If any of those fail: **do not release**. Fix the underlying issue in a
 separate PR first.
@@ -172,33 +178,11 @@ The source of truth for what's in each release is `CHANGELOG.md`.
 
    [kac-linkrefs]: https://keepachangelog.com/en/1.1.0/#how
 
-6. **Bump the pinned version in user-facing docs** *(temporary — remove
-   this step once we publish to PyPI).* Until `nasde` is on PyPI, the
-   install command in the README pins to a specific git tag, and that
-   tag number has to be updated alongside the release. Otherwise a
-   copy-paste from the README installs a stale version and nobody
-   notices.
-
-   Find the stale pins:
-
-   ```bash
-   grep -rn "@v[0-9]" README.md docs/ examples/
-   ```
-
-   Expected hits today: two `uv tool install …@vOLD` lines in `README.md`
-   (one in *Quick start*, one in *Installation reference*), plus the
-   `(e.g. \`vOLD\`)` example sentence nearby. Update each to `vNEW`.
-   Anywhere else `@vOLD` appears in user-facing docs, update it too.
-
-   Skip: anything inside `CHANGELOG.md` (those pins are historical and
-   must stay on the version they described) and anywhere `vOLD` appears
-   as a reference for a diff/compare link.
-
-7. Open a PR titled `chore: release vX.Y.Z`. The PR body should be the
+6. Open a PR titled `chore: release vX.Y.Z`. The PR body should be the
    changelog section for this release, so reviewers see exactly what
    goes out.
 
-8. **Wait for CI to go green, then merge.** Prefer a squash merge so the
+7. **Wait for CI to go green, then merge.** Prefer a squash merge so the
    release commit is a single entry.
 
 ## Step 2 — Tag and push
@@ -215,46 +199,41 @@ git push origin vX.Y.Z
 Notes:
 
 - **Always tag `main` after the changelog merge**, not the PR branch.
+  `publish.yml` enforces this: it rejects tags whose commit is not
+  reachable from `origin/main`.
 - **Do not push a tag with `git push --tags`** — push the single tag by
   name. This avoids accidentally publishing stale local tags.
-- The tag triggers no workflow today. `hatch-vcs` picks up the tag at
-  build time; nothing else is automated yet.
 
-## Step 3 — Create the GitHub Release
+The tag push triggers `publish.yml`. Watch it:
 
 ```bash
-# Extract the notes for this version from CHANGELOG.md
-awk "/^## \\[X\\.Y\\.Z\\]/,/^## \\[/" CHANGELOG.md \
-  | sed '$d' > .release-notes.tmp     # drop trailing "## [" of next section
-
-gh release create vX.Y.Z \
-  --title "vX.Y.Z — <one-line theme>" \
-  --notes-file .release-notes.tmp \
-  --latest
-
-rm .release-notes.tmp
+gh run watch
+# or
+gh run list --workflow=publish.yml --limit 1
 ```
 
-The `--latest` flag controls what users see on the repo homepage. Always
-set it on the newest release and never on a hotfix for an older line.
+GitHub Release with auto-generated notes is created by the workflow as
+the last step of `publish-pypi`. **Do not** create it manually with
+`gh release create` — the workflow does that and attaches the published
+artifacts.
 
-If the `awk` / `sed` dance is finicky for you, paste the release section
-from `CHANGELOG.md` manually into `gh release create ... --notes "..."`
-or drop the `--notes-file` flag and let `gh` open `$EDITOR`. Either way,
-the release notes on GitHub should match the CHANGELOG entry for that
-version — **don't let them drift.**
+## Step 3 — Verify the release
 
-## Step 4 — Sanity check the build (optional but recommended)
+After `publish.yml` finishes (≈ 5–7 min):
 
 ```bash
-git checkout vX.Y.Z
-uv build
-ls dist/
+# 1. PyPI page renders the new version
+open https://pypi.org/project/nasde-toolkit/
+
+# 2. Fresh install resolves the tagged version
+uv tool install nasde-toolkit
+nasde --version    # should print X.Y.Z (no .devN suffix)
+
+# 3. GitHub Release exists with auto-generated notes
+gh release view vX.Y.Z
 ```
 
-You should see exactly `nasde_toolkit-X.Y.Z-py3-none-any.whl` and
-`nasde_toolkit-X.Y.Z.tar.gz`. If you see `X.Y.Z.dev…+gabcdef`, the tag
-isn't pointing where you think it is — check `git describe`.
+If `publish.yml` failed, see [Recovering from a failed release](#recovering-from-a-failed-release) below.
 
 ## Hotfixing an older release line
 
@@ -283,10 +262,23 @@ a critical bug that needs a `0.2.4`:
    git push origin v0.2.4
    ```
 
-5. **Create the GitHub Release without `--latest`** so it doesn't
-   overshadow the newer `main`-line release:
+   ⚠️ `publish.yml` enforces "tag must be reachable from main". For a
+   hotfix on a release branch, that check **will fail** and block the
+   PyPI publish. You have two options:
+
+   - **Recommended:** forward-port the fix to `main` first (step 7
+     below), then cherry-pick the merge commit onto `release/0.X.x`,
+     then tag. The tag commit will be ancestor-equal to a commit on
+     main, satisfying the guard.
+   - **Alternative:** publish manually with `uv publish` from the
+     release branch checkout. Document the deviation in the GitHub
+     Release notes.
+
+5. **Mark the GitHub Release as "not latest"** so it doesn't overshadow
+   the newer main-line release. The workflow creates it with
+   auto-generated notes; edit afterwards:
    ```bash
-   gh release create v0.2.4 --title "v0.2.4" --notes-file …
+   gh release edit v0.2.4 --latest=false
    ```
 
 6. **Keep the release branch alive** — `release/0.X.x` is the home for
@@ -299,44 +291,115 @@ We currently only commit to supporting the **latest** release line in
 `SECURITY.md`. If you find yourself hotfixing an older line, update that
 doc in the same PR so the promise matches reality.
 
+## How `publish.yml` works
+
+The release pipeline is one workflow with linear jobs gated by smoke
+tests. Source: `.github/workflows/publish.yml`.
+
+```
+quality-gate (lint + mypy + pytest + audit)
+    │
+    ▼
+build (uv build → wheel + sdist; verifies version matches tag)
+    │
+    ▼
+publish-testpypi (Trusted Publisher OIDC, skip-existing on conflict)
+    │
+    ▼
+smoke-test-testpypi (fresh install in clean venv, runs `nasde --version`/`--help`)
+    │  ◄── GATE: failure here blocks publish-pypi
+    ▼
+publish-pypi (Trusted Publisher OIDC; rejects tags not on main; creates GH Release)
+    │
+    ▼
+smoke-test-pypi (final fresh-install sanity check from production PyPI)
+```
+
+### Triggers
+
+| Trigger | Result | When to use |
+|---|---|---|
+| Tag push (`v*`) on commit reachable from main | Full flow → PyPI release | Standard release |
+| Tag push from non-main branch | Build + TestPyPI succeed; publish-pypi rejects with "not on main" | Catches accidental tags from feature branches |
+| Manual `gh workflow run publish.yml --ref <branch>` (default) | Build + TestPyPI + smoke; publish-pypi **skipped** | Pre-release dry-run, debugging the pipeline |
+| Manual `gh workflow run publish.yml --ref main --field publish_to_prod=true` | Full flow → PyPI publish without a tag | Disaster recovery only |
+| Weekly cron (Mon 09:00 UTC) | TestPyPI + smoke; publish-pypi **skipped** | Catches transitive-dep breakage between releases |
+
+### TestPyPI dry-run from any branch
+
+Verify a release candidate without cutting a tag — useful for testing
+release-related changes (build config, deps bumps, etc.):
+
+```bash
+gh workflow run publish.yml --ref <your-branch>
+```
+
+Output goes to https://test.pypi.org/project/nasde-toolkit/ as
+`X.Y.Z.devN` (where N is the commit count since the last tag). The
+smoke-test-testpypi job verifies the install works in a clean venv.
+PyPI is never touched.
+
+If two branches happen to produce the same `devN` filename, TestPyPI
+rejects the second upload and `skip-existing: true` makes the workflow
+ignore that error — but **the file on TestPyPI is the older one**. To
+force a fresh upload, add an empty commit (`git commit --allow-empty`)
+to bump the dev counter, or delete the file from TestPyPI manually.
+
+### Recovering from a failed release
+
+| Failure point | What happened | Fix |
+|---|---|---|
+| `quality-gate` red on tag commit | Tests broke between PR merge and tag | Push fix to main, tag `vX.Y.(Z+1)` |
+| `build` reports version mismatch | Tag pointed at wrong commit | Delete the tag, re-tag the right commit |
+| `publish-testpypi` 400 "File already exists" | TestPyPI already has this `devN` | Workflow ignores via `skip-existing`. If you actually need a new file, bump dev counter (empty commit) |
+| `smoke-test-testpypi` failed on import error | Broken transitive dep wheel (e.g. supabase 2.28.3 historically) | Pin the broken transitive dep in `pyproject.toml`, push fix to main, tag a new patch release |
+| `smoke-test-testpypi` failed on flaky network | TestPyPI index propagation delay | "Re-run failed jobs" in GitHub Actions UI — uses cached build artifact, doesn't re-tag |
+| `publish-pypi` rejected with "not on main" | Tag was pushed from a feature branch | Push the tag from main: `git checkout main && git tag vX.Y.Z <commit-on-main> && git push origin vX.Y.Z` |
+| `publish-pypi` failed on PyPI auth | OIDC token issue or PyPI outage | Wait, then "Re-run failed jobs". Or: `gh workflow run publish.yml --ref main --field publish_to_prod=true` (disaster recovery) |
+| Workflow succeeded but installed package broken | Smoke test missed something | Yank on PyPI: `uv tool run twine yank nasde-toolkit X.Y.Z`. Then publish `X.Y.(Z+1)` with the fix |
+
+**Do not** edit a published tag or re-publish over an existing PyPI version. PyPI rejects file reuse anyway.
+
 ## What NOT to do
 
 - **Do not amend or move a published tag.** If `vX.Y.Z` went out wrong,
   cut `vX.Y.(Z+1)` with the fix. Tags are immutable from the user's
-  perspective the moment they're on GitHub.
+  perspective the moment they're on GitHub. PyPI also rejects file reuse,
+  so re-publishing the same version is impossible anyway.
 - **Do not `git push --force` to `main`.** Even if nobody has pulled yet,
   force-push rewrites the commit that `hatch-vcs` will anchor future
   versions on. Fix-forward with a new commit.
-- **Do not skip CI** (`--no-verify` on the release commit, manual
-  `gh release create` while the quality gate is red, etc.). If CI is
-  flaky, file an issue and wait; if CI found a real problem, the release
-  stops until it's fixed.
+- **Do not skip CI** (`--no-verify` on the release commit, etc.). If CI
+  is flaky, file an issue and wait; if CI found a real problem, the
+  release stops until it's fixed.
 - **Do not bundle a release with unrelated work.** The release PR should
   only touch `CHANGELOG.md` (and this document, if you're updating the
   procedure). Feature work lands in its own PR first.
 - **Do not hand-edit `src/nasde_toolkit/_version.py`.** It's generated by
   `hatch-vcs` at build time and gitignored. Any manual changes will be
   lost on the next build.
-- **Do not publish to PyPI** until we've set that up properly (PyPI org
-  account, `publish-to-pypi` workflow with trusted publisher, signature
-  policy). Until then, users install from a git tag:
-  `uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git@vX.Y.Z`.
+- **Do not create the GitHub Release manually.** `publish.yml` does it as
+  the last step of `publish-pypi` and attaches the published artifacts.
+  A manually-created release would race with the workflow and leave you
+  with two releases for the same tag.
+- **Do not use `publish_to_prod=true` for routine verification.** Default
+  manual dispatch (`gh workflow run publish.yml`) goes to TestPyPI only —
+  that's the right tool for dry-runs. `publish_to_prod=true` is for
+  disaster recovery (publishing without a tag) and leaves a confusing
+  `X.Y.Z.devN` "release" on PyPI.
 
 ## Future work (tracked, not required today)
 
-- **PyPI publishing.** We'll want a `publish-to-pypi.yml` workflow that
-  triggers on tag push, uses PyPI Trusted Publishers (no long-lived token),
-  and `uv publish` from the same wheel `hatch-vcs` produces. Document here
-  once set up and link back from the README. **When this lands, delete
-  Step 6 ("Bump the pinned version in user-facing docs") and the matching
-  `# 2b` block in the TL;DR** — `pip install nasde-toolkit` is
-  version-agnostic, so the README pins go away too.
 - **Dependency automation.** Dependabot or Renovate would keep
   `uv.lock` fresh without a human in the loop. For now, the `pip-audit`
   CI gate catches anything that acquires a CVE.
 - **Automated changelog assist.** `release-drafter` or similar to pre-fill
   the `[Unreleased]` section from merged PR titles. Nice to have, not
   urgent.
+- **Smoke test should exercise `nasde run`.** Today it only runs
+  `--version` and `--help`. A minimal benchmark trial (e.g. one task on
+  the simplest example) would catch runner/evaluator regressions that
+  pure import smoke misses.
 
 ## Questions, wake-ups, gotchas
 

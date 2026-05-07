@@ -30,6 +30,10 @@ dependencies = [
     "opik>=2,<3",
     # Transitive via harbor/opik. Pinned to fix GHSA-xqmj-j6mv-4862 (litellm <1.83.7).
     "litellm>=1.83.7",
+    # Transitive via harbor → supabase. Lower bound skips broken 2.28.3 wheel
+    # (missing _async/ submodule); upper bound blocks 3.0.0a1 pre-release with
+    # the same defect. Remove when supabase ships a healthy 3.x wheel.
+    "supabase>=2.29.0,<3",
 ]
 
 [project.urls]

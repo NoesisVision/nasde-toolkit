@@ -674,8 +674,8 @@ async def _run_job(
 def _print_job_summary(result: JobResult) -> None:
     console.print()
     console.print("[bold]Job completed[/bold]")
-    console.print(f"  Trials: {result.stats.n_trials}")
-    console.print(f"  Errors: {result.stats.n_errors}")
+    console.print(f"  Trials: {result.stats.n_completed_trials}")
+    console.print(f"  Errors: {result.stats.n_errored_trials}")
 
     table = Table(title="Results by agent/dataset")
     table.add_column("Agent / Dataset", style="cyan")

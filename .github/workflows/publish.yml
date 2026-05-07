@@ -5,16 +5,15 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      test_pypi:
-        description: "Publish to TestPyPI instead of PyPI"
+      publish_to_prod:
+        description: "Publish to production PyPI (default: TestPyPI only — safer dry-run)"
         type: boolean
-        default: true
+        default: false
   schedule:
-    # Weekly canary on Mondays 09:00 UTC. Equivalent to a manual
-    # workflow_dispatch with test_pypi=true: re-publishes a fresh dev
-    # build to TestPyPI and runs smoke-test-testpypi against it. Catches
+    # Weekly canary on Mondays 09:00 UTC. Re-publishes a fresh dev build
+    # to TestPyPI and runs smoke-test-testpypi against it. Catches
     # transitive-dependency breakages (e.g. an upstream wheel going bad)
-    # in the window between our own releases.
+    # in the window between our own releases. Never reaches PyPI.
     - cron: "0 9 * * 1"
 
 concurrency:
@@ -84,8 +83,10 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke-test-testpypi]
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_to_prod)
     environment:
       name: pypi
       url: https://pypi.org/project/nasde-toolkit/
@@ -93,6 +94,23 @@ jobs:
       id-token: write
       contents: write
     steps:
+      - name: Verify tag is on main
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Reject tag not reachable from main
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME (commit $GITHUB_SHA) is not reachable from main — refusing to publish to PyPI"
+            exit 1
+          fi
+          echo "Tag $GITHUB_REF_NAME confirmed on main"
+
       - name: Download distribution artifact
         uses: actions/download-artifact@v4
         with:
@@ -103,6 +121,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
 
       - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
@@ -112,9 +131,6 @@ jobs:
     name: Publish to TestPyPI
     runs-on: ubuntu-latest
     needs: build
-    if: |
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.test_pypi)
     environment:
       name: testpypi
       url: https://test.pypi.org/project/nasde-toolkit/
@@ -137,9 +153,6 @@ jobs:
     name: Smoke-test fresh install from TestPyPI
     runs-on: ubuntu-latest
     needs: [build, publish-testpypi]
-    if: |
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.test_pypi)
     permissions:
       contents: read
     steps:
@@ -176,7 +189,9 @@ jobs:
     name: Smoke-test fresh install from PyPI
     runs-on: ubuntu-latest
     needs: [build, publish-pypi]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_to_prod)
     permissions:
       contents: read
     steps:

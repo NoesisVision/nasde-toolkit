@@ -223,7 +223,7 @@ def test_codex_backend_validate_auth_succeeds_with_chatgpt_oauth(
     codex_home.mkdir()
     auth_file = codex_home / "auth.json"
     auth_file.write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}')
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     backend = CodexSubprocessBackend()
     backend.validate_auth()
 
@@ -231,7 +231,7 @@ def test_codex_backend_validate_auth_succeeds_with_chatgpt_oauth(
 def test_codex_backend_validate_auth_fails_without_credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("CODEX_API_KEY", raising=False)
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     backend = CodexSubprocessBackend()
     with pytest.raises(SystemExit):
         backend.validate_auth()
@@ -263,7 +263,7 @@ def test_codex_backend_env_strips_api_keys_when_oauth_present(
     codex_home = tmp_path / ".codex"
     codex_home.mkdir()
     (codex_home / "auth.json").write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}')
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     monkeypatch.setenv("CODEX_API_KEY", "sk-stale-key-from-dotenv")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
@@ -278,7 +278,7 @@ def test_codex_backend_env_promotes_codex_key_to_openai_key(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     monkeypatch.setenv("CODEX_API_KEY", "sk-codex-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
@@ -296,7 +296,7 @@ def test_codex_backend_env_preserves_openai_key_priority(
     codex_home = tmp_path / ".codex"
     codex_home.mkdir()
     (codex_home / "auth.json").write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "tok"}}')
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-explicit-openai-key")
     monkeypatch.setenv("CODEX_API_KEY", "sk-stale-codex-key")
 

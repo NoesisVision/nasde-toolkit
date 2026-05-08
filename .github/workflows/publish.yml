@@ -151,73 +151,79 @@ jobs:
 
   smoke-test-testpypi:
     name: Smoke-test fresh install from TestPyPI
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     needs: [build, publish-testpypi]
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13"]
     steps:
       - name: Wait for TestPyPI index propagation
+        shell: bash
         run: sleep 30
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Fresh install from TestPyPI in clean venv
+      - name: Fresh install from TestPyPI via uv tool install
+        shell: bash
         run: |
           set -euo pipefail
-          uv venv --python 3.12 /tmp/smoke
-          VIRTUAL_ENV=/tmp/smoke uv pip install \
+          uv tool install \
+            --python ${{ matrix.python }} \
             --refresh \
             --index https://pypi.org/simple/ \
             --index https://test.pypi.org/simple/ \
             "nasde-toolkit==${{ needs.build.outputs.version }}"
 
       - name: Verify CLI smoke test
+        shell: bash
         env:
           CI: "true"
         run: |
           set -euo pipefail
-          /tmp/smoke/bin/nasde --version
-          /tmp/smoke/bin/nasde --help
+          nasde --version
+          nasde --help
 
   smoke-test-pypi:
     name: Smoke-test fresh install from PyPI
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     needs: [build, publish-pypi]
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
       (github.event_name == 'workflow_dispatch' && inputs.publish_to_prod)
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13"]
     steps:
       - name: Wait for PyPI index propagation
+        shell: bash
         run: sleep 30
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Fresh install from PyPI in clean venv
+      - name: Fresh install from PyPI via uv tool install
+        shell: bash
         run: |
           set -euo pipefail
-          uv venv --python 3.12 /tmp/smoke
-          VIRTUAL_ENV=/tmp/smoke uv pip install \
+          uv tool install \
+            --python ${{ matrix.python }} \
             --refresh \
             "nasde-toolkit==${{ needs.build.outputs.version }}"
 
       - name: Verify CLI smoke test
+        shell: bash
         env:
           CI: "true"
         run: |
           set -euo pipefail
-          /tmp/smoke/bin/nasde --version
-          /tmp/smoke/bin/nasde --help
+          nasde --version
+          nasde --help

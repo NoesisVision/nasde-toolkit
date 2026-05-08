@@ -252,7 +252,7 @@ def _collect_codex_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> N
             continue
         for file_path in skill_dir.rglob("*"):
             if file_path.is_file():
-                relative = file_path.relative_to(agents_skills_dir)
+                relative = file_path.relative_to(agents_skills_dir).as_posix()
                 target = f"/app/.agents/skills/{relative}"
                 sandbox_files[target] = str(file_path)
 
@@ -266,7 +266,7 @@ def _collect_gemini_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> 
             continue
         for file_path in skill_dir.rglob("*"):
             if file_path.is_file():
-                relative = file_path.relative_to(gemini_skills_dir)
+                relative = file_path.relative_to(gemini_skills_dir).as_posix()
                 target = f"/app/.gemini/skills/{relative}"
                 sandbox_files[target] = str(file_path)
 

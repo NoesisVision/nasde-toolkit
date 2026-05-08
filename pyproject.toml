@@ -7,7 +7,10 @@ name = "nasde-toolkit"
 dynamic = ["version"]
 description = "Noesis Agentic Software Development Evals Toolkit"
 readme = "README.md"
-requires-python = ">=3.12"
+# pyiceberg (transitive via supabase → storage3) has no cp314 Windows wheels
+# and requires MSVC to build from source. Lift the upper cap when pyiceberg
+# ships cp314 wheels.
+requires-python = ">=3.12,<3.14"
 license = "MIT"
 keywords = ["evaluation", "agents", "llm", "coding-agents", "evals", "harbor", "opik"]
 classifiers = [

@@ -43,9 +43,11 @@ The fastest path from zero to a working benchmark built from **your own git hist
 ### 1. Install the CLI
 
 ```bash
-uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git@v0.3.0
+uv tool install nasde-toolkit
 nasde --version
 ```
+
+This installs the latest stable release from [PyPI](https://pypi.org/project/nasde-toolkit/).
 
 ### 2. Install the authoring skills for Claude Code
 
@@ -204,27 +206,37 @@ You don't *have* to use these — everything they do is just writing files that 
 
 ## Installation reference
 
-The [Quick start](#quick-start-three-steps) above pins to the latest stable release. Alternative installation modes:
+The [Quick start](#quick-start-three-steps) above uses `uv tool install` — recommended because it isolates `nasde` in its own environment and puts only the `nasde` command on PATH. Alternatives:
 
 ```bash
-# Install the latest development build from main (may include unreleased changes)
+# pipx — analogous isolation, popular in Python community
+pipx install nasde-toolkit
+
+# Inside an existing virtual environment
+pip install nasde-toolkit
+
+# Latest unreleased changes from main (for testing PRs and dev builds)
 uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git
 
-# Install from a local clone (for developing NASDE itself)
+# Local clone (for developing NASDE itself)
 git clone git@github.com:NoesisVision/nasde-toolkit.git
 cd nasde-toolkit
 uv sync
 ```
 
-Upgrading to a new stable release:
+Upgrading to the newest release:
 
 ```bash
-uv tool install --reinstall git+https://github.com/NoesisVision/nasde-toolkit.git@v0.3.0
+uv tool upgrade nasde-toolkit       # if installed via uv tool
+pipx upgrade nasde-toolkit          # if installed via pipx
+pip install --upgrade nasde-toolkit # if installed via pip
 ```
+
+`nasde` checks PyPI for newer releases on startup and prints a one-line notice on stderr when an upgrade is available (severity-tinted: patch / minor / major). Disable with `NASDE_NO_UPDATE_CHECK=1` or `CI=true`.
 
 After installation, only `nasde` appears on PATH. Harbor and Opik are bundled as core dependencies. The reviewer agent spawns your already-installed `claude` or `codex` CLI as a subprocess (not bundled), so it reuses whatever authentication you've set up interactively.
 
-Check the installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.3.0`); dev installs show versions like `0.3.1.dev3+gabcdef`.
+Check the installed version with `nasde --version`. Stable releases follow semver tags (e.g. `v0.3.2`); dev installs from `main` show versions like `0.3.2.dev3`.
 
 Release notes for every tagged version live in [CHANGELOG.md](CHANGELOG.md). See [docs/RELEASING.md](docs/RELEASING.md) if you're cutting a release yourself.
 

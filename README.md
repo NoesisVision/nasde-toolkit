@@ -47,6 +47,8 @@ uv tool install nasde-toolkit
 nasde --version
 ```
 
+This installs the latest stable release from [PyPI](https://pypi.org/project/nasde-toolkit/).
+
 ### 2. Install the authoring skills for Claude Code
 
 ```bash

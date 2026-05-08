@@ -43,11 +43,13 @@ The fastest path from zero to a working benchmark built from **your own git hist
 ### 1. Install the CLI
 
 ```bash
-uv tool install nasde-toolkit
+uv tool install nasde-toolkit --python 3.13
 nasde --version
 ```
 
 This installs the latest stable release from [PyPI](https://pypi.org/project/nasde-toolkit/).
+
+> **Python version**: We recommend `--python 3.13` (latest stable, broadest wheel availability). `--python 3.12` is also supported and tested if your environment standardizes on it. Python **3.14 is not currently supported** — a transitive dependency (`pyiceberg` via `supabase`) hasn't yet released wheels for cp314. The cap will be lifted once upstream wheels land.
 
 ### 2. Install the authoring skills for Claude Code
 
@@ -210,13 +212,13 @@ The [Quick start](#quick-start-three-steps) above uses `uv tool install` — rec
 
 ```bash
 # pipx — analogous isolation, popular in Python community
-pipx install nasde-toolkit
+pipx install nasde-toolkit --python 3.13
 
-# Inside an existing virtual environment
+# Inside an existing virtual environment (3.12 or 3.13)
 pip install nasde-toolkit
 
 # Latest unreleased changes from main (for testing PRs and dev builds)
-uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git
+uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git --python 3.13
 
 # Local clone (for developing NASDE itself)
 git clone git@github.com:NoesisVision/nasde-toolkit.git

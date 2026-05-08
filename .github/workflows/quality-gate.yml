@@ -56,8 +56,13 @@ jobs:
         run: uv run mypy src/nasde_toolkit/
 
   test:
-    name: Unit tests (pytest)
-    runs-on: ubuntu-latest
+    name: Unit tests (pytest) — ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
@@ -67,7 +72,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
 
       - name: Install dependencies
         run: uv sync --extra dev

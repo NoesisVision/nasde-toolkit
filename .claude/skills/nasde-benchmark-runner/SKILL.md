@@ -17,68 +17,80 @@ Run coding agent benchmarks with `nasde` and verify results. The two-stage pipel
 
 ## Authentication setup
 
-Before running any benchmark, set up authentication tokens. Both are needed for cross-agent benchmarks.
+Before running any benchmark, set up authentication tokens for the agents you plan to run. Both OS and auth method matter — pick the right command per row.
 
-### Claude Code (OAuth token from subscription)
+### Step 1 — Ask the user which auth they prefer
 
-```bash
-source scripts/export_oauth_token.sh
-```
+**Always ask the user before running, never assume.** Two questions:
 
-This extracts `CLAUDE_CODE_OAUTH_TOKEN` from macOS Keychain (written by `claude` CLI login). Required for both Claude agent runs AND assessment evaluation (which spawns the `claude` CLI as a subprocess when `[evaluation] backend = "claude"`).
+1. **Which agents will you run?** (Claude / Codex / Gemini, any combination)
+2. **For each agent, OAuth (subscription) or API key (per-token billing)?** Default recommendation: OAuth where available — no per-token cost, no env vars to manage.
 
-Alternatively, set `ANTHROPIC_API_KEY` for API billing.
+Then detect their OS and pick the matching script row from the table below. On Windows, also ask whether they're in **PowerShell** or **WSL** (cmd.exe is not directly supported — see "Windows: cmd.exe" below).
 
-### Codex (ChatGPT subscription or API key)
+### Step 2 — Run the right script per agent × OS
 
-**Option 1: ChatGPT subscription (OAuth)** — uses ChatGPT Plus/Pro/Business plan credits, no per-token API cost:
+Priority order: **Claude → Codex → Gemini.** Claude is required even for non-Claude variants when `[evaluation] backend = "claude"` (default), because the assessment evaluator spawns `claude` CLI as a subprocess.
 
-```bash
-codex login                                # one-time: authenticate via ChatGPT
-source scripts/export_codex_oauth_token.sh # validate tokens are present
-```
+#### Claude Code
 
-NASDE auto-detects `~/.codex/auth.json` with `auth_mode: "chatgpt"` and injects OAuth tokens into the sandbox. No env vars needed.
+| OS / shell | OAuth (subscription) | API key |
+|---|---|---|
+| macOS | `source scripts/export_oauth_token.sh` (reads Keychain entry "Claude Code-credentials") | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| Linux | `source scripts/export_oauth_token.sh` (reads `~/.claude/.credentials.json`) | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| Windows PowerShell | `. .\scripts\export_oauth_token.ps1` (reads `%USERPROFILE%\.claude\.credentials.json`) | `$env:ANTHROPIC_API_KEY = 'sk-ant-...'` |
+| Windows WSL (Ubuntu) | `source scripts/export_oauth_token.sh` (Linux path) | `export ANTHROPIC_API_KEY=sk-ant-...` |
 
-**Option 2: API key** — billed per-token through OpenAI Platform:
+Prerequisite for OAuth: `claude` CLI installed and `claude` ran once to log in.
 
-```bash
-export $(grep CODEX_API_KEY .env)
-```
+The script exports `CLAUDE_CODE_OAUTH_TOKEN`. This is required for both Claude variant runs AND assessment evaluation (when `[evaluation] backend = "claude"` — the default).
 
-Or set directly: `export CODEX_API_KEY=sk-proj-...`
+#### Codex
 
-API key always takes priority over OAuth when both are present.
+| OS / shell | OAuth (ChatGPT subscription) | API key |
+|---|---|---|
+| macOS | `codex login` once, then `source scripts/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` (or `OPENAI_API_KEY`) |
+| Linux | `codex login` once, then `source scripts/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` |
+| Windows PowerShell | `codex login` once, then `. .\scripts\export_codex_oauth_token.ps1` | `$env:CODEX_API_KEY = 'sk-proj-...'` |
+| Windows WSL (Ubuntu) | `codex login` once, then `source scripts/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` |
 
-### Gemini CLI (Google account or API key)
+The OAuth scripts only **validate** `~/.codex/auth.json` (or `%USERPROFILE%\.codex\auth.json`) — Harbor injects the file into the sandbox automatically. API key always takes priority over OAuth when both are present.
 
-**Option 1: Google account OAuth** — uses Google account credits, no per-token API cost:
+#### Gemini CLI
 
-```bash
-gemini login                                # one-time: authenticate via Google account
-source scripts/export_gemini_oauth_token.sh # validate tokens are present
-```
+| OS / shell | OAuth (Google account) | API key |
+|---|---|---|
+| macOS | `gemini login` once, then `source scripts/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
+| Linux | `gemini login` once, then `source scripts/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
+| Windows PowerShell | `gemini login` once, then `. .\scripts\export_gemini_oauth_token.ps1` | `$env:GEMINI_API_KEY = '...'` |
+| Windows WSL (Ubuntu) | `gemini login` once, then `source scripts/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
 
-NASDE auto-detects `~/.gemini/oauth_creds.json` and injects OAuth credentials into the sandbox. No env vars needed.
-
-**Option 2: API key** — billed through Google AI Studio or Vertex AI:
-
-```bash
-export GEMINI_API_KEY=your-key
-```
-
-Or for Vertex AI: `export GOOGLE_API_KEY=your-key` + `export GOOGLE_CLOUD_PROJECT=your-project`
-
-API key always takes priority over OAuth when both are present.
+The OAuth scripts export `GEMINI_OAUTH_CREDS` (the raw JSON) — `ConfigurableGemini` reads that env var and injects credentials into the sandbox. API key always takes priority over OAuth.
 
 ### Combined setup for cross-agent runs
 
+**macOS / Linux / Windows WSL:**
 ```bash
 source scripts/export_oauth_token.sh         # Claude (subscription)
-# Codex: either codex login (subscription) or:
-export $(grep CODEX_API_KEY .env)            # Codex (API key)
-source scripts/export_gemini_oauth_token.sh  # Gemini (Google account)
+source scripts/export_codex_oauth_token.sh   # Codex (subscription) — or: export CODEX_API_KEY=...
+source scripts/export_gemini_oauth_token.sh  # Gemini (Google account) — or: export GEMINI_API_KEY=...
 ```
+
+**Windows PowerShell:**
+```powershell
+. .\scripts\export_oauth_token.ps1
+. .\scripts\export_codex_oauth_token.ps1
+. .\scripts\export_gemini_oauth_token.ps1
+```
+
+### Windows: cmd.exe
+
+cmd.exe is **not supported directly** — `.ps1` requires PowerShell, `.sh` requires bash. Two workarounds:
+
+1. **Open PowerShell** (`powershell.exe`) and dot-source the `.ps1` script. This is the simplest path on a vanilla Windows install.
+2. **Use WSL** (`wsl -d Ubuntu`) and source the `.sh` script. This is the recommended path if you also want Docker Desktop with the WSL2 backend, which is the most common dev setup.
+
+If a user is in cmd.exe, point them to one of these two — don't try to extract the token manually.
 
 ## Running benchmarks
 

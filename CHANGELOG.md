@@ -9,6 +9,56 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-05-07
+
+### Added
+- **PyPI publishing.** `nasde-toolkit` now ships to [PyPI](https://pypi.org/project/nasde-toolkit/);
+  install with `uv tool install nasde-toolkit` (or `pipx`/`pip`). Tag pushes
+  trigger an automated `publish.yml` workflow that builds, runs a fresh-install
+  smoke test on TestPyPI, gates the production publish on the smoke test
+  passing, then publishes to PyPI and creates a GitHub Release. ([#36], [#38])
+- **In-CLI update notifier.** `nasde` checks PyPI for newer releases on
+  startup and prints a one-line notice on stderr when one is available
+  (severity-tinted: patch / minor / major). Notify-only — never auto-applies,
+  never prompts. Skips on no-TTY, `NASDE_NO_UPDATE_CHECK=1`, `CI=true`, and
+  dev/pre-release builds. Cached for 24h via `platformdirs`. ([#36])
+- **Weekly TestPyPI canary.** Monday 09:00 UTC cron re-publishes a fresh dev
+  build to TestPyPI and runs the smoke test against it — catches transitive
+  dependency breakage (e.g. an upstream wheel going bad) in the window
+  between releases. ([#38])
+
+### Changed
+- **Bump `harbor` to `>=0.6,<0.7`** (latest 0.6.4). Adapter additions,
+  Modal/Windows support, gemini-cli v0.40+ session improvements, plus a
+  field rename in `JobStats` (`n_trials` → `n_completed_trials`) that the
+  runner now handles. No user-facing CLI or config changes. ([#38])
+- **Refresh `opik` to 2.0.22** within the existing `>=2,<3` range. ([#38])
+- Enriched `pyproject.toml` with project URLs, classifiers, and keywords
+  for a proper PyPI project page. ([#36])
+
+### Fixed
+- Strip the local-version segment (`+gHASH`) from `hatch-vcs` output so dev
+  builds are PyPI-acceptable as pre-releases (`0.3.2.devN` instead of
+  `0.3.2.devN+gabcdef`). PEP 440 forbids local versions on the public index. ([#37])
+- Pin `supabase>=2.29.0,<3` to skip broken upstream wheels. `supabase 2.28.3`
+  and `3.0.0a1` ship wheels missing the `_async/` and `_sync/` subpackages,
+  which made `nasde --version` crash at import in fresh installs. ([#38])
+- Adapt `_print_job_summary` in the runner to harbor 0.6's `JobStats` field
+  rename; previously crashed with `AttributeError` after a successful trial. ([#38])
+
+### Docs
+- Rewrote `docs/RELEASING.md` and `docs/ci-setup.md` for the automated
+  publish flow. Includes a recovery table for failure modes encountered
+  during pipeline verification. ([#38])
+
+### Internal
+- `publish.yml` workflow with PyPI Trusted Publishing (OIDC) — no long-lived
+  tokens or secrets. Reuses `quality-gate.yml` via `workflow_call`. ([#36])
+- `pyproject.toml`: explicit `packaging>=25,<26` dependency (used by the
+  update notifier; was previously transitive). ([#36])
+- TestPyPI uploads use `skip-existing: true` so re-runs of `workflow_dispatch`
+  with the same `devN` filename are no-ops instead of `400 File already exists`. ([#38])
+
 ## [0.3.0] — 2026-05-05
 
 ### Changed
@@ -174,7 +224,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.1.1...v0.2.0
@@ -189,4 +240,7 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#30]: https://github.com/NoesisVision/nasde-toolkit/pull/30
 [#31]: https://github.com/NoesisVision/nasde-toolkit/pull/31
 [#34]: https://github.com/NoesisVision/nasde-toolkit/pull/34
+[#36]: https://github.com/NoesisVision/nasde-toolkit/pull/36
+[#37]: https://github.com/NoesisVision/nasde-toolkit/pull/37
+[#38]: https://github.com/NoesisVision/nasde-toolkit/pull/38
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

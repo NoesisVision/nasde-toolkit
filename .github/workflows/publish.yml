@@ -172,15 +172,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # TestPyPI must be the *primary* index so uv resolves `nasde-toolkit`
-          # to the freshly-published version there. PyPI is the fallback for
-          # transitive deps (harbor, opik, daytona-sdk, ...) which TestPyPI
-          # doesn't carry. With PyPI as primary, uv's dependency-confusion
-          # guard refuses to look up the new version on TestPyPI once an
-          # older nasde-toolkit exists on PyPI.
+          # Smoke test pulls `nasde-toolkit==X.Y.Z` from TestPyPI plus transitive
+          # deps (harbor[cloud], opik, tensorlake, ...) from PyPI. uv's default
+          # `first-index` resolution refuses to look on a fallback index once
+          # *any* matching package name appears on the primary one — even if
+          # the version there can't satisfy the requirement. That breaks both
+          # directions:
+          #   - PyPI primary: nasde-toolkit==0.3.3 not on PyPI yet, but 0.3.2
+          #     is, so uv refuses to look at TestPyPI for 0.3.3.
+          #   - TestPyPI primary: tensorlake==0.4.45 only on PyPI, but TestPyPI
+          #     has unrelated devN uploads of tensorlake, so uv refuses to look
+          #     at PyPI for 0.4.45.
+          # `unsafe-best-match` tells uv to consider all indexes for every
+          # package and pick the version that satisfies the requirement,
+          # regardless of which index found it first. Safe for us because we
+          # control both indexes and the package set is fixed by pyproject.toml.
           uv tool install \
             --python ${{ matrix.python }} \
             --refresh \
+            --index-strategy unsafe-best-match \
             --index https://test.pypi.org/simple/ \
             --index https://pypi.org/simple/ \
             "nasde-toolkit==${{ needs.build.outputs.version }}"

@@ -29,7 +29,7 @@ dependencies = [
     "rich>=14.1",
     "platformdirs>=4.0",
     "packaging>=25,<26",
-    "harbor>=0.6,<0.7",
+    "harbor[cloud]>=0.6,<0.7",
     "opik>=2,<3",
     # Transitive via harbor/opik. Pinned to fix GHSA-xqmj-j6mv-4862 (litellm <1.83.7).
     "litellm>=1.83.7",

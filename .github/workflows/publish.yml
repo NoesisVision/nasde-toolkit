@@ -172,11 +172,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # TestPyPI must be the *primary* index so uv resolves `nasde-toolkit`
+          # to the freshly-published version there. PyPI is the fallback for
+          # transitive deps (harbor, opik, daytona-sdk, ...) which TestPyPI
+          # doesn't carry. With PyPI as primary, uv's dependency-confusion
+          # guard refuses to look up the new version on TestPyPI once an
+          # older nasde-toolkit exists on PyPI.
           uv tool install \
             --python ${{ matrix.python }} \
             --refresh \
-            --index https://pypi.org/simple/ \
             --index https://test.pypi.org/simple/ \
+            --index https://pypi.org/simple/ \
             "nasde-toolkit==${{ needs.build.outputs.version }}"
 
       - name: Verify CLI smoke test

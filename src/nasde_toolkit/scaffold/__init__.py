@@ -101,6 +101,49 @@ GITIGNORE_TEMPLATE = """\
 jobs/
 """
 
+GITATTRIBUTES_TEMPLATE = """\
+# Critical: files executed inside benchmark sandboxes (Linux containers via
+# Docker / Daytona / Modal / etc.) MUST be LF. CRLF on a shebang line causes
+# `bash: required file not found` because the kernel reads `#!/bin/bash\\r`.
+* text=auto eol=lf
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+Dockerfile  text eol=lf
+*.dockerfile text eol=lf
+docker-compose.yaml text eol=lf
+docker-compose.yml  text eol=lf
+*.toml      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.py        text eol=lf
+
+# PowerShell / Windows batch keep CRLF.
+*.ps1       text eol=crlf
+*.psd1      text eol=crlf
+*.psm1      text eol=crlf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Binary assets — never touch line endings.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.tar       binary
+*.tgz       binary
+*.whl       binary
+*.so        binary
+*.dll       binary
+*.exe       binary
+"""
+
 
 def create_project(project_dir: Path, name: str) -> None:
     """Scaffold a new evaluation project structure."""
@@ -111,6 +154,7 @@ def create_project(project_dir: Path, name: str) -> None:
     _write_if_missing(project_dir / "nasde.toml", NASDE_TOML_TEMPLATE.format(name=name))
     _write_if_missing(project_dir / "assessment_dimensions.json", ASSESSMENT_DIMENSIONS_TEMPLATE)
     _write_if_missing(project_dir / ".gitignore", GITIGNORE_TEMPLATE)
+    _write_if_missing(project_dir / ".gitattributes", GITATTRIBUTES_TEMPLATE)
 
     tasks_dir.mkdir(parents=True, exist_ok=True)
     variants_dir.mkdir(parents=True, exist_ok=True)
@@ -158,4 +202,4 @@ def _write_if_missing(path: Path, content: str) -> None:
         console.print(f"  [yellow]Skipping[/yellow] {path.name} (already exists)")
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content)
+    path.write_text(content, encoding="utf-8", newline="")

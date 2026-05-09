@@ -14,6 +14,52 @@ description: |
 
 Create and configure coding agent benchmarks for evaluation with `nasde`. A benchmark is a set of coding tasks that AI agents solve inside isolated Docker containers, scored both by functional tests (pass/fail) and by an LLM-as-a-Judge architecture assessment.
 
+## Critical: line endings on Windows (read this first)
+
+Benchmark scripts execute inside **Linux** sandboxes (Docker, Daytona). If `tests/test.sh`, `solution/solve.sh`, or `environment/Dockerfile` are checked out with **CRLF** line endings (the Windows git default when `core.autocrlf=true` and there is no `.gitattributes`), every trial fails immediately with:
+
+```
+bash: line 1: /tests/test.sh: cannot execute: required file not found
+```
+
+…because the kernel reads the shebang as `#!/bin/bash\r` and tries to execute a non-existent `/bin/bash\r`. The agent finishes its work, but the verifier never runs and Harbor reports `RewardFileNotFoundError`.
+
+**Mitigation (always do this for a new benchmark — `nasde init` does it for you, but verify):**
+
+1. The benchmark repo MUST have a `.gitattributes` file enforcing LF for shell scripts and Dockerfiles. The minimum content:
+   ```gitattributes
+   * text=auto eol=lf
+   *.sh        text eol=lf
+   *.bash      text eol=lf
+   Dockerfile  text eol=lf
+   *.dockerfile text eol=lf
+   docker-compose.yaml text eol=lf
+   docker-compose.yml  text eol=lf
+
+   *.ps1       text eol=crlf
+   *.bat       text eol=crlf
+   *.cmd       text eol=crlf
+   ```
+   `nasde init` writes this automatically. If you are adding a benchmark to an existing repo without `.gitattributes`, create one before adding any task.
+
+2. When **writing** `.sh` or `Dockerfile` content programmatically on Windows, write with explicit LF — not `path.write_text(content)` (which translates `\n`→`\r\n` on Windows), but `path.write_text(content, encoding="utf-8", newline="")` or open the file in binary mode.
+
+3. After committing on Windows for the first time, run:
+   ```bash
+   git add --renormalize .
+   git commit -m "normalize line endings"
+   ```
+   to fix any files that landed before `.gitattributes` was in place.
+
+4. Sanity check before pushing a new task:
+   ```bash
+   file tasks/<task>/tests/test.sh
+   # MUST say "with LF line terminators" or omit line-terminator info entirely.
+   # If it says "with CRLF line terminators" — fix it (`sed -i 's/\r$//' file`).
+   ```
+
+This applies equally when you're **adding tasks to a benchmark someone else created** — if their repo has no `.gitattributes` and you're on Windows, your contribution will silently break for them on Linux CI and vice versa.
+
 ## Step 1: Understand what to evaluate
 
 Before creating files, clarify with the user:
@@ -116,6 +162,8 @@ What the agent must NOT do (e.g., don't modify existing tests).
 
 ### environment/Dockerfile (required)
 
+> **Reminder for Windows authors:** the Dockerfile and any helper scripts it `COPY`s in must have LF line endings — Docker tolerates CRLF in some commands but not in `RUN` shell snippets, and any shell script copied with CRLF will hit the same shebang failure as `test.sh`.
+
 ```dockerfile
 FROM <base-image>
 
@@ -136,6 +184,8 @@ CMD ["/bin/bash"]
 The Dockerfile MUST be self-contained — the agent starts working immediately.
 
 ### tests/test.sh (required — Harbor verifier)
+
+> **Reminder for Windows authors:** this file MUST be saved with LF line endings. See "Critical: line endings on Windows" at the top of this skill. CRLF here = `bash: required file not found` and a wasted trial.
 
 ```bash
 #!/bin/bash
@@ -319,3 +369,11 @@ Before running with a real agent:
    ```bash
    nasde run --variant vanilla --tasks <task-name> --without-eval -C .
    ```
+
+4. **Final pre-flight on Windows authors** — verify no CRLF leaked in:
+   ```bash
+   find tasks -name '*.sh' -exec sh -c 'file "$1" | grep -q CRLF && echo "BAD: $1"' _ {} \;
+   find tasks -name 'Dockerfile' -exec sh -c 'file "$1" | grep -q CRLF && echo "BAD: $1"' _ {} \;
+   # Both should print nothing.
+   ```
+   If anything prints, fix with `sed -i 's/\r$//' <file>` and re-commit.

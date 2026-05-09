@@ -9,6 +9,70 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-05-09
+
+### Added
+- **Windows PowerShell OAuth exporter for Claude Code.** `scripts/export_oauth_token.ps1`
+  reads `%USERPROFILE%\.claude\.credentials.json` and exports `$env:CLAUDE_CODE_OAUTH_TOKEN`
+  for users running nasde from PowerShell on Windows. ([#42])
+- **PowerShell OAuth exporters for Codex and Gemini.** `scripts/export_codex_oauth_token.ps1`
+  validates `%USERPROFILE%\.codex\auth.json` (ChatGPT subscription) and
+  `scripts/export_gemini_oauth_token.ps1` exports `$env:GEMINI_OAUTH_CREDS` from
+  `%USERPROFILE%\.gemini\oauth_creds.json`. Mirrors the existing `.sh` scripts.
+- **OAuth scripts now ship inside the `nasde-benchmark-runner` skill.** `nasde install-skills`
+  copies them to `~/.claude/skills/nasde-benchmark-runner/scripts/`, so users who installed
+  nasde via `pip install nasde-toolkit` no longer need a repo checkout to authenticate.
+  Repo `scripts/` stays as the public-facing copy (for existing external links). ([#45])
+
+### Changed
+- **Cloud sandbox extras shipped by default.** `pyproject.toml` now depends on
+  `harbor[cloud]` instead of bare `harbor`, so `--harbor-env daytona|modal|e2b|runloop|gke`
+  works out-of-the-box after `uv tool install nasde-toolkit`. Previously these flags
+  raised Harbor's `MissingExtraError` at runtime and required users to know the
+  `uv tool install --reinstall --with 'harbor[daytona]' nasde-toolkit` workaround.
+  Trade-off: ~113 MB extra in the tool venv (daytona-sdk, e2b, modal, runloop,
+  kubernetes, tensorlake, islo and their transitive deps). Local-Docker users pay
+  the disk cost too, but the alternative — surfacing a setup wall to every cloud
+  user — was worse. ([#48])
+- **`scripts/export_oauth_token.sh` works on Linux.** Falls back to reading
+  `~/.claude/.credentials.json` (plain JSON, same as Windows) when the macOS Keychain
+  is unavailable. macOS path unchanged.
+- **`nasde-benchmark-runner` skill: rewritten "Authentication setup".** Per-agent
+  (Claude/Codex/Gemini) and per-OS (macOS, Linux, Windows PowerShell, Windows WSL) tables,
+  explicit OAuth-vs-API-key user prompt, and references to bundled-script paths instead
+  of repo-relative paths. cmd.exe documented as "use PowerShell or WSL". ([#45])
+- **`nasde init` writes shell scripts and `Dockerfile` with explicit LF line endings.**
+  `Path.write_text(..., encoding="utf-8", newline="")` keeps freshly-scaffolded
+  `tests/test.sh` LF-only on Windows (Python's default text mode would translate
+  `\n` → `\r\n`). Scaffold also drops a `.gitattributes` so future edits stay LF. ([#47])
+- **Benchmark-authoring skills (`nasde-benchmark-creator`,
+  `nasde-benchmark-from-history`, `nasde-benchmark-from-public-repos`) gained a
+  "Critical: line endings on Windows" section** so AI agents authoring benchmarks
+  in user repos enforce the same LF policy. ([#47])
+
+### Fixed
+- **Windows `core.autocrlf=true` no longer breaks Linux benchmark trials.** Repo-wide
+  `.gitattributes` locks `*.sh`, `Dockerfile`, and other Linux-bound files to LF;
+  PowerShell/batch keep CRLF. Previously, Windows users checking out the repo got
+  `test.sh` with CRLF, and the Linux sandbox read `#!/bin/bash\r` as the shebang —
+  producing `bash: required file not found` and `RewardFileNotFoundError` on every
+  trial. ([#47])
+- **Windows path bug in skill bundle resolver.** `_bundled_skills_root()` now resolves
+  correctly on Windows (was failing on installed wheels with backslash path components). ([#43])
+- **Pin `requires-python<3.14`.** Some transitive dependencies don't yet ship Python 3.14
+  wheels — capping the supported range avoids install failures on the bleeding edge. ([#43])
+
+### Internal
+- **Quality-gate CI extended to Windows.** `quality-gate.yml` matrix now runs on
+  ubuntu-latest + windows-latest with Python 3.12 and 3.13. ([#44])
+- **Windows smoke matrix in `publish.yml`.** Fresh-install smoke tests on TestPyPI and
+  PyPI now also run on windows-latest. ([#43])
+- **Codex backend test isolation fix.** Test suite no longer leaks state between
+  `configurable_codex` test cases on Windows runners. ([#44])
+- **Drift guard.** `tests/test_skills_installer.py` now asserts that the six OAuth
+  scripts under `scripts/` and `.claude/skills/nasde-benchmark-runner/scripts/` stay
+  byte-identical, with an actionable error message pointing at the fix. ([#45])
+
 ## [0.3.2] — 2026-05-07
 
 ### Added
@@ -224,7 +288,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.0...v0.2.1
@@ -243,4 +308,10 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#36]: https://github.com/NoesisVision/nasde-toolkit/pull/36
 [#37]: https://github.com/NoesisVision/nasde-toolkit/pull/37
 [#38]: https://github.com/NoesisVision/nasde-toolkit/pull/38
+[#42]: https://github.com/NoesisVision/nasde-toolkit/pull/42
+[#43]: https://github.com/NoesisVision/nasde-toolkit/pull/43
+[#44]: https://github.com/NoesisVision/nasde-toolkit/pull/44
+[#45]: https://github.com/NoesisVision/nasde-toolkit/pull/45
+[#47]: https://github.com/NoesisVision/nasde-toolkit/pull/47
+[#48]: https://github.com/NoesisVision/nasde-toolkit/pull/48
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

@@ -9,6 +9,45 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- **Windows PowerShell OAuth exporter for Claude Code.** `scripts/export_oauth_token.ps1`
+  reads `%USERPROFILE%\.claude\.credentials.json` and exports `$env:CLAUDE_CODE_OAUTH_TOKEN`
+  for users running nasde from PowerShell on Windows. ([#42])
+- **PowerShell OAuth exporters for Codex and Gemini.** `scripts/export_codex_oauth_token.ps1`
+  validates `%USERPROFILE%\.codex\auth.json` (ChatGPT subscription) and
+  `scripts/export_gemini_oauth_token.ps1` exports `$env:GEMINI_OAUTH_CREDS` from
+  `%USERPROFILE%\.gemini\oauth_creds.json`. Mirrors the existing `.sh` scripts.
+- **OAuth scripts now ship inside the `nasde-benchmark-runner` skill.** `nasde install-skills`
+  copies them to `~/.claude/skills/nasde-benchmark-runner/scripts/`, so users who installed
+  nasde via `pip install nasde-toolkit` no longer need a repo checkout to authenticate.
+  Repo `scripts/` stays as the public-facing copy (for existing external links). ([#45])
+
+### Changed
+- **`scripts/export_oauth_token.sh` works on Linux.** Falls back to reading
+  `~/.claude/.credentials.json` (plain JSON, same as Windows) when the macOS Keychain
+  is unavailable. macOS path unchanged.
+- **`nasde-benchmark-runner` skill: rewritten "Authentication setup".** Per-agent
+  (Claude/Codex/Gemini) and per-OS (macOS, Linux, Windows PowerShell, Windows WSL) tables,
+  explicit OAuth-vs-API-key user prompt, and references to bundled-script paths instead
+  of repo-relative paths. cmd.exe documented as "use PowerShell or WSL". ([#45])
+
+### Fixed
+- **Windows path bug in skill bundle resolver.** `_bundled_skills_root()` now resolves
+  correctly on Windows (was failing on installed wheels with backslash path components). ([#43])
+- **Pin `requires-python<3.14`.** Some transitive dependencies don't yet ship Python 3.14
+  wheels — capping the supported range avoids install failures on the bleeding edge. ([#43])
+
+### Internal
+- **Quality-gate CI extended to Windows.** `quality-gate.yml` matrix now runs on
+  ubuntu-latest + windows-latest with Python 3.12 and 3.13. ([#44])
+- **Windows smoke matrix in `publish.yml`.** Fresh-install smoke tests on TestPyPI and
+  PyPI now also run on windows-latest. ([#43])
+- **Codex backend test isolation fix.** Test suite no longer leaks state between
+  `configurable_codex` test cases on Windows runners. ([#44])
+- **Drift guard.** `tests/test_skills_installer.py` now asserts that the six OAuth
+  scripts under `scripts/` and `.claude/skills/nasde-benchmark-runner/scripts/` stay
+  byte-identical, with an actionable error message pointing at the fix. ([#45])
+
 ## [0.3.2] — 2026-05-07
 
 ### Added
@@ -243,4 +282,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#36]: https://github.com/NoesisVision/nasde-toolkit/pull/36
 [#37]: https://github.com/NoesisVision/nasde-toolkit/pull/37
 [#38]: https://github.com/NoesisVision/nasde-toolkit/pull/38
+[#42]: https://github.com/NoesisVision/nasde-toolkit/pull/42
+[#43]: https://github.com/NoesisVision/nasde-toolkit/pull/43
+[#44]: https://github.com/NoesisVision/nasde-toolkit/pull/44
+[#45]: https://github.com/NoesisVision/nasde-toolkit/pull/45
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

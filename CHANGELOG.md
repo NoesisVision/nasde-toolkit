@@ -30,8 +30,22 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   (Claude/Codex/Gemini) and per-OS (macOS, Linux, Windows PowerShell, Windows WSL) tables,
   explicit OAuth-vs-API-key user prompt, and references to bundled-script paths instead
   of repo-relative paths. cmd.exe documented as "use PowerShell or WSL". ([#45])
+- **`nasde init` writes shell scripts and `Dockerfile` with explicit LF line endings.**
+  `Path.write_text(..., encoding="utf-8", newline="")` keeps freshly-scaffolded
+  `tests/test.sh` LF-only on Windows (Python's default text mode would translate
+  `\n` → `\r\n`). Scaffold also drops a `.gitattributes` so future edits stay LF. ([#47])
+- **Benchmark-authoring skills (`nasde-benchmark-creator`,
+  `nasde-benchmark-from-history`, `nasde-benchmark-from-public-repos`) gained a
+  "Critical: line endings on Windows" section** so AI agents authoring benchmarks
+  in user repos enforce the same LF policy. ([#47])
 
 ### Fixed
+- **Windows `core.autocrlf=true` no longer breaks Linux benchmark trials.** Repo-wide
+  `.gitattributes` locks `*.sh`, `Dockerfile`, and other Linux-bound files to LF;
+  PowerShell/batch keep CRLF. Previously, Windows users checking out the repo got
+  `test.sh` with CRLF, and the Linux sandbox read `#!/bin/bash\r` as the shebang —
+  producing `bash: required file not found` and `RewardFileNotFoundError` on every
+  trial. ([#47])
 - **Windows path bug in skill bundle resolver.** `_bundled_skills_root()` now resolves
   correctly on Windows (was failing on installed wheels with backslash path components). ([#43])
 - **Pin `requires-python<3.14`.** Some transitive dependencies don't yet ship Python 3.14
@@ -286,4 +300,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#43]: https://github.com/NoesisVision/nasde-toolkit/pull/43
 [#44]: https://github.com/NoesisVision/nasde-toolkit/pull/44
 [#45]: https://github.com/NoesisVision/nasde-toolkit/pull/45
+[#47]: https://github.com/NoesisVision/nasde-toolkit/pull/47
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

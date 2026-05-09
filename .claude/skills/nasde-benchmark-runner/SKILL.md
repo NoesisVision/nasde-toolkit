@@ -28,6 +28,16 @@ Before running any benchmark, set up authentication tokens for the agents you pl
 
 Then detect their OS and pick the matching script row from the table below. On Windows, also ask whether they're in **PowerShell** or **WSL** (cmd.exe is not directly supported — see "Windows: cmd.exe" below).
 
+### Where the auth scripts live
+
+The OAuth scripts ship inside this skill. After `nasde install-skills` they are at:
+
+- **User scope** (default): `~/.claude/skills/nasde-benchmark-runner/scripts/` (macOS/Linux/WSL) or `%USERPROFILE%\.claude\skills\nasde-benchmark-runner\scripts\` (Windows PowerShell)
+- **Project scope**: `<project>/.claude/skills/nasde-benchmark-runner/scripts/` (if installed with `nasde install-skills --scope project`)
+- **Editable nasde checkout** (devs only): `<repo>/scripts/` — same files, mirrored from the skill bundle
+
+Below, `<SKILL_SCRIPTS>` is shorthand for whichever absolute path applies. Resolve it once, then substitute it in every command. Verify the path with `ls <SKILL_SCRIPTS>` before telling the user to source anything — if the directory is missing, they need to run `nasde install-skills` first.
+
 ### Step 2 — Run the right script per agent × OS
 
 Priority order: **Claude → Codex → Gemini.** Claude is required even for non-Claude variants when `[evaluation] backend = "claude"` (default), because the assessment evaluator spawns `claude` CLI as a subprocess.
@@ -36,10 +46,10 @@ Priority order: **Claude → Codex → Gemini.** Claude is required even for non
 
 | OS / shell | OAuth (subscription) | API key |
 |---|---|---|
-| macOS | `source scripts/export_oauth_token.sh` (reads Keychain entry "Claude Code-credentials") | `export ANTHROPIC_API_KEY=sk-ant-...` |
-| Linux | `source scripts/export_oauth_token.sh` (reads `~/.claude/.credentials.json`) | `export ANTHROPIC_API_KEY=sk-ant-...` |
-| Windows PowerShell | `. .\scripts\export_oauth_token.ps1` (reads `%USERPROFILE%\.claude\.credentials.json`) | `$env:ANTHROPIC_API_KEY = 'sk-ant-...'` |
-| Windows WSL (Ubuntu) | `source scripts/export_oauth_token.sh` (Linux path) | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| macOS | `source <SKILL_SCRIPTS>/export_oauth_token.sh` (reads Keychain entry "Claude Code-credentials") | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| Linux | `source <SKILL_SCRIPTS>/export_oauth_token.sh` (reads `~/.claude/.credentials.json`) | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| Windows PowerShell | `. <SKILL_SCRIPTS>\export_oauth_token.ps1` (reads `%USERPROFILE%\.claude\.credentials.json`) | `$env:ANTHROPIC_API_KEY = 'sk-ant-...'` |
+| Windows WSL (Ubuntu) | `source <SKILL_SCRIPTS>/export_oauth_token.sh` (Linux path; resolve `<SKILL_SCRIPTS>` from your WSL home, not the Windows host's) | `export ANTHROPIC_API_KEY=sk-ant-...` |
 
 Prerequisite for OAuth: `claude` CLI installed and `claude` ran once to log in.
 
@@ -49,10 +59,10 @@ The script exports `CLAUDE_CODE_OAUTH_TOKEN`. This is required for both Claude v
 
 | OS / shell | OAuth (ChatGPT subscription) | API key |
 |---|---|---|
-| macOS | `codex login` once, then `source scripts/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` (or `OPENAI_API_KEY`) |
-| Linux | `codex login` once, then `source scripts/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` |
-| Windows PowerShell | `codex login` once, then `. .\scripts\export_codex_oauth_token.ps1` | `$env:CODEX_API_KEY = 'sk-proj-...'` |
-| Windows WSL (Ubuntu) | `codex login` once, then `source scripts/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` |
+| macOS | `codex login` once, then `source <SKILL_SCRIPTS>/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` (or `OPENAI_API_KEY`) |
+| Linux | `codex login` once, then `source <SKILL_SCRIPTS>/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` |
+| Windows PowerShell | `codex login` once, then `. <SKILL_SCRIPTS>\export_codex_oauth_token.ps1` | `$env:CODEX_API_KEY = 'sk-proj-...'` |
+| Windows WSL (Ubuntu) | `codex login` once, then `source <SKILL_SCRIPTS>/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` |
 
 The OAuth scripts only **validate** `~/.codex/auth.json` (or `%USERPROFILE%\.codex\auth.json`) — Harbor injects the file into the sandbox automatically. API key always takes priority over OAuth when both are present.
 
@@ -60,27 +70,31 @@ The OAuth scripts only **validate** `~/.codex/auth.json` (or `%USERPROFILE%\.cod
 
 | OS / shell | OAuth (Google account) | API key |
 |---|---|---|
-| macOS | `gemini login` once, then `source scripts/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
-| Linux | `gemini login` once, then `source scripts/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
-| Windows PowerShell | `gemini login` once, then `. .\scripts\export_gemini_oauth_token.ps1` | `$env:GEMINI_API_KEY = '...'` |
-| Windows WSL (Ubuntu) | `gemini login` once, then `source scripts/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
+| macOS | `gemini login` once, then `source <SKILL_SCRIPTS>/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
+| Linux | `gemini login` once, then `source <SKILL_SCRIPTS>/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
+| Windows PowerShell | `gemini login` once, then `. <SKILL_SCRIPTS>\export_gemini_oauth_token.ps1` | `$env:GEMINI_API_KEY = '...'` |
+| Windows WSL (Ubuntu) | `gemini login` once, then `source <SKILL_SCRIPTS>/export_gemini_oauth_token.sh` | `export GEMINI_API_KEY=...` |
 
 The OAuth scripts export `GEMINI_OAUTH_CREDS` (the raw JSON) — `ConfigurableGemini` reads that env var and injects credentials into the sandbox. API key always takes priority over OAuth.
 
 ### Combined setup for cross-agent runs
 
+Resolve `<SKILL_SCRIPTS>` first, then run all three.
+
 **macOS / Linux / Windows WSL:**
 ```bash
-source scripts/export_oauth_token.sh         # Claude (subscription)
-source scripts/export_codex_oauth_token.sh   # Codex (subscription) — or: export CODEX_API_KEY=...
-source scripts/export_gemini_oauth_token.sh  # Gemini (Google account) — or: export GEMINI_API_KEY=...
+SKILL_SCRIPTS=~/.claude/skills/nasde-benchmark-runner/scripts   # adjust if --scope project
+source $SKILL_SCRIPTS/export_oauth_token.sh         # Claude (subscription)
+source $SKILL_SCRIPTS/export_codex_oauth_token.sh   # Codex (subscription) — or: export CODEX_API_KEY=...
+source $SKILL_SCRIPTS/export_gemini_oauth_token.sh  # Gemini (Google account) — or: export GEMINI_API_KEY=...
 ```
 
 **Windows PowerShell:**
 ```powershell
-. .\scripts\export_oauth_token.ps1
-. .\scripts\export_codex_oauth_token.ps1
-. .\scripts\export_gemini_oauth_token.ps1
+$SkillScripts = "$env:USERPROFILE\.claude\skills\nasde-benchmark-runner\scripts"
+. "$SkillScripts\export_oauth_token.ps1"
+. "$SkillScripts\export_codex_oauth_token.ps1"
+. "$SkillScripts\export_gemini_oauth_token.ps1"
 ```
 
 ### Windows: cmd.exe

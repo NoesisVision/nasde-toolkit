@@ -19,6 +19,15 @@ Generate NASDE benchmark tasks by mining git history. You analyze commits, diffs
 - An existing NASDE benchmark project (run `nasde init` first, or use the `nasde-benchmark-creator` skill)
 - If the benchmark project doesn't exist yet, create it first — this skill generates tasks, not the project scaffold
 
+## Critical: line endings on Windows (read this first)
+
+When generating `tests/test.sh`, `solution/solve.sh`, or `environment/Dockerfile` on a Windows host, write them with **LF** line endings or every trial fails with `bash: required file not found` (the kernel reads `#!/bin/bash\r` as the shebang). See the full explanation and `.gitattributes` template in the `nasde-benchmark-creator` skill.
+
+Quick rules:
+- The benchmark project MUST have a `.gitattributes` enforcing `*.sh text eol=lf` and `Dockerfile text eol=lf`. `nasde init` creates this. If the existing project lacks it, **create `.gitattributes` before generating any task files**.
+- When writing files programmatically, use `path.write_text(content, encoding="utf-8", newline="")` — never the bare default which translates `\n`→`\r\n` on Windows.
+- Sanity-check after generation: `find tasks/<new-task> -name '*.sh' -o -name 'Dockerfile' | xargs file | grep CRLF` should print nothing.
+
 ## Step 1: Identify the source repository and commit range
 
 Ask the user:

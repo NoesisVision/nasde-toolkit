@@ -1,0 +1,46 @@
+# Default: let Git detect text vs binary, force LF in working tree.
+# Critical: shell scripts and Dockerfiles MUST be LF — they are executed by
+# Linux interpreters in benchmark sandboxes (Daytona, Docker). CRLF causes
+# `bash: required file not found` because the shebang becomes `#!/bin/bash\r`.
+* text=auto eol=lf
+
+# Source code that runs in Linux containers / cross-platform tooling: force LF.
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.py        text eol=lf
+Dockerfile  text eol=lf
+*.dockerfile text eol=lf
+docker-compose.yaml text eol=lf
+docker-compose.yml  text eol=lf
+*.toml      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+Makefile    text eol=lf
+*.mk        text eol=lf
+
+# PowerShell expects CRLF on Windows. Keep as-is so PS5.1 parses cleanly.
+*.ps1       text eol=crlf
+*.psd1      text eol=crlf
+*.psm1      text eol=crlf
+
+# Windows batch files require CRLF.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Binary assets: never touch line endings.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.tgz       binary
+*.tar       binary
+*.whl       binary
+*.so        binary
+*.dll       binary
+*.exe       binary

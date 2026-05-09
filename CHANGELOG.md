@@ -23,6 +23,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   Repo `scripts/` stays as the public-facing copy (for existing external links). ([#45])
 
 ### Changed
+- **Cloud sandbox extras shipped by default.** `pyproject.toml` now depends on
+  `harbor[cloud]` instead of bare `harbor`, so `--harbor-env daytona|modal|e2b|runloop|gke`
+  works out-of-the-box after `uv tool install nasde-toolkit`. Previously these flags
+  raised Harbor's `MissingExtraError` at runtime and required users to know the
+  `uv tool install --reinstall --with 'harbor[daytona]' nasde-toolkit` workaround.
+  Trade-off: ~113 MB extra in the tool venv (daytona-sdk, e2b, modal, runloop,
+  kubernetes, tensorlake, islo and their transitive deps). Local-Docker users pay
+  the disk cost too, but the alternative — surfacing a setup wall to every cloud
+  user — was worse. ([#48])
 - **`scripts/export_oauth_token.sh` works on Linux.** Falls back to reading
   `~/.claude/.credentials.json` (plain JSON, same as Windows) when the macOS Keychain
   is unavailable. macOS path unchanged.
@@ -301,4 +310,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#44]: https://github.com/NoesisVision/nasde-toolkit/pull/44
 [#45]: https://github.com/NoesisVision/nasde-toolkit/pull/45
 [#47]: https://github.com/NoesisVision/nasde-toolkit/pull/47
+[#48]: https://github.com/NoesisVision/nasde-toolkit/pull/48
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

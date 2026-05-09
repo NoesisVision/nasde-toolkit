@@ -53,7 +53,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   warning that `--all-variants` runs variants sequentially in a single process —
   to run two or more variants in parallel, launch separate `nasde run` processes
   with `&` and `wait`. Prevents agents from picking `--all-variants` when they
-  actually want concurrency.
+  actually want concurrency. ([#50])
 
 ### Fixed
 - **Windows `core.autocrlf=true` no longer breaks Linux benchmark trials.** Repo-wide
@@ -319,4 +319,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#45]: https://github.com/NoesisVision/nasde-toolkit/pull/45
 [#47]: https://github.com/NoesisVision/nasde-toolkit/pull/47
 [#48]: https://github.com/NoesisVision/nasde-toolkit/pull/48
+[#50]: https://github.com/NoesisVision/nasde-toolkit/pull/50
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

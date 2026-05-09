@@ -144,13 +144,15 @@ nasde run --variant baseline -C path/to/benchmark --without-eval
 
 ### Parallel runs (multiple variants)
 
-Running multiple variants simultaneously is safe — each job directory includes a unique random suffix to prevent collisions:
+**Do not use `--all-variants` when you want parallelism.** `--all-variants` runs variants **sequentially** in a single process (one variant after another). To run two or more variants in parallel, launch separate `nasde run` processes with `&` and `wait` — each job directory gets a unique random suffix, so concurrent runs are collision-safe:
 
 ```bash
 nasde run --variant vanilla --tasks my-task -C path/to/benchmark &
 nasde run --variant guided --tasks my-task -C path/to/benchmark &
 wait
 ```
+
+Use `--all-variants` only when you want one variant after another (e.g. to limit total resource use, or when running Claude variants where parallel runs risk Docker OOM — see warning below).
 
 For deterministic job names, use `--job-suffix`:
 

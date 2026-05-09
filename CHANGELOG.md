@@ -49,6 +49,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   `nasde-benchmark-from-history`, `nasde-benchmark-from-public-repos`) gained a
   "Critical: line endings on Windows" section** so AI agents authoring benchmarks
   in user repos enforce the same LF policy. ([#47])
+- **`nasde-benchmark-runner` skill: clarified parallel-runs guidance.** Explicit
+  warning that `--all-variants` runs variants sequentially in a single process —
+  to run two or more variants in parallel, launch separate `nasde run` processes
+  with `&` and `wait`. Prevents agents from picking `--all-variants` when they
+  actually want concurrency.
 
 ### Fixed
 - **Windows `core.autocrlf=true` no longer breaks Linux benchmark trials.** Repo-wide

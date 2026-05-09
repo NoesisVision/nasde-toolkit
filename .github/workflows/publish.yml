@@ -168,32 +168,49 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Fresh install from TestPyPI via uv tool install
+      - name: Download nasde-toolkit wheel from TestPyPI
         shell: bash
         run: |
           set -euo pipefail
-          # Smoke test pulls `nasde-toolkit==X.Y.Z` from TestPyPI plus transitive
-          # deps (harbor[cloud], opik, tensorlake, ...) from PyPI. uv's default
-          # `first-index` resolution refuses to look on a fallback index once
-          # *any* matching package name appears on the primary one — even if
-          # the version there can't satisfy the requirement. That breaks both
-          # directions:
-          #   - PyPI primary: nasde-toolkit==0.3.3 not on PyPI yet, but 0.3.2
-          #     is, so uv refuses to look at TestPyPI for 0.3.3.
-          #   - TestPyPI primary: tensorlake==0.4.45 only on PyPI, but TestPyPI
-          #     has unrelated devN uploads of tensorlake, so uv refuses to look
-          #     at PyPI for 0.4.45.
-          # `unsafe-best-match` tells uv to consider all indexes for every
-          # package and pick the version that satisfies the requirement,
-          # regardless of which index found it first. Safe for us because we
-          # control both indexes and the package set is fixed by pyproject.toml.
+          # Why download the wheel manually instead of using `uv tool install`
+          # against TestPyPI as an index?
+          #
+          # uv's `--index` resolution has a `first-index` dependency-confusion
+          # guard that refuses to look at a fallback index once *any* package
+          # of the same name exists on the primary one — even at the wrong
+          # version. That blocks both indexing orders:
+          #   - PyPI primary: blocks nasde-toolkit==X.Y.Z lookup on TestPyPI
+          #     once an older nasde-toolkit exists on PyPI.
+          #   - TestPyPI primary: blocks transitive deps (e.g. tensorlake==0.4.45,
+          #     fastapi==0.128) lookup on PyPI when TestPyPI has unrelated
+          #     devN/squatted uploads of those names.
+          #
+          # `--index-strategy unsafe-best-match` lifts the guard but introduces
+          # a real squatting risk: TestPyPI has e.g. a 2.5KB stub `FASTAPI==1.0`
+          # that uv would prefer to the legitimate fastapi==0.136.x on PyPI
+          # because 1.0 > 0.136 numerically.
+          #
+          # The clean answer: download the freshly-published wheel directly
+          # from TestPyPI's file-host, then install it as a local file. uv
+          # then resolves transitive deps from PyPI only — no contact with
+          # TestPyPI's resolver, no guard, no squatting attack surface.
+          version="${{ needs.build.outputs.version }}"
+          # jq is preinstalled on ubuntu-latest and windows-latest runners.
+          wheel_url=$(curl -fsSL "https://test.pypi.org/pypi/nasde-toolkit/${version}/json" \
+            | jq -r '.urls[] | select(.filename | endswith(".whl")) | .url')
+          test -n "$wheel_url" || { echo "::error::No wheel URL found on TestPyPI for nasde-toolkit==${version}"; exit 1; }
+          mkdir -p wheel
+          curl -fsSL -o "wheel/$(basename "$wheel_url")" "$wheel_url"
+          ls -la wheel/
+
+      - name: Fresh install from TestPyPI wheel via uv tool install
+        shell: bash
+        run: |
+          set -euo pipefail
           uv tool install \
             --python ${{ matrix.python }} \
             --refresh \
-            --index-strategy unsafe-best-match \
-            --index https://test.pypi.org/simple/ \
-            --index https://pypi.org/simple/ \
-            "nasde-toolkit==${{ needs.build.outputs.version }}"
+            wheel/nasde_toolkit-${{ needs.build.outputs.version }}-py3-none-any.whl
 
       - name: Verify CLI smoke test
         shell: bash

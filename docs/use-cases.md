@@ -275,3 +275,76 @@ NASDE includes a dedicated skill for curating diverse benchmark suites from publ
 **Relationship to other skills:** Like `nasde-benchmark-from-history`, this is an alternative entry point into the benchmark creation workflow — optimized for the "many repos, one skill" pattern (UC2) rather than the "one repo, many skills" pattern (UC1).
 
 See the full skill reference: [`.claude/skills/nasde-benchmark-from-public-repos/SKILL.md`](../.claude/skills/nasde-benchmark-from-public-repos/SKILL.md)
+
+---
+
+## UC3: Benchmarking a Claude Code plugin or a single skill (by reference)
+
+### Persona
+
+A plugin/skill author whose plugin under test bundles skills **and** an MCP
+server (e.g. a knowledge-graph server the skills call). They want to evaluate
+"with the plugin" vs "vanilla" without freezing a copy of the plugin into the
+benchmark.
+
+### Problem
+
+Before `[nasde.plugin]`, exercising a plugin meant paying a triple tax: vendor
+a frozen snapshot of the entire plugin tree into the benchmark, hand-write a
+Dockerfile `COPY`, hand-write `[environment.mcp_servers]` with an env-export
+wrapper, **and** copy the plugin's skills into each variant. The snapshot
+drifted from the live plugin and had to be refreshed by a documented manual
+procedure. A benchmark testing just one skill still had to copy that skill
+(and its `references/`) into `variants/<v>/skills/`.
+
+### What NASDE enables
+
+**Whole plugin, one declaration.** In `task.toml`:
+
+```toml
+[nasde.plugin]
+path = "../../../src/plugins/my-plugin"
+ref = "abc1234"                           # reproducible: builds from this commit
+build = "bun install --frozen-lockfile"
+
+[nasde.plugin.env]
+CLAUDE_PLUGIN_DATA = "/opt/my-plugin-data"
+```
+
+nasde ships the plugin into the sandbox image (from a git worktree at `ref`),
+registers the plugin's own skills for the agent (whole skill dir, including
+`references/`), and wires its MCP server into the task — no snapshot, no
+hand-wiring.
+
+**Single skill, by reference.** When a variant only needs one skill, point at
+its source in `variant.toml` instead of copying it:
+
+```toml
+agent = "claude"
+model = "claude-sonnet-4-6"
+
+[[skill]]
+path = "../../../src/plugins/my-plugin/skills/my-skill"
+ref  = "abc1234"
+```
+
+The whole skill directory (including `references/`) is staged into the
+sandbox; nothing is copied into `variants/`.
+
+### What varies, what stays fixed
+
+| Fixed | Varies |
+|-------|--------|
+| Task set, assessment criteria | `with-plugin` vs `vanilla` variant |
+| Plugin source (referenced at a pinned `ref`) | Plugin/skill versions under development |
+
+### Current constraints
+
+- The plugin must be a local directory containing `.claude-plugin/plugin.json`
+  (the standard Claude Code plugin layout). Its MCP server is read from the
+  plugin's `.mcp.json`.
+- A baked-not-installed plugin needs its MCP-server env set explicitly
+  (`CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA`/project dir). nasde supplies
+  sensible defaults; override per plugin via `[nasde.plugin.env]`.
+
+See [ADR-009](adr/009-plugin-and-skill-by-reference.md) for the design.

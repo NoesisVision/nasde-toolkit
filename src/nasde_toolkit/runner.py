@@ -20,7 +20,17 @@ from rich.console import Console
 from rich.table import Table
 
 from nasde_toolkit.config import ProjectConfig
-from nasde_toolkit.docker import cleanup_worktrees, ensure_task_environment
+from nasde_toolkit.docker import (
+    cleanup_worktrees,
+    create_ref_worktree,
+    ensure_task_environment,
+    ensure_task_plugin,
+)
+from nasde_toolkit.plugin_registration import (
+    inject_mcp_server,
+    register_plugin_skills,
+    stage_referenced_skills,
+)
 
 if TYPE_CHECKING:
     from harbor.models.job.result import JobResult
@@ -60,19 +70,14 @@ async def run_benchmark(
     _load_env_file(config.project_dir)
 
     variant_dir = resolve_variant_dir(config.project_dir, variant)
-    harbor_config_path = variant_dir / "harbor_config.json"
 
-    if not harbor_config_path.exists():
-        _generate_harbor_config(variant_dir, variant)
-        harbor_config_path = variant_dir / "harbor_config.json"
+    extra_sandbox_files = _prepare_task_environments(config, variant_dir)
+
+    harbor_config_path = _ensure_harbor_config(variant_dir, variant, extra_sandbox_files)
 
     _ensure_auth(_read_agent_import_path(harbor_config_path))
 
     resolved_model = _resolve_model(model, variant_dir, config)
-
-    for task in config.tasks:
-        if task.source is not None:
-            ensure_task_environment(task.path, task.source, config.docker)
 
     merged_config = _build_merged_config(
         config=config,
@@ -109,6 +114,36 @@ async def run_benchmark(
 # ---------------------------------------------------------------------------
 # Prerequisites
 # ---------------------------------------------------------------------------
+
+
+def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> dict[str, str]:
+    """Generate per-task Docker environments and collect agent skill files.
+
+    Per task: auto-generate the source Dockerfile/compose ([nasde.source]),
+    then stage the [nasde.plugin] tree into the build context, register the
+    plugin's own skills, and inject its MCP server into the task's task.toml.
+    Then add the variant's referenced [[skill]] dirs. Returns the extra
+    ``{container_path: host_file}`` entries to merge into the variant's
+    harbor_config.json sandbox_files (skills go to /app/.claude/skills/,
+    identical across tasks in a single-variant run).
+    """
+    extra_sandbox_files: dict[str, str] = {}
+
+    for task in config.tasks:
+        if task.source is not None:
+            ensure_task_environment(task.path, task.source, config.docker)
+        if task.plugin is not None:
+            staged = ensure_task_plugin(
+                task.path,
+                task.plugin,
+                config.docker,
+                has_source=task.source is not None,
+            )
+            register_plugin_skills(staged, extra_sandbox_files)
+            inject_mcp_server(task.path, staged)
+
+    stage_referenced_skills(variant_dir, extra_sandbox_files, create_ref_worktree)
+    return extra_sandbox_files
 
 
 def _resolve_model(
@@ -233,14 +268,22 @@ def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
 
 
 def _collect_claude_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
+    """Map each variants/<v>/skills/<name>/ skill into sandbox_files.
+
+    Carries the WHOLE skill dir (incl. ``references/`` and sibling files),
+    not just ``SKILL.md`` — skills like analyze-conversation read
+    ``references/*.md`` at runtime. Uses the shared staging helper so the
+    copy-into-variants path and the ADR-009 by-reference path behave
+    identically.
+    """
+    from nasde_toolkit.plugin_registration import stage_skill_dir
+
     skills_dir = variant_dir / "skills"
     if not skills_dir.is_dir():
         return
     for skill_dir in sorted(skills_dir.iterdir()):
-        skill_md = skill_dir / "SKILL.md"
-        if skill_dir.is_dir() and skill_md.exists():
-            target = f"/app/.claude/skills/{skill_dir.name}/SKILL.md"
-            sandbox_files[target] = str(skill_md)
+        if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+            stage_skill_dir(skill_dir, sandbox_files)
 
 
 def _collect_codex_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
@@ -338,6 +381,27 @@ def _read_agent_import_path(harbor_config_path: Path) -> str | None:
     return None
 
 
+def _ensure_harbor_config(
+    variant_dir: Path,
+    variant: str,
+    extra_sandbox_files: dict[str, str],
+) -> Path:
+    """Generate harbor_config.json if absent, then merge plugin/referenced skills.
+
+    ``extra_sandbox_files`` (plugin skills + variant [[skill]] dirs, ADR-009)
+    are merged into the agent's sandbox_files every run — they are derived,
+    not authored, and the staged source paths can change between runs.
+    """
+    harbor_config_path = variant_dir / "harbor_config.json"
+    if not harbor_config_path.exists():
+        _generate_harbor_config(variant_dir, variant)
+
+    if extra_sandbox_files:
+        _merge_sandbox_files(harbor_config_path, extra_sandbox_files)
+
+    return harbor_config_path
+
+
 def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
     sandbox_files = _collect_sandbox_files(variant_dir)
     agent_type = load_variant_agent_type(variant_dir)
@@ -358,6 +422,17 @@ def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
     variant_dir.mkdir(parents=True, exist_ok=True)
     (variant_dir / "harbor_config.json").write_text(json.dumps(config, indent=2))
     console.print(f"[dim]Generated harbor_config.json in {variant_dir}[/dim]")
+
+
+def _merge_sandbox_files(harbor_config_path: Path, extra: dict[str, str]) -> None:
+    """Merge derived sandbox files into every agent in harbor_config.json."""
+    config = json.loads(harbor_config_path.read_text())
+    for agent in config.get("agents", []):
+        kwargs = agent.setdefault("kwargs", {})
+        sandbox_files = kwargs.setdefault("sandbox_files", {})
+        sandbox_files.update(extra)
+    harbor_config_path.write_text(json.dumps(config, indent=2))
+    console.print(f"  [dim]Merged {len(extra)} skill file(s) into harbor_config.json[/dim]")
 
 
 # ---------------------------------------------------------------------------

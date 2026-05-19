@@ -9,6 +9,30 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- **`[nasde.plugin]` in `task.toml` — ship a local Claude Code plugin into the
+  sandbox with one declaration.** Mirrors `[nasde.source]`: stages the plugin
+  directory (at an optional `ref`, via a temporary git worktree) into the Docker
+  build context, generates/augments the Dockerfile to `COPY` it to `install_root`
+  and run an optional build command, registers the plugin's own `skills/` for the
+  agent (whole skill dir, including `references/`), and auto-wires the plugin's
+  MCP server (from its `.mcp.json`) into the task — with the env a
+  baked-not-installed plugin needs. Composes with `[nasde.source]` and with a
+  hand-written `environment/Dockerfile`. Removes the frozen-plugin-snapshot
+  workaround. See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+- **Skill-by-reference: `[[skill]]` array in `variant.toml`.** Reference a skill
+  from a source path (optional `ref`) instead of copying it into
+  `variants/<v>/skills/`. The whole skill directory (including `references/`) is
+  staged into the sandbox. Shares the plugin's skill-registration machinery.
+  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+
+### Fixed
+- **`variants/<v>/skills/<name>/` now carries `references/` and sibling files**,
+  not just `SKILL.md`. Previously only `SKILL.md` was injected, silently breaking
+  skills that read `references/*.md` at runtime. Backward compatible — the
+  copy-into-`variants/` path keeps working, now correctly.
+  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+
 ## [0.3.3] — 2026-05-09
 
 ### Added

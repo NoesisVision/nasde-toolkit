@@ -17,7 +17,8 @@ src/nasde_toolkit/
     protocol.py            # EvaluatorBackend Protocol
     claude_subprocess.py   # `claude -p` subprocess backend (default)
     codex_subprocess.py    # `codex exec` subprocess backend
-  docker.py                # Docker environment helpers
+  docker.py                # Docker environment helpers ([nasde.source] + [nasde.plugin] staging)
+  plugin_registration.py   # Shared skill + MCP registration ([nasde.plugin] + variant [[skill]])
   scaffold/
     __init__.py            # Project scaffolding templates and file creation
   skills_installer.py      # `nasde install-skills` — copies bundled authoring skills to ~/.claude/skills/
@@ -63,13 +64,14 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **Configuration**: Two-layer config — `nasde.toml` for project-level settings, `task.toml` per task (single file, shared with Harbor; nasde-specific fields live under `[nasde.*]`). Both parsed into `@dataclass` models in `config.py`. Task discovery walks `tasks/` (or `.nasde/tasks/`) automatically.
 - **Benchmark runner**: Uses Harbor Python API (`Job`, `JobConfig`) directly instead of subprocess. The runner merges variant config with task registry into a dict, passes it to `JobConfig.model_validate()`, then runs `await job.run()`. Opik tracking via `track_harbor()` (monkey-patches Harbor at runtime).
 - **Evaluator**: Subprocess-based assessment evaluation with pluggable backends. The evaluator spawns a CLI agent (`claude -p` or `codex exec`) as a subprocess to read trial artifacts and score them against assessment criteria. Backend selection via `[evaluation] backend` in `nasde.toml` (`"claude"` default, `"codex"` available). Claude backend uses `--output-format json` (without `--bare` — preserves OAuth/keychain auth for subscription billing and skills auto-discovery). Codex backend uses `--json --quiet --full-auto` for JSONL event streaming. Both backends respect the user's existing CLI authentication (OAuth subscription or API key) — no Agent SDK required, which avoids Anthropic's SDK-billing restrictions on subscription accounts. Configurable via `[evaluation]` in `nasde.toml` — backend, model, tools, MCP servers, skills, system prompt, and trajectory inclusion can all be customized. When `include_trajectory = true`, the evaluator also has access to the agent's ATIF trajectory (`agent/trajectory.json`). Default Claude model is `claude-opus-4-7`. Skills dir is mounted via temp-dir + `cwd` with `--add-dir <workspace>` so Claude's auto-discovery picks them up. Results written to `assessment_eval.json` per trial and optionally uploaded to Opik.
-- **Variant system**: Each variant is a directory under `variants/` with a required `variant.toml` declaring the agent type (`agent = "claude"`, `agent = "codex"`, or `agent = "gemini"`). For Claude Code variants, `CLAUDE.md` is injected into `/app/CLAUDE.md`; for Codex variants, `AGENTS.md` is injected into `/app/AGENTS.md`; for Gemini CLI variants, `GEMINI.md` is injected into `/app/GEMINI.md`. An optional `skills/` subdirectory contains Claude skill snapshots — each `skills/<name>/SKILL.md` is injected into `/app/.claude/skills/<name>/SKILL.md`. An optional `agents_skills/` subdirectory contains Codex skill snapshots — all files under `agents_skills/<name>/` are injected into `/app/.agents/skills/<name>/`. An optional `gemini_skills/` subdirectory contains Gemini skill snapshots — all files under `gemini_skills/<name>/` are injected into `/app/.gemini/skills/<name>/`. If no `harbor_config.json` exists, one is auto-generated from `variant.toml`.
+- **Variant system**: Each variant is a directory under `variants/` with a required `variant.toml` declaring the agent type (`agent = "claude"`, `agent = "codex"`, or `agent = "gemini"`). For Claude Code variants, `CLAUDE.md` is injected into `/app/CLAUDE.md`; for Codex variants, `AGENTS.md` is injected into `/app/AGENTS.md`; for Gemini CLI variants, `GEMINI.md` is injected into `/app/GEMINI.md`. An optional `skills/` subdirectory contains Claude skill snapshots — each `skills/<name>/` is injected **whole** (incl. `references/` and sibling files, via the shared `plugin_registration.stage_skill_dir`) into `/app/.claude/skills/<name>/`. A `variant.toml` may also declare a `[[skill]]` array (skill-by-reference, ADR-009): each entry points at a source skill dir (optional `ref`) staged whole into `/app/.claude/skills/<name>/` without a copy under `variants/`. An optional `agents_skills/` subdirectory contains Codex skill snapshots — all files under `agents_skills/<name>/` are injected into `/app/.agents/skills/<name>/`. An optional `gemini_skills/` subdirectory contains Gemini skill snapshots — all files under `gemini_skills/<name>/` are injected into `/app/.gemini/skills/<name>/`. If no `harbor_config.json` exists, one is auto-generated from `variant.toml`.
 - **Codex ChatGPT OAuth**: Harbor 0.4's `Codex` agent natively uploads `~/.codex/auth.json` (or `$CODEX_AUTH_JSON_PATH`) into the sandbox as `$CODEX_HOME/auth.json`. `ConfigurableCodex` relies on this — it no longer injects tokens itself. API key (`OPENAI_API_KEY`) always takes priority over OAuth. Tokens are not extracted back from sandbox after runs. Validate with `source scripts/export_codex_oauth_token.sh`. The runner bridges `CODEX_API_KEY` → `OPENAI_API_KEY` in `_ensure_auth` for users who prefer the Codex-specific env var name.
 - **Gemini Google OAuth**: When `~/.gemini/oauth_creds.json` exists (created by `gemini login`) and no API key env var is set (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`), `ConfigurableGemini` injects the OAuth credentials into the sandbox via env var. API key always takes priority over OAuth. Validate with `source scripts/export_gemini_oauth_token.sh`.
 - **All dependencies are core**: `harbor`, `opik` are in `[project.dependencies]`. The evaluator depends on having `claude` CLI (default) or `codex` CLI installed and authenticated on the host — not bundled. No optional extras — `uv tool install .` gives full functionality. Assessment evaluation is on by default (`--without-eval` to skip).
 - **Versioning**: Derived from git tags via `hatch-vcs` plugin. Tag `v0.1.0` → version `0.1.0`. Commits after a tag produce dev versions like `0.1.1.dev3+gabcdef`. `_version.py` is auto-generated at build time and gitignored. See ADR-007.
 - **Bundled authoring skills**: `.claude/skills/nasde-benchmark-*` are shipped inside the wheel via `[tool.hatch.build.targets.wheel.force-include]` → `nasde_toolkit/_bundled_skills/`. `nasde install-skills` discovers them via `importlib.resources` (wheel install) with a fallback to the live `.claude/skills/` when running from an editable / source checkout. `nasde-dev` is deliberately excluded from the bundle (internal dev skill, not for end users).
 - **Auto-generated Dockerfile**: When a task has no `environment/Dockerfile`, nasde generates one from `source.git` + `[docker]`. For local paths, also generates `docker-compose.yaml` to override the build context. See `docker.py:ensure_task_environment()`.
+- **`[nasde.plugin]` (ADR-009)**: Ships a local Claude Code plugin (dir with `.claude-plugin/plugin.json`) into the sandbox with one `task.toml` declaration. `docker.py:ensure_task_plugin()` stages the plugin tree (at `ref` via a temp worktree) into a gitignored `_nasde-plugin/` inside the **active** build context (Harbor pins context to `environment/`; with `[nasde.source]` the context is the source repo/worktree — nasde reads it back from the generated compose and stages there), then appends a sentinel-fenced `COPY`+build stage to the Dockerfile (generated base if none, hand-written preserved). `plugin_registration.py` then registers the plugin's own `skills/` (whole dirs) and injects its MCP server (from `<plugin>/.mcp.json`, env-wrapped) into the task's `task.toml` — idempotent, fenced, never clobbers an author-declared same-name server. Skill-by-reference (`[[skill]]` in `variant.toml`) feeds the same skill-registration machinery. Derived sandbox files are merged into the variant's `harbor_config.json` each run. MCP injection writes `task.toml` because Harbor reads MCP servers only from there (`trial.py` → `task.config.environment.mcp_servers`).
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
 - See `docs/adr/` for detailed decision records.
 
@@ -216,7 +218,23 @@ timeout_sec = 300           # Per-task verifier timeout (runs tests/test.sh).
 [nasde.source]              # Only needed when task has no environment/Dockerfile (auto-generation).
 git = "https://github.com/org/repo.git"
 ref = "main"
+
+[nasde.plugin]              # Optional (ADR-009). Ship a local Claude Code plugin into the sandbox.
+path = "../../../src/plugins/my-plugin"   # dir with .claude-plugin/plugin.json (required)
+ref = "abc1234"                           # optional git ref, same semantics as [nasde.source]
+install_root = "/opt/my-plugin"           # optional, default /opt/<plugin-name>
+build = "bun install --frozen-lockfile"   # optional, run at image-build time
+[nasde.plugin.env]                        # optional, exported in the generated MCP wrapper
+CLAUDE_PLUGIN_DATA = "/opt/my-plugin-data"
 ```
+
+`[nasde.plugin]` is parsed into `config.PluginConfig` and consumed by
+`docker.ensure_task_plugin()` + `plugin_registration.py`. The MCP server and
+plugin skills are auto-registered — do NOT also hand-write
+`[environment.mcp_servers]` for the plugin or copy its skills into a variant.
+nasde writes the generated `[[environment.mcp_servers]]` into `task.toml`
+between sentinel comments (fenced/idempotent); an author-declared server of
+the same name is respected and left untouched.
 
 **Required files per task directory** (Harbor conventions):
 - `instruction.md` — agent-facing task description (required by Harbor)
@@ -236,9 +254,20 @@ Declares the agent type and the model the variant runs against. Every variant MU
 ```toml
 agent = "claude"                    # "claude" | "codex" | "gemini"
 model = "claude-sonnet-4-6"         # REQUIRED. Model appropriate for the agent family.
+
+[[skill]]                           # Optional (ADR-009): skill-by-reference, Claude only.
+path = "../../../src/plugins/my-plugin/skills/my-skill"   # source skill dir (required)
+ref  = "abc1234"                    # optional git ref, same semantics as [nasde.source]
 ```
 
 **Model priority**: `--model` CLI flag > `variant.toml [model]`. Missing model in both places → SystemExit with a clear error.
+
+**`[[skill]]` (skill-by-reference)**: each entry stages the **whole** skill dir
+(incl. `references/`) into `/app/.claude/skills/<name>/` from a source path —
+no copy under `variants/<v>/skills/`. Optional `ref` reads from a temp git
+worktree at that commit. The legacy `variants/<v>/skills/<name>/` copy path
+still works (and now also carries `references/`). Both feed the same
+`plugin_registration.stage_skill_dir` machinery as `[nasde.plugin]`.
 
 ### harbor_config.json (per variant)
 

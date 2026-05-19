@@ -37,6 +37,10 @@ dependencies = [
     # (missing _async/ submodule); upper bound blocks 3.0.0a1 pre-release with
     # the same defect. Remove when supabase ships a healthy 3.x wheel.
     "supabase>=2.29.0,<3",
+    # Transitive via harbor/opik/supabase. Pinned to fix CVE-2026-45409
+    # (idna <3.15) and CVE-2026-44431 / CVE-2026-44432 (urllib3 <2.7.0).
+    "idna>=3.15",
+    "urllib3>=2.7.0",
 ]
 
 [project.urls]

@@ -33,6 +33,22 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   copy-into-`variants/` path keeps working, now correctly.
   See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
 
+### Validated end-to-end
+- **`[[skill]]` on `examples/nasde-dev-skill`**: three variants migrated from
+  drifted-copy `variants/<v>/skills/nasde-dev/` to `[[skill]]` referencing the
+  live `.claude/skills/nasde-dev/`. Full pipeline run (Docker + Sonnet 4.6 agent
+  + Opus 4.7 evaluator + Opik) on `claude-nasde-dev-full-stack`: verifier
+  reward=1, evaluator score 100/125 (0.80), drift eliminated (sandbox SHA matches
+  live source).
+- **`[nasde.plugin]` on SDLC `analyze-conversation`**: the motivating downstream
+  benchmark was migrated in the SDLC repo — vendored `_plugin-staging/` snapshot
+  deleted, hand-wired `[[environment.mcp_servers]]` removed,
+  `variants/with-skill/skills/analyze-conversation/` copy removed. Full run
+  against this nasde branch (Sonnet 4.6 agent invoking the baked noesis plugin's
+  MCP server): verifier reward=1, same outcome as the pre-migration baseline.
+  Confirms the feature replaces the documented snapshot-refresh workaround on
+  its real motivating case.
+
 ## [0.3.3] — 2026-05-09
 
 ### Added

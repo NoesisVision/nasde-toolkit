@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import json
 import os
 import shutil
 import subprocess
@@ -297,22 +298,30 @@ def _resolve_plugin_source(task_dir: Path, plugin: PluginConfig) -> Path:
     creates a temporary git worktree of the repo containing the plugin and
     returns the plugin's path *inside* that worktree — so the staged copy
     is a clean historical snapshot, same semantics as [nasde.source].
+
+    The plugin manifest (``.claude-plugin/plugin.json``) is validated against
+    the *resolved* path — worktree-at-ref when set, working tree otherwise.
+    This is what users expect from ``ref``: pin to a historical commit even
+    if the working tree is mid-refactor and the plugin path is temporarily
+    missing/renamed there.
     """
     plugin_abs = (task_dir / plugin.path).resolve()
     if not plugin_abs.exists():
         raise RuntimeError(f"[nasde.plugin] path does not exist: {plugin_abs}")
-    if not (plugin_abs / ".claude-plugin" / "plugin.json").exists():
-        raise RuntimeError(
-            f"[nasde.plugin] '{plugin_abs}' is not a Claude Code plugin (missing .claude-plugin/plugin.json)"
-        )
 
     if not plugin.ref:
-        return plugin_abs
+        resolved = plugin_abs
+    else:
+        repo_root = _git_repo_root(plugin_abs)
+        relative_in_repo = plugin_abs.relative_to(repo_root)
+        worktree = _create_ref_worktree(repo_root, plugin.ref)
+        resolved = worktree / relative_in_repo
 
-    repo_root = _git_repo_root(plugin_abs)
-    relative_in_repo = plugin_abs.relative_to(repo_root)
-    worktree = _create_ref_worktree(repo_root, plugin.ref)
-    return worktree / relative_in_repo
+    if not (resolved / ".claude-plugin" / "plugin.json").exists():
+        raise RuntimeError(
+            f"[nasde.plugin] '{resolved}' is not a Claude Code plugin (missing .claude-plugin/plugin.json)"
+        )
+    return resolved
 
 
 def _git_repo_root(path: Path) -> Path:
@@ -343,11 +352,13 @@ def _read_plugin_name(plugin_dir: Path, fallback: str) -> str:
 def _plugin_build_context_dir(env_dir: Path, has_source: bool) -> Path:
     """Where to stage the plugin so the active Docker build context reaches it.
 
-    With [nasde.source] the compose override moved the build context to the
-    repo/worktree (recorded in environment/docker-compose.yaml); stage there.
-    Otherwise Harbor's context is environment/ itself.
+    With a *local* [nasde.source] the compose override moved the build context
+    to the repo/worktree (recorded in environment/docker-compose.yaml); stage
+    there. With a *remote* [nasde.source] no compose is generated (Harbor's
+    default context = environment/ stands), so we stage in env_dir. Same for
+    the no-source case.
     """
-    if has_source:
+    if has_source and (env_dir / "docker-compose.yaml").exists():
         return _compose_context_dir(env_dir)
     return env_dir
 
@@ -405,23 +416,46 @@ def _append_plugin_stage(
     The stage is fenced by sentinel markers so re-runs replace it idempotently
     rather than appending duplicates. It is inserted before any trailing
     ``CMD``/``ENTRYPOINT`` so those remain the final instruction.
+
+    ``install_root`` is shell-quoted in the ``RUN cd … && build`` line and the
+    ``COPY`` line uses the JSON-array form, so an install_root containing
+    spaces or shell-special characters does not silently mis-parse.
     """
+    import shlex
+
     text = dockerfile.read_text() if dockerfile.exists() else ""
     text = _strip_existing_plugin_stage(text)
 
-    build_line = f"RUN cd {install_root} && {build}\n" if build else ""
-    stage = f"\n{_PLUGIN_STAGE_MARKER}\nCOPY {copy_src}/ {install_root}/\n{build_line}# <<< nasde plugin stage <<<\n"
+    quoted_root = shlex.quote(install_root)
+    build_line = f"RUN cd {quoted_root} && {build}\n" if build else ""
+    copy_dest = install_root.rstrip("/") + "/"
+    copy_line = f"COPY [{json.dumps(copy_src + '/')}, {json.dumps(copy_dest)}]\n"
+    stage = f"\n{_PLUGIN_STAGE_MARKER}\n{copy_line}{build_line}{_PLUGIN_STAGE_END}"
 
     head, tail = _split_before_trailing_cmd(text)
     dockerfile.write_text(head + stage + tail)
 
 
+_PLUGIN_STAGE_END = "# <<< nasde plugin stage <<<\n"
+
+
 def _strip_existing_plugin_stage(text: str) -> str:
-    """Remove a previously generated plugin stage (between sentinel markers)."""
+    """Remove a previously generated plugin stage (between sentinel markers).
+
+    If only the BEGIN sentinel is present (END was hand-deleted), refuse to
+    strip — ``str.partition`` would otherwise return an empty ``after`` and
+    silently truncate everything below the BEGIN marker. Raise instead.
+    """
     if _PLUGIN_STAGE_MARKER not in text:
         return text
+    if _PLUGIN_STAGE_END not in text:
+        raise RuntimeError(
+            "Dockerfile has the nasde plugin stage BEGIN sentinel but no END sentinel — "
+            "refusing to rewrite to avoid silently truncating instructions below. "
+            "Restore the END sentinel or remove the generated stage manually."
+        )
     before, _, rest = text.partition(_PLUGIN_STAGE_MARKER)
-    _, _, after = rest.partition("# <<< nasde plugin stage <<<\n")
+    _, _, after = rest.partition(_PLUGIN_STAGE_END)
     return before.rstrip() + "\n" + after.lstrip("\n")
 
 

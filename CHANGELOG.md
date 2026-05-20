@@ -33,6 +33,20 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   copy-into-`variants/` path keeps working, now correctly.
   See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
 
+### Post-review hardening (ADR-009)
+
+Following multi-agent code review, nine refinements:
+
+- **`_strip_mcp_block` / `_strip_existing_plugin_stage`**: refuse to rewrite when only the BEGIN sentinel is present (END hand-deleted). Previously `str.partition` would silently truncate every section below BEGIN — `task.toml`'s `[verifier]`/`[agent]`/etc., or Dockerfile instructions after the plugin stage. Now raises with an actionable message.
+- **`_resolve_plugin_source`**: the `.claude-plugin/plugin.json` manifest check now runs against the *resolved* path (worktree-at-ref when `ref` is set), not the working tree. This restores the documented `ref` semantics — pin to a historical commit even when the working tree is mid-refactor.
+- **`[nasde.plugin]` + remote `[nasde.source]`**: previously crashed with `FileNotFoundError` because remote source generates no `docker-compose.yaml`. Now `_plugin_build_context_dir` falls back to `environment/` when no compose exists.
+- **`_build_mcp_servers` (renamed)**: wires *all* servers declared in `.mcp.json`, not just the first. Also honors per-server `env` field from `.mcp.json`. Precedence: nasde defaults → plugin's `.mcp.json` env → `[nasde.plugin].env` overrides.
+- **Shell quoting for `install_root`**: `shlex.quote` in the `RUN cd … && build` line and the MCP wrapper; JSON-array form for `COPY`. Safe for install_roots with whitespace or shell-special characters.
+- **`stage_skill_dir` filters junk**: `.DS_Store`, `Thumbs.db`, `.git/`, `__pycache__/`, `.venv/`, `*.pyc`, vim/emacs swap and backup files (`*.swp`, `*~`, `*.bak`) skipped. Mirrors the ignore list `docker._stage_plugin_tree` already uses for plugin staging. Live developer skill dirs referenced via `[[skill]]` no longer leak workstation state.
+- **`_refresh_sandbox_files`**: rebuilds `sandbox_files` from scratch every run (authored + derived). Previously `dict.update()` accumulated stale entries — a renamed/removed `[[skill]]` between runs left a dangling host-path mapping pointing at a cleaned-up worktree.
+- **Heterogeneous `[nasde.plugin]` fail-fast**: if multiple tasks in one project declare different plugins, `nasde run` exits with an explicit error pointing at the conflict. Plugin skills register into a variant-wide sandbox; silently merging different plugins would contaminate trials.
+- **Polish→English comments** in the `nasde-dev-skill` migration examples.
+
 ### Validated end-to-end
 - **`[[skill]]` on `examples/nasde-dev-skill`**: three variants migrated from
   drifted-copy `variants/<v>/skills/nasde-dev/` to `[[skill]]` referencing the

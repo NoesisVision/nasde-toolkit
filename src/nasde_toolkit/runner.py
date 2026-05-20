@@ -124,9 +124,16 @@ def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> dict
     plugin's own skills, and inject its MCP server into the task's task.toml.
     Then add the variant's referenced [[skill]] dirs. Returns the extra
     ``{container_path: host_file}`` entries to merge into the variant's
-    harbor_config.json sandbox_files (skills go to /app/.claude/skills/,
-    identical across tasks in a single-variant run).
+    harbor_config.json sandbox_files.
+
+    Plugin skills go to a single variant-wide ``/app/.claude/skills/`` path,
+    so heterogeneous ``[nasde.plugin]`` across tasks in one project would
+    silently contaminate every trial with the union of all plugins' skills.
+    We fail fast on that, requiring all tasks that declare a plugin to
+    declare the *same* one (path, ref, install_root). See ADR-009.
     """
+    _require_homogeneous_plugins(config)
+
     extra_sandbox_files: dict[str, str] = {}
 
     for task in config.tasks:
@@ -144,6 +151,34 @@ def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> dict
 
     stage_referenced_skills(variant_dir, extra_sandbox_files, create_ref_worktree)
     return extra_sandbox_files
+
+
+def _require_homogeneous_plugins(config: ProjectConfig) -> None:
+    """Fail fast when tasks declare different [nasde.plugin]s.
+
+    Plugin skills stage into a variant-wide sandbox_files dict — so two tasks
+    with different plugins would silently see each other's skills. Until
+    plugin skills are made task-scoped (Harbor-side change), enforce that
+    every task declaring a plugin agrees on path/ref/install_root.
+    """
+    plugins_by_task = [(t.name, t.plugin) for t in config.tasks if t.plugin is not None]
+    if len(plugins_by_task) < 2:
+        return
+    first_name, first = plugins_by_task[0]
+    fingerprint = (first.path, first.ref, first.install_root)
+    for name, plugin in plugins_by_task[1:]:
+        other = (plugin.path, plugin.ref, plugin.install_root)
+        if other != fingerprint:
+            first_desc = f"path={first.path!r}, ref={first.ref!r}, install_root={first.install_root!r}"
+            other_desc = f"path={plugin.path!r}, ref={plugin.ref!r}, install_root={plugin.install_root!r}"
+            console.print(
+                "[red]ERROR: tasks in this project declare different [nasde.plugin] entries.[/red]\n"
+                f"  task '{first_name}': {first_desc}\n"
+                f"  task '{name}': {other_desc}\n"
+                "[red]Plugin skills register into a variant-wide sandbox; heterogeneous plugins would "
+                "silently contaminate trials. Make all [nasde.plugin] declarations identical.[/red]"
+            )
+            raise SystemExit(1)
 
 
 def _resolve_model(
@@ -386,19 +421,20 @@ def _ensure_harbor_config(
     variant: str,
     extra_sandbox_files: dict[str, str],
 ) -> Path:
-    """Generate harbor_config.json if absent, then merge plugin/referenced skills.
+    """Generate harbor_config.json if absent, then refresh sandbox_files.
 
-    ``extra_sandbox_files`` (plugin skills + variant [[skill]] dirs, ADR-009)
-    are merged into the agent's sandbox_files every run — they are derived,
-    not authored, and the staged source paths can change between runs.
+    ``sandbox_files`` is regenerated from scratch every run — authored block
+    from ``_collect_sandbox_files(variant_dir)`` plus derived entries
+    (``extra_sandbox_files``: plugin skills + variant ``[[skill]]`` dirs,
+    ADR-009). This is unconditional so removed/renamed ``[[skill]]`` or
+    ``[nasde.plugin]`` entries between runs do not linger as stale mappings
+    pointing at now-deleted worktree paths.
     """
     harbor_config_path = variant_dir / "harbor_config.json"
     if not harbor_config_path.exists():
         _generate_harbor_config(variant_dir, variant)
 
-    if extra_sandbox_files:
-        _merge_sandbox_files(harbor_config_path, extra_sandbox_files)
-
+    _refresh_sandbox_files(harbor_config_path, variant_dir, extra_sandbox_files)
     return harbor_config_path
 
 
@@ -424,8 +460,36 @@ def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
     console.print(f"[dim]Generated harbor_config.json in {variant_dir}[/dim]")
 
 
+def _refresh_sandbox_files(
+    harbor_config_path: Path,
+    variant_dir: Path,
+    extra: dict[str, str],
+) -> None:
+    """Rebuild every agent's sandbox_files from scratch (authored + derived).
+
+    Each run regenerates the mapping so removed/renamed ``[[skill]]`` or
+    ``[nasde.plugin]`` entries do not linger as stale entries pointing at
+    cleaned-up temp worktree paths. Hand-authored entries that ConfigurableX
+    agents need outside what ``_collect_sandbox_files`` covers can be added by
+    setting ``"sandbox_files_extra"`` on the agent — those are preserved.
+    """
+    config = json.loads(harbor_config_path.read_text())
+    authored = _collect_sandbox_files(variant_dir)
+    for agent in config.get("agents", []):
+        kwargs = agent.setdefault("kwargs", {})
+        preserved = kwargs.get("sandbox_files_extra", {})
+        kwargs["sandbox_files"] = {**authored, **extra, **preserved}
+    harbor_config_path.write_text(json.dumps(config, indent=2))
+
+
 def _merge_sandbox_files(harbor_config_path: Path, extra: dict[str, str]) -> None:
-    """Merge derived sandbox files into every agent in harbor_config.json."""
+    """Deprecated: kept for tests that exercise the legacy merge contract.
+
+    New code should call ``_refresh_sandbox_files`` which also regenerates
+    the authored block and drops stale entries. This wrapper just adds
+    ``extra`` on top of whatever is already in the file (the historical
+    behavior).
+    """
     config = json.loads(harbor_config_path.read_text())
     for agent in config.get("agents", []):
         kwargs = agent.setdefault("kwargs", {})

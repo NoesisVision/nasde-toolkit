@@ -56,6 +56,39 @@ def _staged_plugin(tmp_path: Path, *, with_mcp: bool = True, env: dict | None = 
 # --- stage_skill_dir: whole dir incl references/ ---------------------------
 
 
+def test_stage_skill_dir_filters_junk_files(tmp_path: Path) -> None:
+    """Bug 008: OS junk, VCS dirs, editor temp files must NOT be staged.
+
+    Live source dirs (referenced via [[skill]]) routinely contain workstation
+    state (.DS_Store, .git/, vim swap files) — leaking them into /app/.claude/
+    is sandbox bloat at best, information leak (.git/config) at worst.
+    """
+    skill = tmp_path / "my-skill"
+    (skill / "references").mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: my-skill\n---\nbody")
+    (skill / "references" / "good.md").write_text("rules")
+    (skill / ".DS_Store").write_bytes(b"\x00\x00")
+    (skill / ".SKILL.md.swp").write_bytes(b"vim swap")
+    (skill / "Thumbs.db").write_bytes(b"\x00")
+    (skill / ".gitignore").write_text("*.log")
+    (skill / ".git").mkdir()
+    (skill / ".git" / "config").write_text("[remote]")
+    (skill / "__pycache__").mkdir()
+    (skill / "__pycache__" / "helper.pyc").write_bytes(b"\x00")
+    (skill / "references" / ".DS_Store").write_bytes(b"\x00")
+    (skill / "SKILL.md.bak").write_text("old")
+    (skill / "notes~").write_text("emacs backup")
+
+    sandbox: dict[str, str] = {}
+    stage_skill_dir(skill, sandbox)
+
+    keys = set(sandbox.keys())
+    assert keys == {
+        "/app/.claude/skills/my-skill/SKILL.md",
+        "/app/.claude/skills/my-skill/references/good.md",
+    }, f"unexpected entries: {keys}"
+
+
 def test_stage_skill_dir_carries_whole_tree(tmp_path: Path) -> None:
     skill = _make_skill(tmp_path, "analyze-conversation")
     sandbox: dict[str, str] = {}
@@ -167,6 +200,120 @@ def test_inject_mcp_server_env_override_wins(tmp_path: Path) -> None:
     wrapper = tomllib.loads((task_dir / "task.toml").read_text())["environment"]["mcp_servers"][0]["args"][1]
     assert "CLAUDE_PLUGIN_ROOT=/custom/root" in wrapper
     assert "CLAUDE_PLUGIN_ROOT=/opt/noesis-plugin" not in wrapper
+
+
+def test_inject_mcp_server_wires_all_servers_from_mcp_json(tmp_path: Path) -> None:
+    """Bug 002 (multi-server drop): plugins can ship multiple MCP servers
+    in .mcp.json. Every one must be wired, not just the first."""
+    staged_dir = tmp_path / "_nasde-plugin"
+    (staged_dir / ".claude-plugin").mkdir(parents=True)
+    (staged_dir / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "p"}))
+    (staged_dir / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "noesis-graph": {"command": "node", "args": ["graph.js"]},
+                    "noesis-index": {"command": "node", "args": ["index.js"]},
+                }
+            }
+        )
+    )
+    staged = StagedPlugin(staged_dir=staged_dir, install_root="/opt/p", plugin_name="p", env={})
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text('[task]\nname = "p/t"\n')
+
+    inject_mcp_server(task_dir, staged)
+
+    parsed = tomllib.loads((task_dir / "task.toml").read_text())
+    server_names = {s["name"] for s in parsed["environment"]["mcp_servers"]}
+    assert server_names == {"noesis-graph", "noesis-index"}
+
+
+def test_inject_mcp_server_honors_plugin_env_from_mcp_json(tmp_path: Path) -> None:
+    """Bug 002 (env drop): plugin authors can declare per-server env in
+    .mcp.json. Those values must flow into the generated wrapper."""
+    staged_dir = tmp_path / "_nasde-plugin"
+    (staged_dir / ".claude-plugin").mkdir(parents=True)
+    (staged_dir / ".claude-plugin" / "plugin.json").write_text("{}")
+    (staged_dir / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "srv": {
+                        "command": "node",
+                        "args": ["server.js"],
+                        "env": {"NODE_ENV": "production", "LOG_LEVEL": "info"},
+                    }
+                }
+            }
+        )
+    )
+    staged = StagedPlugin(staged_dir=staged_dir, install_root="/opt/p", plugin_name="p", env={})
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text('[task]\nname = "p/t"\n')
+
+    inject_mcp_server(task_dir, staged)
+
+    wrapper = tomllib.loads((task_dir / "task.toml").read_text())["environment"]["mcp_servers"][0]["args"][1]
+    assert "NODE_ENV=production" in wrapper
+    assert "LOG_LEVEL=info" in wrapper
+
+
+def test_inject_mcp_server_task_env_overrides_plugin_env(tmp_path: Path) -> None:
+    """Bug 002 (env precedence): [nasde.plugin].env in task.toml must win
+    over the plugin's own .mcp.json env field."""
+    staged_dir = tmp_path / "_nasde-plugin"
+    (staged_dir / ".claude-plugin").mkdir(parents=True)
+    (staged_dir / ".claude-plugin" / "plugin.json").write_text("{}")
+    (staged_dir / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "srv": {
+                        "command": "node",
+                        "args": ["server.js"],
+                        "env": {"NODE_ENV": "production"},
+                    }
+                }
+            }
+        )
+    )
+    staged = StagedPlugin(
+        staged_dir=staged_dir, install_root="/opt/p", plugin_name="p", env={"NODE_ENV": "development"}
+    )
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text('[task]\nname = "p/t"\n')
+
+    inject_mcp_server(task_dir, staged)
+
+    wrapper = tomllib.loads((task_dir / "task.toml").read_text())["environment"]["mcp_servers"][0]["args"][1]
+    assert "NODE_ENV=development" in wrapper
+    assert "NODE_ENV=production" not in wrapper
+
+
+def test_inject_mcp_server_refuses_to_strip_when_END_sentinel_missing(tmp_path: Path) -> None:
+    """Bug 003: if the END sentinel was hand-deleted, refuse to rewrite —
+    str.partition without END would otherwise silently truncate every section
+    below BEGIN ([verifier], [agent], …). Raise so the user can restore."""
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    broken = (
+        '[task]\nname = "p/t"\n\n'
+        "# >>> nasde plugin MCP server (generated — do not edit) >>>\n"
+        '[[environment.mcp_servers]]\nname = "noesis-graph"\ntransport = "stdio"\ncommand = "sh"\n'
+        # END sentinel MISSING — user accidentally deleted it
+        "\n[verifier]\ntimeout_sec = 300\n"
+    )
+    (task_dir / "task.toml").write_text(broken)
+    staged = _staged_plugin(tmp_path)
+
+    with pytest.raises(RuntimeError, match="END sentinel"):
+        inject_mcp_server(task_dir, staged)
+
+    assert (task_dir / "task.toml").read_text() == broken
 
 
 def test_inject_mcp_server_no_mcp_json_is_noop(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
 agent = "claude"
 model = "claude-sonnet-4-6"
 
-# nasde-dev: referencja do żywego źródła. python-testing: zostaje jako
-# kopia (brak żywego źródła w tym repo).
+# nasde-dev: referenced from the live source. python-testing: stays as a
+# copy (no live source in this repo).
 [[skill]]
 path = "../../../../.claude/skills/nasde-dev"

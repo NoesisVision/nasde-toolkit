@@ -1,2 +1,7 @@
 agent = "claude"
 model = "claude-sonnet-4-6"
+
+# nasde-dev: referencja do żywego źródła. python-testing: zostaje jako
+# kopia (brak żywego źródła w tym repo).
+[[skill]]
+path = "../../../../.claude/skills/nasde-dev"

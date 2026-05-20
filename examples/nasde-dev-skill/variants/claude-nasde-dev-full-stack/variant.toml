@@ -1,2 +1,8 @@
 agent = "claude"
 model = "claude-sonnet-4-6"
+
+# nasde-dev jest dogfoodowany — referencja do żywego źródła w .claude/skills/
+# nasde-dev/. Pozostałe (python-best-practices, python-testing) wciąż jako
+# kopie w skills/, bo nie mają w tym repo żywego źródła do referencji.
+[[skill]]
+path = "../../../../.claude/skills/nasde-dev"

@@ -1,9 +1,0 @@
-agent = "claude"
-model = "claude-sonnet-4-6"
-
-# Skill-by-reference (ADR-009): point at the LIVE source skill instead of
-# copying it into skills/. The benchmark already pins the codebase via
-# [nasde.source] ref; this variant references the same nasde-dev skill from
-# the repo's .claude/skills/ — no drift-prone copy under variants/.
-[[skill]]
-path = "../../../../.claude/skills/nasde-dev"

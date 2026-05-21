@@ -4,7 +4,7 @@ Evaluate the AI-generated code across five dimensions.
 
 ## 1. Domain Modeling (0–25)
 
-Evaluate how well the ThresholdDiscount follows DDD building blocks established by PercentageDiscount and ValueDiscount.
+Evaluate how well the ThresholdDiscount follows DDD building blocks established by PercentageDiscount and ValueDiscount. Focus on whether the implementation **makes the implicit explicit** (rich domain language) — do the names of types and operations communicate intent, or are they generic primitives?
 
 | Score | Criteria |
 |-------|----------|
@@ -22,6 +22,7 @@ Evaluate how well the ThresholdDiscount follows DDD building blocks established 
 - Are fields `readonly` / init-only?
 - Does it validate percentage (0–100) and threshold (> 0)?
 - Is it properly integrated into the Discount discriminated union (`Apply`/`Match` methods)?
+- **Rich domain language**: is the threshold modeled as a meaningful concept (e.g. a `Money` value object, or a clearly-named field) or as a raw `decimal`? Do method names like `Apply` return rich types (e.g. `Price`) instead of primitives?
 
 ## 2. Encapsulation (0–20)
 
@@ -39,6 +40,7 @@ Evaluate whether business rules are contained within domain objects.
 - Can invalid ThresholdDiscount instances be created?
 - Is the "apply only when price > threshold" rule inside the domain object?
 - Are validation rules enforced at construction time?
+- **Construction guard**: if someone writes `new ThresholdDiscount(-50, 1000m)`, does the compiler reject it (private ctor + only-via-factory) or at least does the runtime throw immediately on invalid arguments? "Hope nobody calls it wrong" doesn't count.
 
 ## 3. Architecture Compliance (0–20)
 
@@ -76,6 +78,7 @@ Evaluate how well the discriminated union design supports adding future discount
 - Does `Discount` have a third case/variant for ThresholdDiscount?
 - Does `Apply(Money price)` return correct result (apply only when price > threshold)?
 - Are pattern matching methods (`Match`, `Switch`, or C# pattern match) updated?
+- **Exhaustiveness**: would the compiler (or an existing test) catch a missed branch if a 4th variant were added? Discriminated unions are only useful if forgetting a case is detectable.
 - Would adding a 4th discount variant be straightforward following the same pattern?
 
 ## 5. Test Quality (0–20)

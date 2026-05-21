@@ -451,6 +451,7 @@ def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
                 "kwargs": {
                     "sandbox_files": sandbox_files,
                 },
+                "_nasde_derived_keys": [],
             }
         ]
     }
@@ -465,38 +466,107 @@ def _refresh_sandbox_files(
     variant_dir: Path,
     extra: dict[str, str],
 ) -> None:
-    """Rebuild every agent's sandbox_files from scratch (authored + derived).
+    """Rebuild each agent's sandbox_files, preserving hand-written entries.
 
-    Each run regenerates the mapping so removed/renamed ``[[skill]]`` or
-    ``[nasde.plugin]`` entries do not linger as stale entries pointing at
-    cleaned-up temp worktree paths. Hand-authored entries that ConfigurableX
-    agents need outside what ``_collect_sandbox_files`` covers can be added by
-    setting ``"sandbox_files_extra"`` on the agent — those are preserved.
+    Three sources, in collision-precedence (right wins, so hand-written
+    overrides everything):
+
+    1. ``extra`` — derived this run from ``[nasde.plugin]`` + variant
+       ``[[skill]]``. Tracked via ``_nasde_derived_keys`` meta on the agent.
+    2. ``authored`` — what ``_collect_sandbox_files(variant_dir)`` produces
+       from on-disk ``variant_dir`` files (``CLAUDE.md``, ``skills/``, …).
+       Regenerated each run, so changes in ``variant_dir`` propagate.
+    3. ``handwritten`` — keys previously in the file that were neither
+       authored nor tracked-derived. The user put them there explicitly.
+
+    Stale derived entries (a ``[[skill]]`` that was removed between runs)
+    are dropped: the previous ``_nasde_derived_keys`` list says which keys
+    nasde owns, so removing the entry from that list lets it disappear.
+    Hand-written keys are never on the derived list and never removed.
+
+    Collisions (a key reachable from two sources) are surfaced as warnings.
+    The user's choice wins (hand-written) but the conflict is logged so the
+    duplication doesn't become silent footgun.
     """
     config = json.loads(harbor_config_path.read_text())
+    for agent in config.get("agents", []):
+        _refresh_agent_sandbox_files(agent, variant_dir, extra)
+    harbor_config_path.write_text(json.dumps(config, indent=2))
+
+
+def _refresh_agent_sandbox_files(
+    agent: dict,
+    variant_dir: Path,
+    extra: dict[str, str],
+) -> None:
+    kwargs = agent.setdefault("kwargs", {})
+    current = kwargs.get("sandbox_files", {}) or {}
+    prev_derived_keys = set(agent.get("_nasde_derived_keys", []) or [])
     authored = _collect_sandbox_files(variant_dir)
-    for agent in config.get("agents", []):
-        kwargs = agent.setdefault("kwargs", {})
-        preserved = kwargs.get("sandbox_files_extra", {})
-        kwargs["sandbox_files"] = {**authored, **extra, **preserved}
-    harbor_config_path.write_text(json.dumps(config, indent=2))
+
+    handwritten = {k: v for k, v in current.items() if k not in prev_derived_keys and authored.get(k) != v}
+
+    _warn_sandbox_collisions(
+        agent_name=str(agent.get("name", "<unnamed>")),
+        extra=extra,
+        authored=authored,
+        handwritten=handwritten,
+    )
+
+    kwargs["sandbox_files"] = {**extra, **authored, **handwritten}
+    agent["_nasde_derived_keys"] = sorted(extra.keys())
 
 
-def _merge_sandbox_files(harbor_config_path: Path, extra: dict[str, str]) -> None:
-    """Deprecated: kept for tests that exercise the legacy merge contract.
+def _warn_sandbox_collisions(
+    agent_name: str,
+    extra: dict[str, str],
+    authored: dict[str, str],
+    handwritten: dict[str, str],
+) -> None:
+    """Surface every sandbox_files key reachable from two sources.
 
-    New code should call ``_refresh_sandbox_files`` which also regenerates
-    the authored block and drops stale entries. This wrapper just adds
-    ``extra`` on top of whatever is already in the file (the historical
-    behavior).
+    Hand-written wins on every collision (right-most in the merge). The
+    warnings exist so a hand-written entry that *accidentally* masks a
+    ``[[skill]]`` or a ``CLAUDE.md`` change does not silently degrade the
+    benchmark. Each warning names both sides so the user can decide whether
+    the override was intentional.
     """
-    config = json.loads(harbor_config_path.read_text())
-    for agent in config.get("agents", []):
-        kwargs = agent.setdefault("kwargs", {})
-        sandbox_files = kwargs.setdefault("sandbox_files", {})
-        sandbox_files.update(extra)
-    harbor_config_path.write_text(json.dumps(config, indent=2))
-    console.print(f"  [dim]Merged {len(extra)} skill file(s) into harbor_config.json[/dim]")
+    extra_keys = set(extra.keys())
+    authored_keys = set(authored.keys())
+    handwritten_keys = set(handwritten.keys())
+
+    for key in sorted(handwritten_keys & extra_keys):
+        console.print(
+            f"[yellow]WARNING ({agent_name}): hand-written sandbox_files entry "
+            f"collides with a derived entry — hand-written wins.\n"
+            f"  container path : {key}\n"
+            f"  hand-written   : {handwritten[key]}   (kept)\n"
+            f"  derived (ignored): {extra[key]}\n"
+            r"  → remove the hand-written entry from harbor_config.json if you did not "
+            r"intend to override \[\[skill]]/\[nasde.plugin]."
+            "[/yellow]"
+        )
+    for key in sorted(handwritten_keys & authored_keys):
+        console.print(
+            f"[yellow]WARNING ({agent_name}): hand-written sandbox_files entry collides "
+            f"with a file collected from variants/ — hand-written wins.\n"
+            f"  container path  : {key}\n"
+            f"  hand-written    : {handwritten[key]}   (kept)\n"
+            f"  variants/ source: {authored[key]}\n"
+            f"  → remove the hand-written entry if you did not intend to override the "
+            f"file in the variant directory.[/yellow]"
+        )
+    for key in sorted(extra_keys & authored_keys):
+        console.print(
+            f"[yellow]WARNING ({agent_name}): the same container path is produced by "
+            r"both \[\[skill]]/\[nasde.plugin] AND a file in variants/ — the variant "
+            "directory wins.\n"
+            f"  container path: {key}\n"
+            f"  variants/     : {authored[key]}   (kept)\n"
+            f"  derived       : {extra[key]}   (ignored)\n"
+            r"  → if you meant \[\[skill]] to win, delete the copy under "
+            "variants/<v>/skills/.[/yellow]"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,9 @@
-"""Tests for runner skill collection + harbor_config merge (ADR-009).
+"""Tests for runner skill collection + sandbox_files refresh (ADR-009).
 
-Covers the latent-bug fix (variants/<v>/skills/ now carries references/)
-and the derived-sandbox-files merge that wires plugin / referenced skills
-into harbor_config.json on every run.
+Covers the latent-bug fix (variants/<v>/skills/ now carries references/),
+the sandbox_files refresh contract that wires plugin / referenced skills
+into harbor_config.json on every run while preserving hand-written
+entries, the three collision warnings, and the homogeneous-plugin gate.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from nasde_toolkit.runner import (
     _collect_sandbox_files,
     _ensure_harbor_config,
     _generate_harbor_config,
-    _merge_sandbox_files,
     _require_homogeneous_plugins,
 )
 
@@ -27,6 +27,26 @@ def _make_skill_in_variant(variant_dir: Path, name: str) -> None:
     (skill / "references").mkdir(parents=True)
     (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\nbody")
     (skill / "references" / "deep.md").write_text("deep rules")
+
+
+def _sandbox(harbor_path: Path, agent_index: int = 0) -> dict[str, str]:
+    return json.loads(harbor_path.read_text())["agents"][agent_index]["kwargs"]["sandbox_files"]
+
+
+def _derived_keys(harbor_path: Path, agent_index: int = 0) -> list[str]:
+    return json.loads(harbor_path.read_text())["agents"][agent_index].get("_nasde_derived_keys", [])
+
+
+def _bare_variant(variant_dir: Path) -> Path:
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "CLAUDE.md").write_text("# c")
+    (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "m"\n')
+    return variant_dir
+
+
+# ---------------------------------------------------------------------------
+# _collect_claude_skills — latent-bug fix coverage
+# ---------------------------------------------------------------------------
 
 
 def test_collect_claude_skills_now_carries_references(tmp_path: Path) -> None:
@@ -55,69 +75,218 @@ def test_collect_claude_skills_skips_dirs_without_skill_md(tmp_path: Path) -> No
     assert not any("incomplete" in k for k in sandbox)
 
 
-def test_merge_sandbox_files_adds_to_existing_agent(tmp_path: Path) -> None:
-    variant_dir = tmp_path / "variants" / "v"
-    variant_dir.mkdir(parents=True)
-    (variant_dir / "CLAUDE.md").write_text("# c")
-    (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "m"\n')
-    _generate_harbor_config(variant_dir, "v")
+# ---------------------------------------------------------------------------
+# sandbox_files refresh — edge cases EC1..EC8 (see PR discussion)
+# ---------------------------------------------------------------------------
+
+
+def test_refresh_preserves_handwritten_entries_across_runs(tmp_path: Path) -> None:
+    """EC1: a hand-written sandbox_files entry that does NOT correspond to
+    anything in variant_dir must survive every refresh — CLAUDE.md documents
+    hand-written harbor_config.json as a supported use case."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
     harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    handwritten = json.loads(harbor_path.read_text())
+    handwritten["agents"][0]["kwargs"]["sandbox_files"]["/app/my-custom.yaml"] = "/host/custom.yaml"
+    harbor_path.write_text(json.dumps(handwritten))
 
-    _merge_sandbox_files(
-        harbor_path,
-        {"/app/.claude/skills/foo/SKILL.md": "/host/foo/SKILL.md"},
-    )
+    _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/foo/SKILL.md": "/host/foo/SKILL.md"})
 
-    config = json.loads(harbor_path.read_text())
-    sandbox = config["agents"][0]["kwargs"]["sandbox_files"]
-    assert sandbox["/app/CLAUDE.md"] == str(variant_dir / "CLAUDE.md")
-    assert sandbox["/app/.claude/skills/foo/SKILL.md"] == "/host/foo/SKILL.md"
+    sf = _sandbox(harbor_path)
+    assert sf["/app/my-custom.yaml"] == "/host/custom.yaml"
+    assert sf["/app/.claude/skills/foo/SKILL.md"] == "/host/foo/SKILL.md"
+    assert sf["/app/CLAUDE.md"] == str(variant_dir / "CLAUDE.md")
 
 
-def test_ensure_harbor_config_drops_stale_skill_after_skill_removed(tmp_path: Path) -> None:
-    """Bug 006: when a [[skill]] / plugin skill is removed between runs, its
-    sandbox_files entry must be removed too — otherwise harbor_config.json
-    keeps a stale entry pointing at a now-deleted worktree path. Solution:
-    _ensure_harbor_config regenerates sandbox_files from authored + current
-    derived every run."""
-    variant_dir = tmp_path / "variants" / "v"
-    variant_dir.mkdir(parents=True)
-    (variant_dir / "CLAUDE.md").write_text("# c")
-    (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "m"\n')
+def test_refresh_drops_stale_derived_between_runs(tmp_path: Path) -> None:
+    """EC2 (bug 006): a [[skill]]/plugin skill removed between runs must
+    drop its sandbox_files entry. The tracked _nasde_derived_keys says which
+    keys nasde owns."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
     _generate_harbor_config(variant_dir, "v")
 
     _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/old/SKILL.md": "/tmp/worktree/SKILL.md"})
-    sf_first = json.loads((variant_dir / "harbor_config.json").read_text())["agents"][0]["kwargs"]["sandbox_files"]
-    assert "/app/.claude/skills/old/SKILL.md" in sf_first
+    assert "/app/.claude/skills/old/SKILL.md" in _sandbox(harbor_path)
+    assert _derived_keys(harbor_path) == ["/app/.claude/skills/old/SKILL.md"]
 
     _ensure_harbor_config(variant_dir, "v", {})
-    sf_second = json.loads((variant_dir / "harbor_config.json").read_text())["agents"][0]["kwargs"]["sandbox_files"]
-    assert "/app/.claude/skills/old/SKILL.md" not in sf_second
-    assert sf_second["/app/CLAUDE.md"] == str(variant_dir / "CLAUDE.md")
+    assert "/app/.claude/skills/old/SKILL.md" not in _sandbox(harbor_path)
+    assert _derived_keys(harbor_path) == []
+    assert _sandbox(harbor_path)["/app/CLAUDE.md"] == str(variant_dir / "CLAUDE.md")
 
 
-def test_merge_sandbox_files_preserves_handwritten_config(tmp_path: Path) -> None:
+def test_refresh_updates_derived_host_path(tmp_path: Path) -> None:
+    """EC3: the same container path mapping to a different host path
+    between runs (e.g. new temp worktree on a new ref) must update."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/foo/SKILL.md": "/tmp/old-worktree/SKILL.md"})
+    _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/foo/SKILL.md": "/tmp/new-worktree/SKILL.md"})
+
+    sf = _sandbox(harbor_path)
+    assert sf["/app/.claude/skills/foo/SKILL.md"] == "/tmp/new-worktree/SKILL.md"
+
+
+def test_refresh_handwritten_wins_over_derived_collision(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """EC4a: hand-written entry colliding with [[skill]]/plugin-derived
+    entry — hand-written wins (user explicit override) but a warning fires."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    cfg = json.loads(harbor_path.read_text())
+    cfg["agents"][0]["kwargs"]["sandbox_files"]["/app/.claude/skills/foo/SKILL.md"] = "/host/custom-foo.md"
+    harbor_path.write_text(json.dumps(cfg))
+
+    _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/foo/SKILL.md": "/tmp/worktree/SKILL.md"})
+
+    sf = _sandbox(harbor_path)
+    assert sf["/app/.claude/skills/foo/SKILL.md"] == "/host/custom-foo.md"
+    out_one_line = " ".join(capsys.readouterr().out.split())
+    assert "collides with a derived entry" in out_one_line
+    assert "hand-written wins" in out_one_line
+
+
+def test_refresh_handwritten_wins_over_authored_collision(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """EC4b: hand-written entry colliding with an authored file in
+    variants/<v>/ — hand-written wins, warning fires."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    cfg = json.loads(harbor_path.read_text())
+    cfg["agents"][0]["kwargs"]["sandbox_files"]["/app/CLAUDE.md"] = "/host/override-CLAUDE.md"
+    harbor_path.write_text(json.dumps(cfg))
+
+    _ensure_harbor_config(variant_dir, "v", {})
+
+    sf = _sandbox(harbor_path)
+    assert sf["/app/CLAUDE.md"] == "/host/override-CLAUDE.md"
+    out_one_line = " ".join(capsys.readouterr().out.split())
+    assert "collides with a file collected from variants/" in out_one_line
+
+
+def test_refresh_authored_wins_over_derived_collision(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """EC4c: same container path produced by both variants/<v>/skills/ AND
+    [[skill]] — the file under variants/ wins (more explicit author
+    intent), warning fires."""
     variant_dir = tmp_path / "variants" / "v"
     variant_dir.mkdir(parents=True)
+    (variant_dir / "CLAUDE.md").write_text("# c")
+    (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "m"\n')
+    _make_skill_in_variant(variant_dir, "foo")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/foo/SKILL.md": "/tmp/derived-foo.md"})
+
+    sf = _sandbox(harbor_path)
+    assert sf["/app/.claude/skills/foo/SKILL.md"] == str(variant_dir / "skills" / "foo" / "SKILL.md")
+    out = capsys.readouterr().out
+    out_one_line = " ".join(out.split())
+    assert "[[skill]]/[nasde.plugin] AND a file in variants/" in out_one_line
+
+
+def test_refresh_greenfield_first_run(tmp_path: Path) -> None:
+    """EC5: harbor_config.json does not exist yet — _ensure_harbor_config
+    must generate it AND apply extra in the same call."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    assert not harbor_path.exists()
+
+    _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/x/SKILL.md": "/host/x.md"})
+
+    sf = _sandbox(harbor_path)
+    assert sf["/app/.claude/skills/x/SKILL.md"] == "/host/x.md"
+    assert sf["/app/CLAUDE.md"] == str(variant_dir / "CLAUDE.md")
+    assert _derived_keys(harbor_path) == ["/app/.claude/skills/x/SKILL.md"]
+
+
+def test_refresh_handles_multiple_agents(tmp_path: Path) -> None:
+    """EC6: a hand-written config with multiple agents (e.g. comparing two
+    setups in one trial) — both agents get refreshed, hand-written entries
+    on each agent are preserved."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
     handwritten = {
         "agents": [
             {
                 "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
+                "name": "v-a",
+                "kwargs": {"sandbox_files": {"/app/agent-a-only.txt": "/host/a.txt"}},
+            },
+            {
+                "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
+                "name": "v-b",
+                "kwargs": {"sandbox_files": {"/app/agent-b-only.txt": "/host/b.txt"}},
+            },
+        ]
+    }
+    harbor_path.write_text(json.dumps(handwritten))
+
+    _ensure_harbor_config(variant_dir, "v", {"/app/.claude/skills/x/SKILL.md": "/host/x.md"})
+
+    sf_a = _sandbox(harbor_path, agent_index=0)
+    sf_b = _sandbox(harbor_path, agent_index=1)
+    assert sf_a["/app/agent-a-only.txt"] == "/host/a.txt"
+    assert sf_b["/app/agent-b-only.txt"] == "/host/b.txt"
+    assert sf_a["/app/.claude/skills/x/SKILL.md"] == "/host/x.md"
+    assert sf_b["/app/.claude/skills/x/SKILL.md"] == "/host/x.md"
+    assert sf_a["/app/CLAUDE.md"] == str(variant_dir / "CLAUDE.md")
+
+
+def test_refresh_is_idempotent(tmp_path: Path) -> None:
+    """EC7: calling _ensure_harbor_config twice with the same inputs must
+    produce the same file content (no drift, no warning duplication)."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    extra = {"/app/.claude/skills/x/SKILL.md": "/host/x.md"}
+
+    _ensure_harbor_config(variant_dir, "v", extra)
+    first_content = harbor_path.read_text()
+
+    _ensure_harbor_config(variant_dir, "v", extra)
+    second_content = harbor_path.read_text()
+
+    assert first_content == second_content
+
+
+def test_refresh_handles_missing_derived_keys_meta(tmp_path: Path) -> None:
+    """EC8: forward-compat — a harbor_config.json written by an older nasde
+    has no _nasde_derived_keys field. Entries that look like derived (e.g.
+    they were derived before) get treated as hand-written and preserved.
+    First refresh adopts the new meta; subsequent runs cleanly drop stale
+    derived entries the normal way."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    old_format = {
+        "agents": [
+            {
+                "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
                 "name": "v",
-                "kwargs": {"sandbox_files": {"/app/CLAUDE.md": "/x/CLAUDE.md"}},
+                "kwargs": {
+                    "sandbox_files": {
+                        "/app/CLAUDE.md": str(variant_dir / "CLAUDE.md"),
+                        "/app/.claude/skills/legacy/SKILL.md": "/host/legacy.md",
+                    }
+                },
             }
         ]
     }
-    harbor_path = variant_dir / "harbor_config.json"
-    harbor_path.write_text(json.dumps(handwritten))
+    harbor_path.write_text(json.dumps(old_format))
 
-    _merge_sandbox_files(harbor_path, {"/app/.claude/skills/s/SKILL.md": "/h/s/SKILL.md"})
+    _ensure_harbor_config(variant_dir, "v", {})
 
-    config = json.loads(harbor_path.read_text())
-    sandbox = config["agents"][0]["kwargs"]["sandbox_files"]
-    assert sandbox["/app/CLAUDE.md"] == "/x/CLAUDE.md"
-    assert sandbox["/app/.claude/skills/s/SKILL.md"] == "/h/s/SKILL.md"
-    assert config["agents"][0]["name"] == "v"
+    sf = _sandbox(harbor_path)
+    assert sf["/app/.claude/skills/legacy/SKILL.md"] == "/host/legacy.md"
+    assert _derived_keys(harbor_path) == []
+
+
+# ---------------------------------------------------------------------------
+# _require_homogeneous_plugins — bug 013
+# ---------------------------------------------------------------------------
 
 
 def _make_project(tmp_path: Path, task_plugins: list[PluginConfig | None]) -> ProjectConfig:

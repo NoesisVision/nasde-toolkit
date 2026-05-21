@@ -9,6 +9,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-21
+
 ### Added
 - **`[nasde.plugin]` in `task.toml` — ship a local Claude Code plugin into the
   sandbox with one declaration.** Mirrors `[nasde.source]`: stages the plugin
@@ -19,19 +21,30 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   MCP server (from its `.mcp.json`) into the task — with the env a
   baked-not-installed plugin needs. Composes with `[nasde.source]` and with a
   hand-written `environment/Dockerfile`. Removes the frozen-plugin-snapshot
-  workaround. See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+  workaround. See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md). ([#51])
 - **Skill-by-reference: `[[skill]]` array in `variant.toml`.** Reference a skill
   from a source path (optional `ref`) instead of copying it into
   `variants/<v>/skills/`. The whole skill directory (including `references/`) is
   staged into the sandbox. Shares the plugin's skill-registration machinery.
-  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md). ([#51])
 
 ### Fixed
 - **`variants/<v>/skills/<name>/` now carries `references/` and sibling files**,
   not just `SKILL.md`. Previously only `SKILL.md` was injected, silently breaking
   skills that read `references/*.md` at runtime. Backward compatible — the
   copy-into-`variants/` path keeps working, now correctly.
-  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md). ([#51])
+
+### Security
+- **Pinned `idna>=3.15` and `urllib3>=2.7.0`** (transitive via harbor/opik/supabase)
+  to address CVE-2026-45409 (idna) and CVE-2026-44431 / CVE-2026-44432 (urllib3). ([#51])
+
+### CI
+- **`pip-audit` now ignores the disputed pyjwt advisory PYSEC-2025-183 / CVE-2025-45768.**
+  Upstream rejects the classification — alleged weak-key behavior is the calling
+  application's responsibility, and pyjwt 2.12.1 has no fix release. pyjwt enters
+  our tree only transitively via `harbor → supabase-auth / mcp`, so we cannot
+  upgrade past it. `pip-audit --strict` still hard-fails on every other CVE. ([#52])
 
 ### Post-review hardening (ADR-009)
 
@@ -347,7 +360,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.2.1...v0.3.0
@@ -374,4 +388,6 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#47]: https://github.com/NoesisVision/nasde-toolkit/pull/47
 [#48]: https://github.com/NoesisVision/nasde-toolkit/pull/48
 [#50]: https://github.com/NoesisVision/nasde-toolkit/pull/50
+[#51]: https://github.com/NoesisVision/nasde-toolkit/pull/51
+[#52]: https://github.com/NoesisVision/nasde-toolkit/pull/52
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

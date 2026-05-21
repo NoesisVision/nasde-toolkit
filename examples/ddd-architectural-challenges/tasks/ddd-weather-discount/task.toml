@@ -11,7 +11,7 @@ framework = ".NET 8"
 timeout_sec = 1800
 
 [environment]
-memory_mb = 4096
+memory_mb = 6144
 
 [verifier]
 timeout_sec = 300

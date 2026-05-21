@@ -20,7 +20,9 @@ Evaluate how well weather-related concepts are modeled using DDD building blocks
 - Does the port use domain types (not `HttpResponseMessage`, `JsonElement`, etc.)?
 - Is discount calculation logic in a domain service or policy (not in the adapter)?
 - Are weather conditions modeled as value objects with proper semantics?
-- **Rich domain language**: is precipitation a distinct concept (`Precipitation` value object with semantics like `IsPresent`/`HasRainOrSnow`) or just `decimal precipitation` flowing through method signatures? Name the concept — don't smuggle it as a primitive.
+- **The menu test (Nick Tunes' tactical-ddd, principle #3)**: would a sales/pricing domain expert recognize the names in the domain layer (e.g. `WeatherConditions`, `Precipitation`, `RainyDayDiscount.AppliesOn(WeatherConditions)`) as their world? Or do you see generic developer jargon (`Manager`, `Handler`, `Service`, `Data`)?
+- **Implicit-to-explicit test (principle #6)**: is `Precipitation` named as its own concept (value object with semantics like `IsPresent` / `HasRainOrSnow`), or is it smuggled through method signatures as `decimal precipitation` / `double mm`?
+- **Value object liberality (principle #8)**: are weather concepts (`Precipitation`, `Temperature`, `WindSpeed`, eventually `WeatherConditions`) modeled as immutable value objects, or does the domain pass around a JSON blob / DTO of primitives?
 
 ## 2. Encapsulation (0–20)
 
@@ -57,7 +59,8 @@ Evaluate separation of concerns, layer isolation, and adherence to project conve
 - Is the adapter registered in DI container?
 - Is HttpClient timeout configured?
 - Does API failure result in "no discount" (not an exception propagating up)?
-- **Domain isolation check**: search the domain project for `using System.Net.Http`, `HttpClient`, `HttpResponseMessage`, `JsonElement`, `JsonSerializer`. Any hit = the port is leaky and the dimension caps at 10.
+- **Isolate-domain test (principle #1, Nick's own check)**: "could a domain expert read this code? Can it be unit tested without mocks or spinning up databases?" — if reading the domain layer forces you to think about HTTP, JSON, or status codes, the isolation has failed.
+- **Generic-vs-domain test (principle #5)**: retry logic, HTTP caching, JSON deserialization — would that code exist in a *completely different* business domain? If yes, it must live in infra, not domain.
 
 ## 4. Extensibility (0–15)
 
@@ -77,7 +80,8 @@ Evaluate how easy it is to add future weather-based discounts (temperature, wind
 - Can a new weather discount be added by only creating a new class?
 - Does the weather provider support fetching multiple parameters?
 - Would adding UV index discount require changing existing classes?
-- **OCP file-count test**: count how many existing files a developer would need to *modify* to add a `TemperatureDiscount` (< 0°C → 5% off). 1 file modified (DI registration) = excellent. 2–3 = acceptable. 4+ = shotgun surgery, cap the dimension at 9.
+- **Repository-shape test (principle #9, Nick's own check)**: does `IWeatherProvider` (or whatever the port is called) return a *full domain object* describing weather conditions, or does it return a thin DTO / a single primitive (`decimal precipitation`)? A leaky port that returns primitives forces every caller to re-derive the same domain concepts.
+- **Generic-vs-domain extensibility test**: adding `TemperatureDiscount` should be writing a *new domain object* with its own invariants — not editing a shared "WeatherDiscountCalculator" class with `if (kind == Rain) ... else if (kind == Cold) ...`.
 
 ## 5. Test Quality (0–20)
 

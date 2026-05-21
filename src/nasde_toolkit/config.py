@@ -22,6 +22,26 @@ class SourceConfig:
 
 
 @dataclass
+class PluginConfig:
+    """Local Claude Code plugin shipped into the sandbox image.
+
+    Mirrors [nasde.source]: one declaration in task.toml stages a local
+    plugin directory (a dir containing .claude-plugin/plugin.json) into the
+    benchmark sandbox AND registers it for the Claude Code agent — its
+    skills are discoverable and its MCP server (from <plugin>/.mcp.json) is
+    wired — with no vendored snapshot and no triple hand-wiring.
+
+    See ADR-009.
+    """
+
+    path: str
+    ref: str = ""
+    install_root: str = ""
+    build: str = ""
+    env: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class DockerConfig:
     """Docker environment configuration."""
 
@@ -57,12 +77,14 @@ class TaskConfig:
     """Configuration for a single benchmark task.
 
     Source is optional — required only when the task has no
-    environment/Dockerfile and nasde must auto-generate one.
+    environment/Dockerfile and nasde must auto-generate one. Plugin is
+    optional — set only when the task ships a local Claude Code plugin.
     """
 
     name: str
     path: Path
     source: SourceConfig | None = None
+    plugin: PluginConfig | None = None
     docker: DockerConfig = field(default_factory=DockerConfig)
 
 
@@ -176,6 +198,7 @@ def _load_task(
 
     nasde_raw = raw.get("nasde", {})
     source_raw = nasde_raw.get("source", {})
+    plugin_raw = nasde_raw.get("plugin", {})
     docker_raw = nasde_raw.get("docker", {})
 
     source: SourceConfig | None = None
@@ -185,6 +208,8 @@ def _load_task(
             ref=source_raw.get("ref", "HEAD"),
         )
 
+    plugin = _parse_plugin(plugin_raw)
+
     task_section = raw.get("task", {})
     name = _resolve_task_name(task_section.get("name"), task_path)
 
@@ -192,10 +217,30 @@ def _load_task(
         name=name,
         path=task_path,
         source=source,
+        plugin=plugin,
         docker=DockerConfig(
             base_image=docker_raw.get("base_image", default_docker.base_image),
             build_commands=docker_raw.get("build_commands", default_docker.build_commands),
         ),
+    )
+
+
+def _parse_plugin(plugin_raw: dict) -> PluginConfig | None:
+    """Build a PluginConfig from the [nasde.plugin] table, if present.
+
+    A plugin is declared only when ``path`` is set. ``ref`` defaults to the
+    working tree (empty string, same semantics as SourceConfig). ``env`` is
+    a free-form table forwarded to the generated MCP server wrapper.
+    """
+    if not plugin_raw.get("path"):
+        return None
+    env_raw = plugin_raw.get("env", {})
+    return PluginConfig(
+        path=plugin_raw["path"],
+        ref=plugin_raw.get("ref", ""),
+        install_root=plugin_raw.get("install_root", ""),
+        build=plugin_raw.get("build", ""),
+        env={str(k): str(v) for k, v in env_raw.items()},
     )
 
 

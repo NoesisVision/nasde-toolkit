@@ -20,7 +20,17 @@ from rich.console import Console
 from rich.table import Table
 
 from nasde_toolkit.config import ProjectConfig
-from nasde_toolkit.docker import cleanup_worktrees, ensure_task_environment
+from nasde_toolkit.docker import (
+    cleanup_worktrees,
+    create_ref_worktree,
+    ensure_task_environment,
+    ensure_task_plugin,
+)
+from nasde_toolkit.plugin_registration import (
+    inject_mcp_server,
+    register_plugin_skills,
+    stage_referenced_skills,
+)
 
 if TYPE_CHECKING:
     from harbor.models.job.result import JobResult
@@ -60,19 +70,14 @@ async def run_benchmark(
     _load_env_file(config.project_dir)
 
     variant_dir = resolve_variant_dir(config.project_dir, variant)
-    harbor_config_path = variant_dir / "harbor_config.json"
 
-    if not harbor_config_path.exists():
-        _generate_harbor_config(variant_dir, variant)
-        harbor_config_path = variant_dir / "harbor_config.json"
+    extra_sandbox_files = _prepare_task_environments(config, variant_dir)
+
+    harbor_config_path = _ensure_harbor_config(variant_dir, variant, extra_sandbox_files)
 
     _ensure_auth(_read_agent_import_path(harbor_config_path))
 
     resolved_model = _resolve_model(model, variant_dir, config)
-
-    for task in config.tasks:
-        if task.source is not None:
-            ensure_task_environment(task.path, task.source, config.docker)
 
     merged_config = _build_merged_config(
         config=config,
@@ -109,6 +114,71 @@ async def run_benchmark(
 # ---------------------------------------------------------------------------
 # Prerequisites
 # ---------------------------------------------------------------------------
+
+
+def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> dict[str, str]:
+    """Generate per-task Docker environments and collect agent skill files.
+
+    Per task: auto-generate the source Dockerfile/compose ([nasde.source]),
+    then stage the [nasde.plugin] tree into the build context, register the
+    plugin's own skills, and inject its MCP server into the task's task.toml.
+    Then add the variant's referenced [[skill]] dirs. Returns the extra
+    ``{container_path: host_file}`` entries to merge into the variant's
+    harbor_config.json sandbox_files.
+
+    Plugin skills go to a single variant-wide ``/app/.claude/skills/`` path,
+    so heterogeneous ``[nasde.plugin]`` across tasks in one project would
+    silently contaminate every trial with the union of all plugins' skills.
+    We fail fast on that, requiring all tasks that declare a plugin to
+    declare the *same* one (path, ref, install_root). See ADR-009.
+    """
+    _require_homogeneous_plugins(config)
+
+    extra_sandbox_files: dict[str, str] = {}
+
+    for task in config.tasks:
+        if task.source is not None:
+            ensure_task_environment(task.path, task.source, config.docker)
+        if task.plugin is not None:
+            staged = ensure_task_plugin(
+                task.path,
+                task.plugin,
+                config.docker,
+                has_source=task.source is not None,
+            )
+            register_plugin_skills(staged, extra_sandbox_files)
+            inject_mcp_server(task.path, staged)
+
+    stage_referenced_skills(variant_dir, extra_sandbox_files, create_ref_worktree)
+    return extra_sandbox_files
+
+
+def _require_homogeneous_plugins(config: ProjectConfig) -> None:
+    """Fail fast when tasks declare different [nasde.plugin]s.
+
+    Plugin skills stage into a variant-wide sandbox_files dict — so two tasks
+    with different plugins would silently see each other's skills. Until
+    plugin skills are made task-scoped (Harbor-side change), enforce that
+    every task declaring a plugin agrees on path/ref/install_root.
+    """
+    plugins_by_task = [(t.name, t.plugin) for t in config.tasks if t.plugin is not None]
+    if len(plugins_by_task) < 2:
+        return
+    first_name, first = plugins_by_task[0]
+    fingerprint = (first.path, first.ref, first.install_root)
+    for name, plugin in plugins_by_task[1:]:
+        other = (plugin.path, plugin.ref, plugin.install_root)
+        if other != fingerprint:
+            first_desc = f"path={first.path!r}, ref={first.ref!r}, install_root={first.install_root!r}"
+            other_desc = f"path={plugin.path!r}, ref={plugin.ref!r}, install_root={plugin.install_root!r}"
+            console.print(
+                "[red]ERROR: tasks in this project declare different [nasde.plugin] entries.[/red]\n"
+                f"  task '{first_name}': {first_desc}\n"
+                f"  task '{name}': {other_desc}\n"
+                "[red]Plugin skills register into a variant-wide sandbox; heterogeneous plugins would "
+                "silently contaminate trials. Make all [nasde.plugin] declarations identical.[/red]"
+            )
+            raise SystemExit(1)
 
 
 def _resolve_model(
@@ -233,14 +303,22 @@ def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
 
 
 def _collect_claude_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
+    """Map each variants/<v>/skills/<name>/ skill into sandbox_files.
+
+    Carries the WHOLE skill dir (incl. ``references/`` and sibling files),
+    not just ``SKILL.md`` — skills like analyze-conversation read
+    ``references/*.md`` at runtime. Uses the shared staging helper so the
+    copy-into-variants path and the ADR-009 by-reference path behave
+    identically.
+    """
+    from nasde_toolkit.plugin_registration import stage_skill_dir
+
     skills_dir = variant_dir / "skills"
     if not skills_dir.is_dir():
         return
     for skill_dir in sorted(skills_dir.iterdir()):
-        skill_md = skill_dir / "SKILL.md"
-        if skill_dir.is_dir() and skill_md.exists():
-            target = f"/app/.claude/skills/{skill_dir.name}/SKILL.md"
-            sandbox_files[target] = str(skill_md)
+        if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+            stage_skill_dir(skill_dir, sandbox_files)
 
 
 def _collect_codex_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
@@ -338,6 +416,28 @@ def _read_agent_import_path(harbor_config_path: Path) -> str | None:
     return None
 
 
+def _ensure_harbor_config(
+    variant_dir: Path,
+    variant: str,
+    extra_sandbox_files: dict[str, str],
+) -> Path:
+    """Generate harbor_config.json if absent, then refresh sandbox_files.
+
+    ``sandbox_files`` is regenerated from scratch every run — authored block
+    from ``_collect_sandbox_files(variant_dir)`` plus derived entries
+    (``extra_sandbox_files``: plugin skills + variant ``[[skill]]`` dirs,
+    ADR-009). This is unconditional so removed/renamed ``[[skill]]`` or
+    ``[nasde.plugin]`` entries between runs do not linger as stale mappings
+    pointing at now-deleted worktree paths.
+    """
+    harbor_config_path = variant_dir / "harbor_config.json"
+    if not harbor_config_path.exists():
+        _generate_harbor_config(variant_dir, variant)
+
+    _refresh_sandbox_files(harbor_config_path, variant_dir, extra_sandbox_files)
+    return harbor_config_path
+
+
 def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
     sandbox_files = _collect_sandbox_files(variant_dir)
     agent_type = load_variant_agent_type(variant_dir)
@@ -351,6 +451,7 @@ def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
                 "kwargs": {
                     "sandbox_files": sandbox_files,
                 },
+                "_nasde_derived_keys": [],
             }
         ]
     }
@@ -358,6 +459,114 @@ def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
     variant_dir.mkdir(parents=True, exist_ok=True)
     (variant_dir / "harbor_config.json").write_text(json.dumps(config, indent=2))
     console.print(f"[dim]Generated harbor_config.json in {variant_dir}[/dim]")
+
+
+def _refresh_sandbox_files(
+    harbor_config_path: Path,
+    variant_dir: Path,
+    extra: dict[str, str],
+) -> None:
+    """Rebuild each agent's sandbox_files, preserving hand-written entries.
+
+    Three sources, in collision-precedence (right wins, so hand-written
+    overrides everything):
+
+    1. ``extra`` — derived this run from ``[nasde.plugin]`` + variant
+       ``[[skill]]``. Tracked via ``_nasde_derived_keys`` meta on the agent.
+    2. ``authored`` — what ``_collect_sandbox_files(variant_dir)`` produces
+       from on-disk ``variant_dir`` files (``CLAUDE.md``, ``skills/``, …).
+       Regenerated each run, so changes in ``variant_dir`` propagate.
+    3. ``handwritten`` — keys previously in the file that were neither
+       authored nor tracked-derived. The user put them there explicitly.
+
+    Stale derived entries (a ``[[skill]]`` that was removed between runs)
+    are dropped: the previous ``_nasde_derived_keys`` list says which keys
+    nasde owns, so removing the entry from that list lets it disappear.
+    Hand-written keys are never on the derived list and never removed.
+
+    Collisions (a key reachable from two sources) are surfaced as warnings.
+    The user's choice wins (hand-written) but the conflict is logged so the
+    duplication doesn't become silent footgun.
+    """
+    config = json.loads(harbor_config_path.read_text())
+    for agent in config.get("agents", []):
+        _refresh_agent_sandbox_files(agent, variant_dir, extra)
+    harbor_config_path.write_text(json.dumps(config, indent=2))
+
+
+def _refresh_agent_sandbox_files(
+    agent: dict,
+    variant_dir: Path,
+    extra: dict[str, str],
+) -> None:
+    kwargs = agent.setdefault("kwargs", {})
+    current = kwargs.get("sandbox_files", {}) or {}
+    prev_derived_keys = set(agent.get("_nasde_derived_keys", []) or [])
+    authored = _collect_sandbox_files(variant_dir)
+
+    handwritten = {k: v for k, v in current.items() if k not in prev_derived_keys and authored.get(k) != v}
+
+    _warn_sandbox_collisions(
+        agent_name=str(agent.get("name", "<unnamed>")),
+        extra=extra,
+        authored=authored,
+        handwritten=handwritten,
+    )
+
+    kwargs["sandbox_files"] = {**extra, **authored, **handwritten}
+    agent["_nasde_derived_keys"] = sorted(extra.keys())
+
+
+def _warn_sandbox_collisions(
+    agent_name: str,
+    extra: dict[str, str],
+    authored: dict[str, str],
+    handwritten: dict[str, str],
+) -> None:
+    """Surface every sandbox_files key reachable from two sources.
+
+    Hand-written wins on every collision (right-most in the merge). The
+    warnings exist so a hand-written entry that *accidentally* masks a
+    ``[[skill]]`` or a ``CLAUDE.md`` change does not silently degrade the
+    benchmark. Each warning names both sides so the user can decide whether
+    the override was intentional.
+    """
+    extra_keys = set(extra.keys())
+    authored_keys = set(authored.keys())
+    handwritten_keys = set(handwritten.keys())
+
+    for key in sorted(handwritten_keys & extra_keys):
+        console.print(
+            f"[yellow]WARNING ({agent_name}): hand-written sandbox_files entry "
+            f"collides with a derived entry — hand-written wins.\n"
+            f"  container path : {key}\n"
+            f"  hand-written   : {handwritten[key]}   (kept)\n"
+            f"  derived (ignored): {extra[key]}\n"
+            r"  → remove the hand-written entry from harbor_config.json if you did not "
+            r"intend to override \[\[skill]]/\[nasde.plugin]."
+            "[/yellow]"
+        )
+    for key in sorted(handwritten_keys & authored_keys):
+        console.print(
+            f"[yellow]WARNING ({agent_name}): hand-written sandbox_files entry collides "
+            f"with a file collected from variants/ — hand-written wins.\n"
+            f"  container path  : {key}\n"
+            f"  hand-written    : {handwritten[key]}   (kept)\n"
+            f"  variants/ source: {authored[key]}\n"
+            f"  → remove the hand-written entry if you did not intend to override the "
+            f"file in the variant directory.[/yellow]"
+        )
+    for key in sorted(extra_keys & authored_keys):
+        console.print(
+            f"[yellow]WARNING ({agent_name}): the same container path is produced by "
+            r"both \[\[skill]]/\[nasde.plugin] AND a file in variants/ — the variant "
+            "directory wins.\n"
+            f"  container path: {key}\n"
+            f"  variants/     : {authored[key]}   (kept)\n"
+            f"  derived       : {extra[key]}   (ignored)\n"
+            r"  → if you meant \[\[skill]] to win, delete the copy under "
+            "variants/<v>/skills/.[/yellow]"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -426,6 +426,53 @@ You can build benchmarks from local (private) repositories by setting `source.gi
 
 nasde auto-generates the Docker environment — no custom `Dockerfile` needed. See `examples/nasde-dev-skill/` for a complete example that tests nasde-toolkit itself.
 
+## Benchmarking a Claude Code plugin (`[nasde.plugin]`)
+
+If your task exercises a **local Claude Code plugin** (a directory with
+`.claude-plugin/plugin.json`, `skills/`, and an MCP server in `.mcp.json`),
+declare it once in `task.toml` — no vendored snapshot, no hand-wired
+Dockerfile `COPY`, no hand-written `[environment.mcp_servers]`, no copying
+the plugin's skills into a variant:
+
+```toml
+[nasde.plugin]
+path = "../../../src/plugins/my-plugin"   # dir containing .claude-plugin/plugin.json
+ref = "abc1234"                           # optional git ref, same semantics as [nasde.source]
+install_root = "/opt/my-plugin"           # optional, default /opt/<plugin-name>
+build = "bun install --frozen-lockfile"   # optional, run at image-build time
+
+[nasde.plugin.env]                        # optional, exported in the MCP server wrapper
+CLAUDE_PLUGIN_DATA = "/opt/my-plugin-data"
+```
+
+One declaration ships the whole plugin into the sandbox image (at `ref`, via
+a temporary git worktree, for reproducibility), registers the plugin's own
+skills for the agent (whole skill dir, including `references/`), and wires
+its MCP server into the task automatically. Works with or without
+`[nasde.source]` and with or without a hand-written `environment/Dockerfile`.
+This **removes the frozen-snapshot workaround** entirely. See
+[ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+
+## Referencing a skill instead of copying it (`[[skill]]`)
+
+If a variant just needs to test one skill, point at its source path instead
+of copying it into `variants/<v>/skills/`. Add a `[[skill]]` array to the
+variant's `variant.toml`:
+
+```toml
+agent = "claude"
+model = "claude-sonnet-4-6"
+
+[[skill]]
+path = "../../../src/plugins/my-plugin/skills/my-skill"
+ref  = "abc1234"   # optional, same semantics as [nasde.source]
+```
+
+The **whole** skill directory (including `references/`) is staged into the
+sandbox — no copy under `variants/`. The legacy
+`variants/<v>/skills/<name>/` copy path still works unchanged (and now also
+carries `references/`, which it previously dropped).
+
 ## Commands
 
 ### Core
@@ -467,10 +514,10 @@ my-benchmark/
   assessment_dimensions.json   # Scoring dimensions (shared across tasks)
   tasks/
     feature-a/
-      task.toml                # Task config (Harbor sections + [nasde.source])
+      task.toml                # Task config (Harbor sections + [nasde.source] / [nasde.plugin])
       instruction.md           # Agent prompt
       assessment_criteria.md   # Per-task criteria for post-hoc evaluator
-      environment/             # Optional: custom Dockerfile (else auto-generated from [nasde.source])
+      environment/             # Optional: custom Dockerfile (else auto-generated from [nasde.source] / [nasde.plugin])
       tests/
         test.sh                # Harbor verification script
   variants/
@@ -478,9 +525,9 @@ my-benchmark/
       variant.toml             # agent = "claude", model = "claude-sonnet-4-6"
       CLAUDE.md                # Agent system prompt (injected to /app/CLAUDE.md)
     guided/                    # Claude Code variant with skills
-      variant.toml
+      variant.toml             # may also list [[skill]] entries (skill-by-reference)
       CLAUDE.md
-      skills/                  # Claude skills (injected to /app/.claude/skills/)
+      skills/                  # Claude skills (injected to /app/.claude/skills/, incl. references/)
         my-skill/
           SKILL.md
     codex-baseline/            # Codex variant

@@ -6,6 +6,7 @@ __pycache__/
 dist/
 build/
 **/jobs/
+**/_nasde-plugin/
 .env
 harbor_config.json
 .claude/worktrees/

@@ -9,6 +9,60 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- **`[nasde.plugin]` in `task.toml` — ship a local Claude Code plugin into the
+  sandbox with one declaration.** Mirrors `[nasde.source]`: stages the plugin
+  directory (at an optional `ref`, via a temporary git worktree) into the Docker
+  build context, generates/augments the Dockerfile to `COPY` it to `install_root`
+  and run an optional build command, registers the plugin's own `skills/` for the
+  agent (whole skill dir, including `references/`), and auto-wires the plugin's
+  MCP server (from its `.mcp.json`) into the task — with the env a
+  baked-not-installed plugin needs. Composes with `[nasde.source]` and with a
+  hand-written `environment/Dockerfile`. Removes the frozen-plugin-snapshot
+  workaround. See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+- **Skill-by-reference: `[[skill]]` array in `variant.toml`.** Reference a skill
+  from a source path (optional `ref`) instead of copying it into
+  `variants/<v>/skills/`. The whole skill directory (including `references/`) is
+  staged into the sandbox. Shares the plugin's skill-registration machinery.
+  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+
+### Fixed
+- **`variants/<v>/skills/<name>/` now carries `references/` and sibling files**,
+  not just `SKILL.md`. Previously only `SKILL.md` was injected, silently breaking
+  skills that read `references/*.md` at runtime. Backward compatible — the
+  copy-into-`variants/` path keeps working, now correctly.
+  See [ADR-009](docs/adr/009-plugin-and-skill-by-reference.md).
+
+### Post-review hardening (ADR-009)
+
+Following multi-agent code review, nine refinements:
+
+- **`_strip_mcp_block` / `_strip_existing_plugin_stage`**: refuse to rewrite when only the BEGIN sentinel is present (END hand-deleted). Previously `str.partition` would silently truncate every section below BEGIN — `task.toml`'s `[verifier]`/`[agent]`/etc., or Dockerfile instructions after the plugin stage. Now raises with an actionable message.
+- **`_resolve_plugin_source`**: the `.claude-plugin/plugin.json` manifest check now runs against the *resolved* path (worktree-at-ref when `ref` is set), not the working tree. This restores the documented `ref` semantics — pin to a historical commit even when the working tree is mid-refactor.
+- **`[nasde.plugin]` + remote `[nasde.source]`**: previously crashed with `FileNotFoundError` because remote source generates no `docker-compose.yaml`. Now `_plugin_build_context_dir` falls back to `environment/` when no compose exists.
+- **`_build_mcp_servers` (renamed)**: wires *all* servers declared in `.mcp.json`, not just the first. Also honors per-server `env` field from `.mcp.json`. Precedence: nasde defaults → plugin's `.mcp.json` env → `[nasde.plugin].env` overrides.
+- **Shell quoting for `install_root`**: `shlex.quote` in the `RUN cd … && build` line and the MCP wrapper; JSON-array form for `COPY`. Safe for install_roots with whitespace or shell-special characters.
+- **`stage_skill_dir` filters junk**: `.DS_Store`, `Thumbs.db`, `.git/`, `__pycache__/`, `.venv/`, `*.pyc`, vim/emacs swap and backup files (`*.swp`, `*~`, `*.bak`) skipped. Mirrors the ignore list `docker._stage_plugin_tree` already uses for plugin staging. Live developer skill dirs referenced via `[[skill]]` no longer leak workstation state.
+- **`_refresh_sandbox_files`**: rebuilds `sandbox_files` from scratch every run, using a tracked `_nasde_derived_keys` list on each agent so hand-written entries are preserved and only previously-derived entries are subject to drop/refresh. Stale entries from removed `[[skill]]`/`[nasde.plugin]` disappear; hand-written `harbor_config.json` (a supported use case per CLAUDE.md) keeps working. Three collision types surface as `WARNING` (hand-written wins on user-vs-derived and user-vs-authored; `variants/<v>/skills/` wins on derived-vs-authored) so duplication is never silent. Pydantic's `AgentConfig` (Harbor) ignores the extra `_nasde_derived_keys` key, so it stays nasde-local. Replaces the previous bug-006 fix that overwrote hand-written entries.
+- **Heterogeneous `[nasde.plugin]` fail-fast**: if multiple tasks in one project declare different plugins, `nasde run` exits with an explicit error pointing at the conflict. Plugin skills register into a variant-wide sandbox; silently merging different plugins would contaminate trials.
+- **Polish→English comments** in the `nasde-dev-skill` migration examples.
+
+### Validated end-to-end
+- **`[[skill]]` on `examples/nasde-dev-skill`**: three variants migrated from
+  drifted-copy `variants/<v>/skills/nasde-dev/` to `[[skill]]` referencing the
+  live `.claude/skills/nasde-dev/`. Full pipeline run (Docker + Sonnet 4.6 agent
+  + Opus 4.7 evaluator + Opik) on `claude-nasde-dev-full-stack`: verifier
+  reward=1, evaluator score 100/125 (0.80), drift eliminated (sandbox SHA matches
+  live source).
+- **`[nasde.plugin]` on SDLC `analyze-conversation`**: the motivating downstream
+  benchmark was migrated in the SDLC repo — vendored `_plugin-staging/` snapshot
+  deleted, hand-wired `[[environment.mcp_servers]]` removed,
+  `variants/with-skill/skills/analyze-conversation/` copy removed. Full run
+  against this nasde branch (Sonnet 4.6 agent invoking the baked noesis plugin's
+  MCP server): verifier reward=1, same outcome as the pre-migration baseline.
+  Confirms the feature replaces the documented snapshot-refresh workaround on
+  its real motivating case.
+
 ## [0.3.3] — 2026-05-09
 
 ### Added

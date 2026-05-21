@@ -1,2 +1,7 @@
 agent = "claude"
 model = "claude-sonnet-4-6"
+
+# nasde-dev: referenced from the live source. python-best-practices: stays
+# as a copy (no live source in this repo).
+[[skill]]
+path = "../../../../.claude/skills/nasde-dev"

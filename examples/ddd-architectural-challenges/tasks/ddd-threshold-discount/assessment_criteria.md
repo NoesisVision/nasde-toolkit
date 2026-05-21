@@ -22,7 +22,7 @@ Evaluate how well the ThresholdDiscount follows DDD building blocks established 
 - Are fields `readonly` / init-only?
 - Does it validate percentage (0–100) and threshold (> 0)?
 - Is it properly integrated into the Discount discriminated union (`Apply`/`Match` methods)?
-- **The menu test (Nick Tunes' tactical-ddd, principle #3)**: reading this code, would a sales-domain expert recognize the names (`ThresholdDiscount`, `Threshold`, `Apply`, `IsActiveFor`) as things from their world? Or do you see programmer jargon (`Calculate`, `Process`, `Handle`, `Manager`, `Helper`)?
+- **The menu test (Nick Tunes' tactical-ddd, principle #3)**: reading this code, would a sales-domain expert recognize the names (`ThresholdDiscount`, `Threshold`, `Apply`, `ApplyOn`) as things from their world? Or do you see programmer jargon (`Calculate`, `Process`, `Handle`, `Manager`, `Helper`)?
 - **Implicit-to-explicit test (principle #6)**: is the threshold modeled as a meaningful concept (e.g. a `Money`/`Price` value object, or a clearly-named field) or smuggled as a raw `decimal`? Are method names like `Apply` returning rich types (e.g. `Price`) or primitives?
 - **Value object liberality (principle #8)**: are concepts like `Threshold` and `Percentage` extracted as their own immutable value objects (or reusing existing ones like `Money`), or just bag-of-decimals on `ThresholdDiscount`?
 
@@ -81,7 +81,7 @@ Evaluate how well the discriminated union design supports adding future discount
 - Does `Discount` have a third case/variant for ThresholdDiscount?
 - Does `Apply(Money price)` return correct result (apply only when price > threshold)?
 - Are pattern matching methods (`Match`, `Switch`, or C# pattern match) updated?
-- **Hidden-concept test (principle #6)**: is the "apply only when price > threshold" rule given a *name* in the code — e.g. a method `IsActiveFor(price)`, or a distinct state like `ActiveDiscount` / `InactiveDiscount` — or is it just a bare `if (price > threshold)` somewhere?
+- **Hidden-concept test (principle #6)**: is the "apply only when price > threshold" rule encapsulated *inside* `ThresholdDiscount.ApplyOn(Money)` — so the caller just writes `discount.ApplyOn(price)` and gets back the right money — or is the rule leaked to callers as `if (price > discount.Threshold) ...`? The decision and the action belong together (principle #4, "avoid anemic"): one decision-method, not a separate `IsApplicable` flag.
 - Would adding a 4th discount variant be straightforward following the same pattern?
 
 ## 5. Test Quality (0–20)

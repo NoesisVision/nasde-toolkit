@@ -20,7 +20,7 @@ Evaluate how well weather-related concepts are modeled using DDD building blocks
 - Does the port use domain types (not `HttpResponseMessage`, `JsonElement`, etc.)?
 - Is discount calculation logic in a domain service or policy (not in the adapter)?
 - Are weather conditions modeled as value objects with proper semantics?
-- **The menu test (Nick Tunes' tactical-ddd, principle #3)**: would a sales/pricing domain expert recognize the names in the domain layer (e.g. `WeatherConditions`, `Precipitation`, `RainyDayDiscount.AppliesOn(WeatherConditions)`) as their world? Or do you see generic developer jargon (`Manager`, `Handler`, `Service`, `Data`)?
+- **The menu test (Nick Tunes' tactical-ddd, principle #3)**: would a sales/pricing domain expert recognize the names in the domain layer (e.g. `WeatherConditions`, `Precipitation`, `RainyDayDiscount.ApplyOn(price, conditions)`) as their world? Or do you see generic developer jargon (`Manager`, `Handler`, `Service`, `Data`)?
 - **Implicit-to-explicit test (principle #6)**: is `Precipitation` named as its own concept (value object with semantics like `IsPresent` / `HasRainOrSnow`), or is it smuggled through method signatures as `decimal precipitation` / `double mm`?
 - **Value object liberality (principle #8)**: are weather concepts (`Precipitation`, `Temperature`, `WindSpeed`, eventually `WeatherConditions`) modeled as immutable value objects, or does the domain pass around a JSON blob / DTO of primitives?
 
@@ -40,6 +40,7 @@ Evaluate whether business rules are contained within domain objects.
 - Is the "precipitation > X means discount" rule inside the domain layer?
 - Can callers bypass domain rules by constructing objects directly?
 - Are failure modes (API down) handled with domain-appropriate defaults?
+- **Anemic-model test (principle #4)**: does each weather-discount type own a single decision method that *both checks and acts* (e.g. `PrecipitationDiscount.ApplyOn(Money, WeatherConditions) → Money`), or is it split into `IsApplicable(WeatherConditions): bool` + `DiscountPercentage` exposed to the caller? Splitting the decision from the action is "ask, don't tell" — and it leaks the rule into the orchestrator.
 
 ## 3. Architecture Compliance (0–20)
 

@@ -5,6 +5,7 @@ version: 1.0.0
 ---
 
 <!-- Source: ntcoding/claude-skillz, snapshot 2026-03-20 -->
+<!-- Examples rewritten from TypeScript to C# / .NET (idiomatic for DDD-starter-dotnet codebase) -->
 
 # Tactical DDD
 
@@ -32,29 +33,32 @@ Design, refactor, analyze, and review code by applying the principles and patter
 
 **Test:** Could a domain expert read the code? Can the code be unit tested without mocks or spinning up databases?
 
-```typescript
+```csharp
 // ❌ WRONG - domain polluted with infrastructure
-class Delivery {
-  async dispatch() {
-    this.logger.info('Dispatching delivery', { id: this.id })  // Infrastructure!
-    await this.db.beginTransaction()                           // Infrastructure!
-    if (this.status !== 'ready') throw new Error('Not ready')
-    this.status = 'dispatched'
-    await this.db.save(this)                                   // Infrastructure!
-    await this.db.commit()                                     // Infrastructure!
-    await this.pushNotification.notifyDriver()                 // Infrastructure!
-  }
+public class Delivery
+{
+    public async Task Dispatch()
+    {
+        _logger.LogInformation("Dispatching delivery {Id}", _id);   // Infrastructure!
+        await _db.BeginTransactionAsync();                          // Infrastructure!
+        if (_status != DeliveryStatus.Ready) throw new InvalidOperationException("Not ready");
+        _status = DeliveryStatus.Dispatched;
+        await _db.SaveAsync(this);                                  // Infrastructure!
+        await _db.CommitAsync();                                    // Infrastructure!
+        await _pushNotification.NotifyDriver();                     // Infrastructure!
+    }
 }
 
 // ✅ RIGHT - isolated domain logic
-class Delivery {
-  dispatch(): void {
-    if (this.status !== DeliveryStatus.Ready) {
-      throw new DeliveryNotReadyError(this.id)
+public class Delivery
+{
+    public void Dispatch()
+    {
+        if (_status != DeliveryStatus.Ready)
+            throw new DeliveryNotReadyError(_id);
+        _status = DeliveryStatus.Dispatched;
+        _dispatchedAt = DateTime.UtcNow;
     }
-    this.status = DeliveryStatus.Dispatched
-    this.dispatchedAt = new Date()
-  }
 }
 ```
 
@@ -64,31 +68,33 @@ class Delivery {
 
 **What:** Names in code match exactly what domain experts say. No programmer jargon. No generic names.
 
-**Why:** Translation between code-speak and business-speak causes bugs. When a domain expert says "assess a claim" and the code says "processEntity", someone will misunderstand something.
+**Why:** Translation between code-speak and business-speak causes bugs. When a domain expert says "assess a claim" and the code says "ProcessEntity", someone will misunderstand something.
 
 **Test:** Would a domain expert recognize this name? If you'd need to translate it for them, it's wrong.
 
 **Common generic terms to watch for:**
 - `Manager`, `Handler`, `Processor`, `Helper`, `Util`
 - `Data`, `Info`, `Item` (when domain terms exist)
-- `process`, `handle`, `execute` (what does it actually DO?)
+- `Process`, `Handle`, `Execute` (what does it actually DO?)
 
-```typescript
+```csharp
 // ❌ WRONG - programmer jargon
-class ClaimHandler {
-  processClaimData(claimData: ClaimDTO): ProcessingResult {
-    return this.claimProcessor.handle(claimData)
-  }
+public class ClaimHandler
+{
+    public ProcessingResult ProcessClaimData(ClaimDto claimData)
+        => _claimProcessor.Handle(claimData);
 }
 
 // ✅ RIGHT - domain language
-class ClaimAssessor {
-  assessClaim(claim: InsuranceClaim): AssessmentDecision {
-    if (claim.exceedsCoverageLimit()) {
-      return AssessmentDecision.deny(DenialReason.ExceedsCoverage)
+[DddDomainService]
+public class ClaimAssessor
+{
+    public AssessmentDecision AssessClaim(InsuranceClaim claim)
+    {
+        if (claim.ExceedsCoverageLimit())
+            return AssessmentDecision.Deny(DenialReason.ExceedsCoverage);
+        return AssessmentDecision.Approve();
     }
-    return AssessmentDecision.approve()
-  }
 }
 ```
 
@@ -111,21 +117,23 @@ DELIVERY APP MENU:
 └── Check Delivery Radius ← NOT a use case: domain rule
 ```
 
-```typescript
+```csharp
 // ❌ WRONG - not a user goal, this is internal machinery
-// use-cases/calculate-eta.use-case.ts
-async function calculateETA(deliveryId: DeliveryId) {
-  const delivery = await deliveryRepository.find(deliveryId)
-  const driver = await driverRepository.find(delivery.driverId)
-  return routeService.estimateArrival(driver.location, delivery.destination)
+// UseCases/CalculateEta.cs
+public async Task<Duration> CalculateEta(DeliveryId deliveryId)
+{
+    var delivery = await _deliveryRepository.Load(deliveryId);
+    var driver = await _driverRepository.Load(delivery.DriverId);
+    return _routeService.EstimateArrival(driver.Location, delivery.Destination);
 }
 
 // ✅ RIGHT - actual user goal (appears in menu)
-// use-cases/cancel-delivery.use-case.ts
-async function cancelDelivery(deliveryId: DeliveryId, reason: CancellationReason) {
-  const delivery = await deliveryRepository.find(deliveryId)
-  delivery.cancel(reason)
-  await deliveryRepository.save(delivery)
+// UseCases/CancelDelivery.cs
+public async Task CancelDelivery(DeliveryId deliveryId, CancellationReason reason)
+{
+    var delivery = await _deliveryRepository.Load(deliveryId);
+    delivery.Cancel(reason);
+    await _deliveryRepository.Save(delivery);
 }
 ```
 
@@ -139,40 +147,41 @@ async function cancelDelivery(deliveryId: DeliveryId, reason: CancellationReason
 
 **Test:** Is your use case making business decisions, or just coordinating? If the use case contains if/else business logic, you likely have an anemic model.
 
-```typescript
+```csharp
 // ❌ WRONG - business logic in use case (anemic domain)
-async function confirmDropoff(deliveryId: DeliveryId, photo: ProofPhoto) {
-  const delivery = await deliveryRepository.find(deliveryId)
+public async Task ConfirmDropoff(DeliveryId deliveryId, ProofPhoto photo)
+{
+    var delivery = await _deliveryRepository.Load(deliveryId);
 
-  // Business rules leaked into use case!
-  if (delivery.status !== 'in_transit') {
-    throw new Error('Delivery not in transit')
-  }
-  if (!photo && delivery.requiresSignature) {
-    throw new Error('Proof of delivery required')
-  }
+    // Business rules leaked into use case!
+    if (delivery.Status != DeliveryStatus.InTransit)
+        throw new InvalidOperationException("Delivery not in transit");
+    if (photo is null && delivery.RequiresSignature)
+        throw new InvalidOperationException("Proof of delivery required");
 
-  delivery.status = 'delivered'
-  delivery.proofPhoto = photo
-  delivery.deliveredAt = new Date()
-  await deliveryRepository.save(delivery)
+    delivery.Status = DeliveryStatus.Delivered;
+    delivery.ProofPhoto = photo;
+    delivery.DeliveredAt = DateTime.UtcNow;
+    await _deliveryRepository.Save(delivery);
 }
 
 // ✅ RIGHT - use case orchestrates, domain decides
-async function confirmDropoff(deliveryId: DeliveryId, photo: ProofPhoto) {
-  const delivery = await deliveryRepository.find(deliveryId)
+public async Task ConfirmDropoff(DeliveryId deliveryId, ProofPhoto photo)
+{
+    var delivery = await _deliveryRepository.Load(deliveryId);
 
-  delivery.confirmDropoff(photo)  // Domain enforces the rules
+    delivery.ConfirmDropoff(photo);  // Domain enforces the rules
 
-  await deliveryRepository.save(delivery)
+    await _deliveryRepository.Save(delivery);
 }
 ```
 
 **Signs of anemic model:**
 - Use cases full of if/else business logic
-- Domain objects are just data with getters/setters
+- Domain objects are just data with `{ get; set; }` properties
 - Business rules duplicated across multiple use cases
 - Validation logic outside the object being validated
+- A domain object exposes `IsX()` + `DoX()` ("ask, don't tell") instead of a single decision method that both checks and acts
 
 ---
 
@@ -184,53 +193,59 @@ async function confirmDropoff(deliveryId: DeliveryId, photo: ProofPhoto) {
 
 **Test:** Would this code exist in a completely different business domain? If yes, it's generic. If it's specific to YOUR business rules, it's domain.
 
-```typescript
+```csharp
 // ❌ WRONG - generic retry logic mixed with domain
-// domain/driver-locator.ts
-class DriverLocator {
-  // Generic retry logic does not belong in domain!
-  private async withRetry<T>(fn: () => Promise<T>, attempts: number): Promise<T> {
-    for (let i = 0; i < attempts; i++) {
-      try { return await fn() }
-      catch (e) { if (i === attempts - 1) throw e }
+// Sales.DeepModel/Delivery/DriverLocator.cs
+[DddDomainService]
+public class DriverLocator
+{
+    // Generic retry logic does not belong in domain!
+    private async Task<T> WithRetry<T>(Func<Task<T>> fn, int attempts)
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            try { return await fn(); }
+            catch { if (i == attempts - 1) throw; }
+        }
+        throw new InvalidOperationException("Retry failed");
     }
-    throw new Error('Retry failed')
-  }
 
-  async findAvailableDriver(zone: Zone): Promise<Driver> {
-    return this.withRetry(() => this.searchDriversInZone(zone), 3)
-  }
+    public Task<Driver> FindAvailableDriver(Zone zone)
+        => WithRetry(() => SearchDriversInZone(zone), 3);
 
-  private async searchDriversInZone(zone: Zone): Promise<Driver> {
-    // domain logic to find nearest available driver
-  }
+    private Task<Driver> SearchDriversInZone(Zone zone) { /* domain logic */ }
 }
 
 // ✅ RIGHT - same behavior, properly separated
-// infra/retry.ts (generic, reusable in any project)
-export async function withRetry<T>(fn: () => Promise<T>, attempts: number): Promise<T> {
-  for (let i = 0; i < attempts; i++) {
-    try { return await fn() }
-    catch (e) { if (i === attempts - 1) throw e }
-  }
-  throw new Error('Retry failed')
+// Sales.Adapters/Retry/Retry.cs (generic, reusable anywhere)
+public static class Retry
+{
+    public static async Task<T> WithAttempts<T>(Func<Task<T>> fn, int attempts)
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            try { return await fn(); }
+            catch { if (i == attempts - 1) throw; }
+        }
+        throw new InvalidOperationException("Retry failed");
+    }
 }
 
-// domain/driver-locator.ts (pure domain, no infra imports)
-class DriverLocator {
-  async findAvailableDriver(zone: Zone): Promise<Driver> {
-    // domain logic to find nearest available driver
-  }
+// Sales.DeepModel/Delivery/DriverLocator.cs (pure domain, no infra references)
+[DddDomainService]
+public class DriverLocator
+{
+    public Task<Driver> FindAvailableDriver(Zone zone) { /* domain logic */ }
 }
 
-// use-cases/dispatch-delivery.ts (orchestrates domain + infra)
-async function dispatchDelivery(deliveryId: DeliveryId) {
-  const delivery = await deliveryRepository.find(deliveryId)
-  const driver = await withRetry(
-    () => driverLocator.findAvailableDriver(delivery.zone), 3
-  )
-  delivery.assignDriver(driver)
-  await deliveryRepository.save(delivery)
+// UseCases/DispatchDelivery.cs (orchestrates domain + infra)
+public async Task DispatchDelivery(DeliveryId deliveryId)
+{
+    var delivery = await _deliveryRepository.Load(deliveryId);
+    var driver = await Retry.WithAttempts(
+        () => _driverLocator.FindAvailableDriver(delivery.Zone), attempts: 3);
+    delivery.AssignDriver(driver);
+    await _deliveryRepository.Save(delivery);
 }
 ```
 
@@ -244,118 +259,126 @@ async function dispatchDelivery(deliveryId: DeliveryId) {
 
 **Test:** Could you discuss this code with a domain expert without translation? Are there concepts they use that don't exist in your code?
 
-```typescript
+```csharp
 // This code looks fine - isolated, uses domain terms
-class Delivery {
-  status: DeliveryStatus
-  driver: Driver | null
-  pickupTime: Date | null
-  dropoffTime: Date | null
-  proofOfDelivery: Photo | null
+public class Delivery
+{
+    public DeliveryStatus Status { get; private set; }
+    public Driver? Driver { get; private set; }
+    public DateTime? PickupTime { get; private set; }
+    public DateTime? DropoffTime { get; private set; }
+    public Photo? ProofOfDelivery { get; private set; }
 
-  assignDriver(driver: Driver): void {
-    if (this.status !== DeliveryStatus.Confirmed) throw new Error('...')
-    this.driver = driver
-    this.status = DeliveryStatus.Assigned
-  }
+    public void AssignDriver(Driver driver)
+    {
+        if (Status != DeliveryStatus.Confirmed) throw new InvalidOperationException("...");
+        Driver = driver;
+        Status = DeliveryStatus.Assigned;
+    }
 
-  recordPickup(): void {
-    if (this.status !== DeliveryStatus.Assigned) throw new Error('...')
-    this.pickupTime = new Date()
-    this.status = DeliveryStatus.InTransit
-  }
+    public void RecordPickup()
+    {
+        if (Status != DeliveryStatus.Assigned) throw new InvalidOperationException("...");
+        PickupTime = DateTime.UtcNow;
+        Status = DeliveryStatus.InTransit;
+    }
 
-  recordDropoff(photo: Photo): void {
-    if (this.status !== DeliveryStatus.InTransit) throw new Error('...')
-    this.proofOfDelivery = photo
-    this.dropoffTime = new Date()
-    this.status = DeliveryStatus.Delivered
-  }
+    public void RecordDropoff(Photo photo)
+    {
+        if (Status != DeliveryStatus.InTransit) throw new InvalidOperationException("...");
+        ProofOfDelivery = photo;
+        DropoffTime = DateTime.UtcNow;
+        Status = DeliveryStatus.Delivered;
+    }
 }
 
 // But the TYPES can describe the domain! Each state is a distinct concept.
 // Reading the types alone tells you how deliveries work.
 
-type Delivery =
-  | RequestedDelivery      // Customer placed request
-  | ConfirmedDelivery      // Restaurant accepted
-  | AssignedDelivery       // Driver assigned, heading to restaurant
-  | InTransitDelivery      // Driver picked up, heading to customer
-  | DeliveredDelivery      // Complete with proof
+// Modelled as a discriminated union via readonly struct + Kind enum
+// (the same pattern as Discount in this codebase: see Sources/Sales/Sales.DeepModel/Pricing/Discounts/Discount.cs)
+[DddValueObject]
+public readonly struct Delivery : IEquatable<Delivery>
+{
+    private readonly DeliveryKind _kind;
+    private readonly RequestedDelivery _requested;
+    private readonly ConfirmedDelivery _confirmed;
+    private readonly AssignedDelivery _assigned;
+    private readonly InTransitDelivery _inTransit;
+    private readonly DeliveredDelivery _delivered;
 
-interface RequestedDelivery {
-  kind: 'requested'
-  customer: Customer
-  restaurant: Restaurant
-  items: MenuItem[]
+    public static Delivery Requested(Customer customer, Restaurant restaurant, IReadOnlyList<MenuItem> items) =>
+        new(DeliveryKind.Requested, RequestedDelivery.Of(customer, restaurant, items),
+            default, default, default, default);
+
+    public Delivery Confirm(Duration estimatedPrepTime) => _kind switch
+    {
+        DeliveryKind.Requested => new(DeliveryKind.Confirmed, default,
+            ConfirmedDelivery.From(_requested, estimatedPrepTime), default, default, default),
+        _ => throw new DomainError($"Cannot confirm delivery in state {_kind}")
+    };
+
+    public Delivery AssignDriver(Driver driver) => _kind switch
+    {
+        DeliveryKind.Confirmed => new(DeliveryKind.Assigned, default, default,
+            AssignedDelivery.From(_confirmed, driver), default, default),
+        _ => throw new DomainError($"Cannot assign driver in state {_kind}")
+    };
+
+    // ... RecordPickup, RecordDropoff follow the same pattern
+
+    private enum DeliveryKind { Requested, Confirmed, Assigned, InTransit, Delivered }
 }
 
-interface ConfirmedDelivery {
-  kind: 'confirmed'
-  customer: Customer
-  restaurant: Restaurant
-  items: MenuItem[]
-  estimatedPrepTime: Duration
+// Each state is a value object holding ONLY the fields guaranteed at that state:
+
+[DddValueObject]
+public readonly record struct RequestedDelivery(
+    Customer Customer, Restaurant Restaurant, IReadOnlyList<MenuItem> Items)
+{
+    public static RequestedDelivery Of(Customer c, Restaurant r, IReadOnlyList<MenuItem> i) => new(c, r, i);
 }
 
-interface AssignedDelivery {
-  kind: 'assigned'
-  customer: Customer
-  restaurant: Restaurant
-  items: MenuItem[]
-  driver: Driver              // Now guaranteed to exist
-  estimatedPickup: Time
+[DddValueObject]
+public readonly record struct AssignedDelivery(
+    Customer Customer, Restaurant Restaurant, IReadOnlyList<MenuItem> Items,
+    Driver Driver,                  // Now guaranteed non-null
+    DateTime EstimatedPickup)
+{
+    public static AssignedDelivery From(ConfirmedDelivery prev, Driver driver) => new(
+        prev.Customer, prev.Restaurant, prev.Items, driver, DateTime.UtcNow.AddMinutes(15));
 }
 
-interface InTransitDelivery {
-  kind: 'in_transit'
-  customer: Customer
-  restaurant: Restaurant
-  items: MenuItem[]
-  driver: Driver
-  pickupTime: Time            // Now guaranteed to exist
-  estimatedDropoff: Time
-}
-
-interface DeliveredDelivery {
-  kind: 'delivered'
-  customer: Customer
-  restaurant: Restaurant
-  items: MenuItem[]
-  driver: Driver
-  pickupTime: Time
-  dropoffTime: Time           // Now guaranteed to exist
-  proofOfDelivery: Photo      // Now guaranteed to exist
-}
-
-// State transitions are explicit functions
-function confirmDelivery(d: RequestedDelivery, prepTime: Duration): ConfirmedDelivery
-function assignDriver(d: ConfirmedDelivery, driver: Driver): AssignedDelivery
-function recordPickup(d: AssignedDelivery): InTransitDelivery
-function recordDropoff(d: InTransitDelivery, photo: Photo): DeliveredDelivery
+[DddValueObject]
+public readonly record struct DeliveredDelivery(
+    Customer Customer, Restaurant Restaurant, IReadOnlyList<MenuItem> Items,
+    Driver Driver,
+    DateTime PickupTime,
+    DateTime DropoffTime,           // Now guaranteed non-null
+    Photo ProofOfDelivery);         // Now guaranteed non-null
 ```
 
 **Smaller improvements matter too:**
 
-```typescript
+```csharp
 // Extract an if statement to a named method
-if (distance.kilometers > 10 && !driver.hasLongRangeVehicle) { ... }
-if (delivery.exceedsDriverRange(driver)) { ... }
+if (distance.Kilometers > 10 && !driver.HasLongRangeVehicle) { ... }
+if (delivery.ExceedsDriverRange(driver)) { ... }
 
 // Name a boolean expression
-const canAssign = driver.isAvailable && driver.isInZone(delivery.zone) && !driver.atCapacity
-const canAssign = driver.canAccept(delivery)
+var canAssign = driver.IsAvailable && driver.IsInZone(delivery.Zone) && !driver.AtCapacity;
+var canAssign = driver.CanAccept(delivery);
 
 // Rename to use domain language
-const fee = customFee ?? standardFee
-const fee = customFee ?? defaultDeliveryFee
+var fee = customFee ?? standardFee;
+var fee = customFee ?? defaultDeliveryFee;
 ```
 
 **Ways to increase expressiveness:**
-- Model states as distinct types (Delivery with status → RequestedDelivery, ConfirmedDelivery, etc.)
-- Make optional fields guaranteed at the right state (driver: Driver | null → driver: Driver)
-- Extract conditionals to named methods (complex if → exceedsDriverRange)
-- Rename variables to use domain language (standardFee → defaultDeliveryFee)
+- Model states as distinct types (Delivery with `Status` enum → RequestedDelivery, ConfirmedDelivery, etc. via the readonly-struct discriminated-union pattern this codebase already uses for `Discount`)
+- Make optional fields guaranteed at the right state (`Driver?` → `Driver` non-null in `AssignedDelivery`)
+- Extract conditionals to named methods (complex `if` → `ExceedsDriverRange`)
+- Rename variables to use domain language (`standardFee` → `defaultDeliveryFee`)
 
 ---
 
@@ -367,46 +390,49 @@ const fee = customFee ?? defaultDeliveryFee
 
 **Test:** What must be true at all times? What rules must never be broken? The objects involved in those rules form an aggregate.
 
-```typescript
+```csharp
 // ❌ WRONG - no aggregate boundary, invariants violated
-class Delivery {
-  stops: DeliveryStop[]  // Exposed!
-  totalDistance: Distance
+public class Delivery
+{
+    public List<DeliveryStop> Stops { get; set; }       // Exposed!
+    public Distance TotalDistance { get; set; }
 }
 
 // External code can break invariants
-delivery.stops.push(new DeliveryStop(location))
-// Oops - totalDistance is now wrong!
+delivery.Stops.Add(new DeliveryStop(location));
+// Oops - TotalDistance is now wrong!
 
 // ✅ RIGHT - aggregate protects invariants
-class Delivery {
-  private stops: DeliveryStop[] = []
-  private _totalDistance: Distance = Distance.zero()
+[DddAggregateRoot]
+public class Delivery
+{
+    private readonly List<DeliveryStop> _stops = new();
+    private Distance _totalDistance = Distance.Zero();
+    public DeliveryStatus Status { get; private set; }
 
-  addStop(location: Location): void {
-    if (this.status !== DeliveryStatus.Planning) {
-      throw new DeliveryNotModifiableError(this.id)
+    public IReadOnlyList<DeliveryStop> Stops => _stops;
+    public Distance TotalDistance => _totalDistance;
+
+    public void AddStop(Location location)
+    {
+        if (Status != DeliveryStatus.Planning)
+            throw new DeliveryNotModifiableError(_id);
+
+        var previousStop = _stops[^1];
+        var stop = new DeliveryStop(location);
+        _stops.Add(stop);
+        _totalDistance = _totalDistance.Add(
+            previousStop.DistanceTo(location));            // Invariant maintained!
     }
-    const previousStop = this.stops[this.stops.length - 1]
-    const stop = new DeliveryStop(location)
-    this.stops.push(stop)
-    this._totalDistance = this._totalDistance.add(
-      previousStop.distanceTo(location)  // Invariant maintained!
-    )
-  }
 
-  removeStop(stopId: StopId): void {
-    if (this.stops.length <= 2) {
-      throw new MinimumStopsRequiredError(this.id)
+    public void RemoveStop(StopId stopId)
+    {
+        if (_stops.Count <= 2)
+            throw new MinimumStopsRequiredError(_id);
+
+        _stops.RemoveAll(s => s.Id.Equals(stopId));
+        _totalDistance = CalculateTotalDistance();         // Invariant maintained!
     }
-    // Recalculate total distance after removal
-    this.stops = this.stops.filter(s => !s.id.equals(stopId))
-    this._totalDistance = this.calculateTotalDistance()  // Invariant maintained!
-  }
-
-  get totalDistance(): Distance {
-    return this._totalDistance
-  }
 }
 ```
 
@@ -427,60 +453,98 @@ class Delivery {
 
 **Test:** Does this need a unique ID to track it over time? No? It's probably a value object.
 
-```typescript
+```csharp
 // Entity with primitives that should be a value object
-class Delivery {
-  id: DeliveryId
-  feeAmount: number
-  feeCurrency: string
+public class Delivery
+{
+    public DeliveryId Id { get; }
+    public decimal FeeAmount { get; private set; }
+    public string FeeCurrency { get; private set; }
 }
 
 // Extract the value object
-class Delivery {
-  id: DeliveryId
-  fee: Money
+public class Delivery
+{
+    public DeliveryId Id { get; }
+    public Money Fee { get; private set; }
 }
 
-class Money {
-  constructor(
-    readonly amount: number,
-    readonly currency: Currency
-  ) {}
+// Idiomatic C# value object in this codebase:
+// readonly struct, IEquatable<T>, static factory, validating ctor, override Equals/GetHashCode.
+// (See Sources/Sales/Sales.Commons/Money.cs and PercentageDiscount.cs for the canonical shape.)
+[DddValueObject]
+public readonly struct Money : IEquatable<Money>
+{
+    public decimal Amount { get; }
+    public Currency Currency { get; }
 
-  add(other: Money): Money {
-    if (this.currency !== other.currency) {
-      throw new CurrencyMismatchError(this.currency, other.currency)
+    public static Money Of(decimal amount, Currency currency) => new(amount, currency);
+
+    private Money(decimal amount, Currency currency)
+    {
+        if (amount < 0) throw new DomainError("Money amount cannot be negative");
+        Amount = amount;
+        Currency = currency;
     }
-    return new Money(this.amount + other.amount, this.currency)
-  }
 
-  equals(other: Money): boolean {
-    return this.amount === other.amount && this.currency === other.currency
-  }
+    public Money Add(Money other)
+    {
+        if (Currency != other.Currency)
+            throw new CurrencyMismatchError(Currency, other.Currency);
+        return new Money(Amount + other.Amount, Currency);
+    }
+
+    public bool Equals(Money other) => Amount == other.Amount && Currency == other.Currency;
+    public override bool Equals(object? obj) => obj is Money other && Equals(other);
+    public override int GetHashCode() => HashCode.Combine(Amount, Currency);
+    public override string ToString() => $"{Amount} {Currency}";
 }
 ```
 
 **Good candidates for value objects:**
-- Money, Currency, Percentage
-- DateRange, TimeSlot, Duration
-- Address, Coordinates, Distance
-- EmailAddress, PhoneNumber, URL
-- Quantity, Weight, Temperature
-- PersonName, CompanyName
+- `Money`, `Currency`, `Percentage`
+- `DateRange`, `TimeSlot`, `Duration`
+- `Address`, `Coordinates`, `Distance`
+- `EmailAddress`, `PhoneNumber`, `Url`
+- `Quantity`, `Weight`, `Temperature`, `Precipitation`
+- `PersonName`, `CompanyName`
 
 ---
 
 ## 9. Repositories are for loading and saving full aggregates
 
-The job of a repository is to load and save entire aggregates - not partial aggregates or nested entities inside an aggregate. The `load` method takes an ID and returns the full aggregate.
+The job of a repository is to load and save entire aggregates - not partial aggregates or nested entities inside an aggregate. The `Load` method takes an ID and returns the full aggregate.
 
-A repository should not exist for a domain object that is not an aggregate. Entity that is part of an aggreate -> does not have a repository. It is loaded via the aggregate root's repository.
+A repository should not exist for a domain object that is not an aggregate. An entity that is part of an aggregate → does not have a repository. It is loaded via the aggregate root's repository.
 
-The `hydrate` method is used ONLY for constructing an aggregate from it's persisted state. It should not be abused for other use cases like creating new instances. Each creation flow should have a dedicated factory method, e.g. `Order.fromExisting()`, `Order.new()`, `Order.draft()`.
+The `Hydrate` method is used ONLY for constructing an aggregate from its persisted state. It should not be abused for other use cases like creating new instances. Each creation flow should have a dedicated factory method, e.g. `Order.FromExisting()`, `Order.New()`, `Order.Draft()`.
 
-The `save` method of a repository should take the full aggregate.
+The `Save` method of a repository should take the full aggregate.
 
 If you just want to query information to display without modifying state and applying business rules, create a separate read model object and don't use a repository.
+
+```csharp
+// ✅ RIGHT - repository for an aggregate root, factory methods for each creation scenario
+public interface IDeliveryRepository
+{
+    Task<Delivery> Load(DeliveryId id);
+    Task Save(Delivery delivery);
+}
+
+public class Delivery
+{
+    // Hydration: reconstruct from persistence — DO NOT use for new instances
+    public static Delivery Hydrate(DeliveryId id, DeliveryStatus status, IReadOnlyList<DeliveryStop> stops,
+        Distance totalDistance) => new(id, status, stops, totalDistance);
+
+    // Creation factories — one per use case:
+    public static Delivery Draft(Customer customer) => new(DeliveryId.New(), DeliveryStatus.Draft,
+        new List<DeliveryStop>(), Distance.Zero());
+
+    public static Delivery FromQuote(Quote quote) => new(DeliveryId.New(), DeliveryStatus.Planning,
+        quote.Stops, quote.TotalDistance);
+}
+```
 
 ---
 
@@ -488,14 +552,14 @@ If you just want to query information to display without modifying state and app
 
 When designing, refactoring, analyzing, or reviewing code:
 
-1. [ ] Verify domain is isolated from infrastructure (no DB/HTTP/logging in domain; generic utilities in infra; domain doesn't import infra)
-2. [ ] Verify names are from YOUR domain, not generic developer jargon
+1. [ ] Verify domain is isolated from infrastructure (no DB/HTTP/logging in domain; generic utilities in infra; domain doesn't `using` infra)
+2. [ ] Verify names are from YOUR domain, not generic developer jargon (`Manager`, `Handler`, `Data`, `Process`)
 3. [ ] Verify use cases are intentions of users, human or automated (apply the menu test)
-4. [ ] Verify business logic lives in domain objects, use cases only orchestrate
-5. [ ] Verify states are modeled as distinct types where appropriate
-6. [ ] Verify hidden domain concepts are extracted and named explicitly
+4. [ ] Verify business logic lives in domain objects, use cases only orchestrate. **No `IsApplicable()` + `Apply()` split** — give the domain object one decision method that both checks and acts
+5. [ ] Verify states are modeled as distinct types where appropriate (readonly-struct discriminated unions; see `Discount` in this codebase)
+6. [ ] Verify hidden domain concepts are extracted and named explicitly (a `decimal precipitation` should usually become a `Precipitation` value object)
 7. [ ] Verify aggregates are designed around invariants, not naive mapping of domain nouns
-8. [ ] Verify values are extracted into value objects expressing a domain concept
-9. [ ] Veirfy no abuse of hydrate methods for creation scenarios. Each creation scenario must have dedicated factory method
+8. [ ] Verify values are extracted into value objects expressing a domain concept (`readonly struct`, `IEquatable<T>`, static `Of(...)` factory, validating private ctor, override `Equals`/`GetHashCode`/`ToString`)
+9. [ ] Verify no abuse of hydrate methods for creation scenarios. Each creation scenario must have a dedicated factory method (`Of`, `New`, `Draft`, `FromExisting`, ...)
 
 Do not proceed until all checks pass.

@@ -100,4 +100,8 @@ jobs:
             > requirements.txt
 
       - name: Run pip-audit
-        run: uvx --with pip pip-audit -r requirements.txt --strict
+        # PYSEC-2025-183 (CVE-2025-45768): disputed advisory against pyjwt — upstream
+        # rejects the classification (key length is the application's responsibility),
+        # there is no fix release (2.12.1 is latest), and pyjwt is only a transitive
+        # dep via harbor → supabase-auth / mcp. Revisit if upstream ever ships a fix.
+        run: uvx --with pip pip-audit -r requirements.txt --strict --ignore-vuln PYSEC-2025-183

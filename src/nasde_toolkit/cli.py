@@ -428,29 +428,32 @@ def _confirm_multi_variant_run(
 
     print_banner(console)
 
+    from nasde_toolkit.runner import resolve_variant_dir, scope_tasks_for_variant
+
     task_names = [t.name for t in config.tasks]
     if tasks_filter:
         task_names = [n for n in task_names if n in set(tasks_filter)]
 
-    n_variants = len(variants)
-    n_tasks = len(task_names)
-    total_trials = n_variants * n_tasks * attempts
-
     table = Table(title="Multi-Variant Run")
-    table.add_column("Variants", style="cyan")
+    table.add_column("Variant", style="cyan")
     table.add_column("Tasks", style="green")
-    table.add_column("Attempts", justify="right")
-    table.add_column("Total trials", justify="right", style="bold")
-    table.add_row(
-        ", ".join(variants),
-        ", ".join(task_names) if task_names else "(none)",
-        str(attempts),
-        str(total_trials),
-    )
+    table.add_column("Trials", justify="right", style="bold")
+
+    total_trials = 0
+    for variant in variants:
+        variant_dir = resolve_variant_dir(config.project_dir, variant)
+        scoped = scope_tasks_for_variant(variant_dir, task_names, tasks_filter)
+        n = len(scoped) * attempts
+        total_trials += n
+        table.add_row(
+            variant,
+            ", ".join(scoped) if scoped else "[yellow](skipped — task-scoped)[/yellow]",
+            str(n),
+        )
     console.print(table)
 
     typer.confirm(
-        f"Run {total_trials} trials ({n_variants} variants x {n_tasks} tasks x {attempts} attempts)?",
+        f"Run {total_trials} trials across {len(variants)} variants (x {attempts} attempts each)?",
         abort=True,
     )
 
@@ -469,19 +472,29 @@ async def _run_all_variants(
     max_concurrent_eval: int = 10,
 ) -> None:
 
-    from nasde_toolkit.runner import run_benchmark
+    from nasde_toolkit.runner import resolve_variant_dir, run_benchmark, scope_tasks_for_variant
 
     results: list[tuple[str, str, str]] = []
+    all_task_names = [t.name for t in config.tasks]
+    base_tasks = [t for t in all_task_names if t in set(tasks_filter)] if tasks_filter else all_task_names
 
     for i, variant_name in enumerate(variants, 1):
         console.print(f"\n[bold]===  Variant {i}/{len(variants)}: {variant_name}  ===[/bold]\n")
+        variant_dir = resolve_variant_dir(config.project_dir, variant_name)
+        scoped_tasks = scope_tasks_for_variant(variant_dir, base_tasks, tasks_filter)
+        if not scoped_tasks:
+            console.print(
+                f"[yellow]SKIP: variant '{variant_name}' is task-scoped and none of its tasks are in this run.[/yellow]"
+            )
+            results.append((variant_name, "[yellow]SKIPPED[/yellow]", "task-scoped, no matching task"))
+            continue
         try:
             await run_benchmark(
                 config=config,
                 variant=variant_name,
                 model=model,
                 timeout_sec=timeout_sec,
-                tasks_filter=tasks_filter,
+                tasks_filter=scoped_tasks,
                 with_opik=with_opik,
                 with_eval=with_eval,
                 harbor_env=harbor_env,

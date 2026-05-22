@@ -473,6 +473,28 @@ sandbox — no copy under `variants/`. The legacy
 `variants/<v>/skills/<name>/` copy path still works unchanged (and now also
 carries `references/`, which it previously dropped).
 
+## Scoping a variant to specific tasks (`tasks`)
+
+Some variants only make sense for one task — for example, a skill whose code
+examples are *tuned to a particular repo's conventions*. Running such a variant
+against a different codebase produces misleading results. Declare a `tasks`
+scope in the variant's `variant.toml`:
+
+```toml
+agent = "claude"
+model = "claude-sonnet-4-6"
+
+# This variant's skill references this repo's value objects, so it should only
+# run against that task.
+tasks = ["csharp-anemic-to-rich-domain"]
+```
+
+With `--all-variants`, a scoped variant runs **only** against its declared
+tasks; everything else is skipped (shown as `SKIPPED` in the summary). The scope
+also wins over an explicit `--tasks` filter, so the Cartesian product never runs
+a repo-specific variant against the wrong repo. Omit `tasks` (the default) for a
+general-purpose variant that should run everywhere.
+
 ## Commands
 
 ### Core

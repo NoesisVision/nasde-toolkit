@@ -255,12 +255,22 @@ Declares the agent type and the model the variant runs against. Every variant MU
 agent = "claude"                    # "claude" | "codex" | "gemini"
 model = "claude-sonnet-4-6"         # REQUIRED. Model appropriate for the agent family.
 
+tasks = ["my-benchmark/task-a"]     # Optional: task-scope. Restrict this variant to specific tasks.
+
 [[skill]]                           # Optional (ADR-009): skill-by-reference, Claude only.
 path = "../../../src/plugins/my-plugin/skills/my-skill"   # source skill dir (required)
 ref  = "abc1234"                    # optional git ref, same semantics as [nasde.source]
 ```
 
 **Model priority**: `--model` CLI flag > `variant.toml [model]`. Missing model in both places → SystemExit with a clear error.
+
+**`tasks` (variant task-scope)**: optional list of task names this variant is
+meant to run against. Use it for a *repo-specific* variant — e.g. a skill whose
+examples reference one repo's conventions — so it never runs against the wrong
+codebase. With `--all-variants`, a scoped variant runs only against its declared
+tasks (others are skipped with a SKIPPED status); the scope wins even over an
+explicit `--tasks` filter. Absent or empty → unscoped (runs against every task,
+the default).
 
 **`[[skill]]` (skill-by-reference)**: each entry stages the **whole** skill dir
 (incl. `references/`) into `/app/.claude/skills/<name>/` from a source path —

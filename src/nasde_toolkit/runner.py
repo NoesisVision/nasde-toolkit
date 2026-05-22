@@ -386,6 +386,45 @@ def load_variant_agent_type(variant_dir: Path) -> str:
     return agent_type
 
 
+def load_variant_task_scope(variant_dir: Path) -> list[str] | None:
+    """Read the optional ``tasks`` task-scope list from variant.toml.
+
+    A repo-specific variant (e.g. a skill whose examples reference one repo's
+    conventions) declares the tasks it is meant to run against:
+
+        tasks = ["csharp-anemic-to-rich-domain"]
+
+    Returns the declared task names, or ``None`` when the variant is unscoped
+    (applies to every task). An empty list is treated as unscoped.
+    """
+    scope = load_variant_config(variant_dir).get("tasks")
+    if not scope:
+        return None
+    if not isinstance(scope, list) or not all(isinstance(t, str) for t in scope):
+        console.print(f"[red]ERROR: variant.toml 'tasks' must be a list of task names, got: {scope!r}[/red]")
+        raise SystemExit(1)
+    return scope
+
+
+def scope_tasks_for_variant(
+    variant_dir: Path,
+    task_names: list[str],
+    explicit_tasks_filter: list[str] | None,
+) -> list[str]:
+    """Intersect a variant's task-scope with the run's task list.
+
+    ``task_names`` are the tasks that would otherwise run (already narrowed by
+    any ``--tasks`` filter). If the variant declares a ``tasks`` scope, keep
+    only the tasks in that scope. An explicit ``--tasks`` filter that names a
+    task outside the variant's scope is dropped (the scope wins) so that
+    ``--all-variants`` never runs a repo-specific variant against the wrong repo.
+    """
+    scope = load_variant_task_scope(variant_dir)
+    if scope is None:
+        return task_names
+    return [t for t in task_names if t in set(scope)]
+
+
 def _agent_import_path(agent_type: str) -> str:
     if agent_type == "codex":
         return "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"

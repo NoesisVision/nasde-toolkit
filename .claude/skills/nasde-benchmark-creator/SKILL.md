@@ -288,6 +288,21 @@ model = "google/gemini-3-flash-preview"   # Required format: google/<model-name>
 - `google/gemini-3-flash-preview` — best quality/speed ratio, daily coding tasks
 - `google/gemini-3.1-flash-lite-preview` — fastest, simple and repetitive tasks
 
+### Scoping a variant to specific tasks (optional)
+
+If a variant only makes sense for certain tasks — e.g. a skill whose examples are
+tuned to one repo's conventions — declare a `tasks` list. It restricts the variant
+to those tasks so `--all-variants` never runs it against the wrong codebase:
+
+```toml
+agent = "claude"
+model = "claude-sonnet-4-6"
+tasks = ["my-benchmark/task-a"]   # only runs against these tasks
+```
+
+Omit `tasks` for a general-purpose variant (the default — runs against all tasks).
+The scope wins even over an explicit `--tasks` filter.
+
 ### Claude Code variant
 
 ```

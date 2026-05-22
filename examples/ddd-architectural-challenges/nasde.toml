@@ -13,7 +13,7 @@ build_commands = []
 model = "claude-opus-4-7"
 dimensions_file = "assessment_dimensions.json"
 skills_dir = "./evaluator_skills"
-max_turns = 60  # bumped from default 30: evaluator hit error_max_turns on DDD-rich workspaces (many small VO files)
+max_turns = 60  # = current default; explicit here as a reminder DDD-rich workspaces need headroom
 
 [reporting]
 platform = "opik"

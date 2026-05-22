@@ -402,7 +402,7 @@ append_system_prompt = "Pay special attention to SOLID principles when scoring."
 | `backend` | `claude` | Subprocess backend: `claude` or `codex` |
 | `model` | `claude-opus-4-7` | Evaluator model |
 | `dimensions_file` | `assessment_dimensions.json` | Scoring dimensions file |
-| `max_turns` | `30` | Max conversation turns |
+| `max_turns` | `60` | Max evaluator conversation turns (raise for DDD-rich workspaces with many small files) |
 | `allowed_tools` | `["Read", "Glob", "Grep"]` | Tool whitelist |
 | `mcp_config` | — | Path to MCP server config JSON |
 | `skills_dir` | — | Path to evaluator skills directory |
@@ -603,7 +603,7 @@ build_commands = []
 backend = "claude"                            # "claude" (default) | "codex"
 model = "claude-opus-4-7"
 dimensions_file = "assessment_dimensions.json"
-# max_turns = 30                              # Max evaluator conversation turns
+# max_turns = 60                              # Max evaluator conversation turns (default 60)
 # allowed_tools = ["Read", "Glob", "Grep"]    # Override default tool whitelist
 # mcp_config = "./evaluator_mcp.json"         # MCP server config for evaluator
 # skills_dir = "./evaluator_skills"           # Skills directory for evaluator

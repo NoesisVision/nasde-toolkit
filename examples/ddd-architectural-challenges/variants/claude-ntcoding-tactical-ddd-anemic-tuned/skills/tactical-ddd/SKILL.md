@@ -1,0 +1,549 @@
+---
+name: tactical-ddd
+description: "Design, refactor, analyze, and review code by applying the principles and patterns of tactical domain-driven design. Triggers on: domain modeling, aggregate design, 'entity', 'value object', 'repository', 'bounded context', 'domain event', 'domain service', code touching domain/ directories, rich domain model discussions."
+version: 1.0.0
+---
+
+<!-- Source: ntcoding/claude-skillz, snapshot 2026-03-20 -->
+<!-- REPO-TUNED VARIANT: the conventions section + value-object example are adapted to THIS codebase
+     (ASP.NET Core, EF Core, bracketed namespaces, value objects as classes with a private
+     parameterless ctor + validating public ctor + BusinessException for invariants). This is NOT the
+     pristine public skill — it is the "skill adapted to your repo" arm of the experiment. -->
+
+# Tactical DDD
+
+Design, refactor, analyze, and review code by applying the principles and patterns of tactical domain-driven design.
+
+## This codebase's conventions
+
+Match what already exists in this repository:
+
+- **Namespaces are bracketed** (`namespace Foo { ... }`), not file-scoped.
+- **Value objects are classes** (not `record` / `readonly struct`): a `private` parameterless
+  constructor for EF materialization, a validating public constructor, `{ get; private set; }`
+  properties, and manual `Equals`/`GetHashCode`.
+- **Invariants throw `BusinessException`** (the project's domain exception), not generic exceptions.
+- **Layers**: `Domain/` (entities, value objects, invariants), `Application/` (services that
+  orchestrate), `Controllers/` (HTTP + DTOs), `Infrastructure/` (EF Core config). Domain holds no EF
+  or ASP.NET references.
+- Keep the public API (controllers, DTOs, endpoints) unchanged when refactoring internals.
+
+## Principles
+
+1. **Isolate domain logic**
+2. **Use rich domain language**
+3. **Orchestrate with use cases**
+4. **Avoid anemic domain model**
+5. **Separate generic concepts**
+6. **Make the implicit explicit... like your life depends on it**
+7. **Design aggregates around invariants**
+8. **Extract immutable value objects liberally**
+9. **Repositories are for loading and saving full aggregates**
+
+---
+
+## 1. Isolate domain logic
+
+**What:** Domain logic is not mixed with technical code like HTTP and database transactions.
+
+**Why:** Easier to understand the most important part of the code, easier to validate with domain experts, easier to test and evolve, easier to plan and implement new features.
+
+**Test:** Could a domain expert read the code? Can the code be unit tested without mocks or spinning up databases?
+
+```csharp
+// ❌ WRONG - domain polluted with infrastructure
+class Delivery
+{
+    public async Task Dispatch()
+    {
+        _logger.LogInformation("Dispatching delivery {Id}", Id); // Infrastructure!
+        await _db.BeginTransactionAsync();                       // Infrastructure!
+        if (_status != "ready") throw new Exception("Not ready");
+        _status = "dispatched";
+        await _db.SaveAsync(this);                               // Infrastructure!
+        await _db.CommitAsync();                                 // Infrastructure!
+        await _pushNotification.NotifyDriverAsync();             // Infrastructure!
+    }
+}
+
+// ✅ RIGHT - isolated domain logic
+class Delivery
+{
+    public void Dispatch()
+    {
+        if (_status != DeliveryStatus.Ready)
+            throw new DeliveryNotReadyError(Id);
+        _status = DeliveryStatus.Dispatched;
+        _dispatchedAt = DateTime.UtcNow;
+    }
+}
+```
+
+---
+
+## 2. Use rich domain language
+
+**What:** Names in code match exactly what domain experts say. No programmer jargon. No generic names.
+
+**Why:** Translation between code-speak and business-speak causes bugs. When a domain expert says "assess a claim" and the code says "ProcessEntity", someone will misunderstand something.
+
+**Test:** Would a domain expert recognize this name? If you'd need to translate it for them, it's wrong.
+
+**Common generic terms to watch for:**
+- `Manager`, `Handler`, `Processor`, `Helper`, `Util`
+- `Data`, `Info`, `Item` (when domain terms exist)
+- `Process`, `Handle`, `Execute` (what does it actually DO?)
+
+```csharp
+// ❌ WRONG - programmer jargon
+class ClaimHandler
+{
+    public ProcessingResult ProcessClaimData(ClaimDto claimData)
+    {
+        return _claimProcessor.Handle(claimData);
+    }
+}
+
+// ✅ RIGHT - domain language
+class ClaimAssessor
+{
+    public AssessmentDecision AssessClaim(InsuranceClaim claim)
+    {
+        if (claim.ExceedsCoverageLimit())
+            return AssessmentDecision.Deny(DenialReason.ExceedsCoverage);
+        return AssessmentDecision.Approve();
+    }
+}
+```
+
+---
+
+## 3. Orchestrate with use cases
+
+**What:** A use case is a user goal—something a user would recognize as an action they can perform in your application.
+
+**Why:** Use cases define the entry points to your domain. They answer "what can a user do?" If something isn't a user goal, it's supporting machinery that belongs elsewhere.
+
+**Test (the menu test):** If you described your application's features to a user like a menu, would this be on it?
+
+```
+DELIVERY APP MENU:
+├── Request Delivery     ← Use case: user goal
+├── Track Delivery       ← Use case: user goal
+├── Cancel Delivery      ← Use case: user goal
+├── Calculate ETA        ← NOT a use case: internal machinery
+└── Check Delivery Radius ← NOT a use case: domain rule
+```
+
+```csharp
+// ❌ WRONG - not a user goal, this is internal machinery
+// UseCases/CalculateEtaUseCase.cs
+public async Task<Eta> CalculateEta(DeliveryId deliveryId)
+{
+    var delivery = await _deliveryRepository.Find(deliveryId);
+    var driver = await _driverRepository.Find(delivery.DriverId);
+    return _routeService.EstimateArrival(driver.Location, delivery.Destination);
+}
+
+// ✅ RIGHT - actual user goal (appears in menu)
+// UseCases/CancelDeliveryUseCase.cs
+public async Task CancelDelivery(DeliveryId deliveryId, CancellationReason reason)
+{
+    var delivery = await _deliveryRepository.Find(deliveryId);
+    delivery.Cancel(reason);
+    await _deliveryRepository.Save(delivery);
+}
+```
+
+---
+
+## 4. Avoid anemic domain model
+
+**What:** Domain logic lives in domain objects, not in use cases. Use cases orchestrate; domain objects decide.
+
+**Why:** When business rules leak into use cases, they scatter across the codebase, duplicate, and diverge. The domain becomes a dumb data carrier.
+
+**Test:** Is your use case making business decisions, or just coordinating? If the use case contains if/else business logic, you likely have an anemic model.
+
+```csharp
+// ❌ WRONG - business logic in use case (anemic domain)
+public async Task ConfirmDropoff(DeliveryId deliveryId, ProofPhoto photo)
+{
+    var delivery = await _deliveryRepository.Find(deliveryId);
+
+    // Business rules leaked into use case!
+    if (delivery.Status != "in_transit")
+        throw new Exception("Delivery not in transit");
+    if (photo == null && delivery.RequiresSignature)
+        throw new Exception("Proof of delivery required");
+
+    delivery.Status = "delivered";
+    delivery.ProofPhoto = photo;
+    delivery.DeliveredAt = DateTime.UtcNow;
+    await _deliveryRepository.Save(delivery);
+}
+
+// ✅ RIGHT - use case orchestrates, domain decides
+public async Task ConfirmDropoff(DeliveryId deliveryId, ProofPhoto photo)
+{
+    var delivery = await _deliveryRepository.Find(deliveryId);
+
+    delivery.ConfirmDropoff(photo); // Domain enforces the rules
+
+    await _deliveryRepository.Save(delivery);
+}
+```
+
+**Signs of anemic model:**
+- Use cases full of if/else business logic
+- Domain objects are just data with getters/setters
+- Business rules duplicated across multiple use cases
+- Validation logic outside the object being validated
+
+---
+
+## 5. Separate generic concepts
+
+**What:** Generic capabilities that aren't specific to your domain live separately from domain-specific logic.
+
+**Why:** A retry mechanism, a caching layer, a validation framework—these aren't YOUR domain. Mixing them with domain logic obscures what's actually specific to your business.
+
+**Test:** Would this code exist in a completely different business domain? If yes, it's generic. If it's specific to YOUR business rules, it's domain.
+
+```csharp
+// ❌ WRONG - generic retry logic mixed with domain
+// Domain/DriverLocator.cs
+class DriverLocator
+{
+    // Generic retry logic does not belong in domain!
+    private async Task<T> WithRetry<T>(Func<Task<T>> fn, int attempts)
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            try { return await fn(); }
+            catch { if (i == attempts - 1) throw; }
+        }
+        throw new Exception("Retry failed");
+    }
+
+    public Task<Driver> FindAvailableDriver(Zone zone)
+        => WithRetry(() => SearchDriversInZone(zone), 3);
+
+    private Task<Driver> SearchDriversInZone(Zone zone)
+    {
+        // domain logic to find nearest available driver
+    }
+}
+
+// ✅ RIGHT - same behavior, properly separated
+// Infrastructure/Retry.cs (generic, reusable in any project)
+public static class Retry
+{
+    public static async Task<T> WithRetry<T>(Func<Task<T>> fn, int attempts)
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            try { return await fn(); }
+            catch { if (i == attempts - 1) throw; }
+        }
+        throw new Exception("Retry failed");
+    }
+}
+
+// Domain/DriverLocator.cs (pure domain, no infra imports)
+class DriverLocator
+{
+    public Task<Driver> FindAvailableDriver(Zone zone)
+    {
+        // domain logic to find nearest available driver
+    }
+}
+
+// UseCases/DispatchDeliveryUseCase.cs (orchestrates domain + infra)
+public async Task DispatchDelivery(DeliveryId deliveryId)
+{
+    var delivery = await _deliveryRepository.Find(deliveryId);
+    var driver = await Retry.WithRetry(
+        () => _driverLocator.FindAvailableDriver(delivery.Zone), 3);
+    delivery.AssignDriver(driver);
+    await _deliveryRepository.Save(delivery);
+}
+```
+
+---
+
+## 6. Make the implicit explicit... like your life depends on it
+
+**What:** Strive for maximum expressiveness. Go as far as possible to identify and name domain concepts in code. Don't settle for "good enough"—push until the code speaks the domain fluently.
+
+**Why:** Maximum alignment optimizes communication between engineers and domain experts. Easier to discuss nuances and avoid misconceptions. Easier to plan and implement features and detect when the design of code is causing unnecessary friction.
+
+**Test:** Could you discuss this code with a domain expert without translation? Are there concepts they use that don't exist in your code?
+
+```csharp
+// This code looks fine - isolated, uses domain terms
+class Delivery
+{
+    public DeliveryStatus Status { get; private set; }
+    public Driver? Driver { get; private set; }
+    public DateTime? PickupTime { get; private set; }
+    public DateTime? DropoffTime { get; private set; }
+    public Photo? ProofOfDelivery { get; private set; }
+
+    public void AssignDriver(Driver driver)
+    {
+        if (Status != DeliveryStatus.Confirmed) throw new Exception("...");
+        Driver = driver;
+        Status = DeliveryStatus.Assigned;
+    }
+
+    public void RecordPickup()
+    {
+        if (Status != DeliveryStatus.Assigned) throw new Exception("...");
+        PickupTime = DateTime.UtcNow;
+        Status = DeliveryStatus.InTransit;
+    }
+
+    public void RecordDropoff(Photo photo)
+    {
+        if (Status != DeliveryStatus.InTransit) throw new Exception("...");
+        ProofOfDelivery = photo;
+        DropoffTime = DateTime.UtcNow;
+        Status = DeliveryStatus.Delivered;
+    }
+}
+
+// But the TYPES can describe the domain! Each state is a distinct concept.
+// Reading the types alone tells you how deliveries work.
+
+abstract record Delivery;
+
+record RequestedDelivery(           // Customer placed request
+    Customer Customer,
+    Restaurant Restaurant,
+    IReadOnlyList<MenuItem> Items) : Delivery;
+
+record ConfirmedDelivery(           // Restaurant accepted
+    Customer Customer,
+    Restaurant Restaurant,
+    IReadOnlyList<MenuItem> Items,
+    Duration EstimatedPrepTime) : Delivery;
+
+record AssignedDelivery(            // Driver assigned, heading to restaurant
+    Customer Customer,
+    Restaurant Restaurant,
+    IReadOnlyList<MenuItem> Items,
+    Driver Driver,                  // Now guaranteed to exist
+    Time EstimatedPickup) : Delivery;
+
+record InTransitDelivery(           // Driver picked up, heading to customer
+    Customer Customer,
+    Restaurant Restaurant,
+    IReadOnlyList<MenuItem> Items,
+    Driver Driver,
+    Time PickupTime,                // Now guaranteed to exist
+    Time EstimatedDropoff) : Delivery;
+
+record DeliveredDelivery(           // Complete with proof
+    Customer Customer,
+    Restaurant Restaurant,
+    IReadOnlyList<MenuItem> Items,
+    Driver Driver,
+    Time PickupTime,
+    Time DropoffTime,               // Now guaranteed to exist
+    Photo ProofOfDelivery) : Delivery;
+
+// State transitions are explicit functions
+ConfirmedDelivery ConfirmDelivery(RequestedDelivery d, Duration prepTime);
+AssignedDelivery AssignDriver(ConfirmedDelivery d, Driver driver);
+InTransitDelivery RecordPickup(AssignedDelivery d);
+DeliveredDelivery RecordDropoff(InTransitDelivery d, Photo photo);
+```
+
+**Smaller improvements matter too:**
+
+```csharp
+// Extract an if statement to a named method
+if (distance.Kilometers > 10 && !driver.HasLongRangeVehicle) { ... }
+if (delivery.ExceedsDriverRange(driver)) { ... }
+
+// Name a boolean expression
+var canAssign = driver.IsAvailable && driver.IsInZone(delivery.Zone) && !driver.AtCapacity;
+var canAssign = driver.CanAccept(delivery);
+
+// Rename to use domain language
+var fee = customFee ?? standardFee;
+var fee = customFee ?? defaultDeliveryFee;
+```
+
+**Ways to increase expressiveness:**
+- Model states as distinct types (Delivery with status → RequestedDelivery, ConfirmedDelivery, etc.)
+- Make optional fields guaranteed at the right state (`Driver? Driver` → `Driver Driver`)
+- Extract conditionals to named methods (complex if → ExceedsDriverRange)
+- Rename variables to use domain language (standardFee → defaultDeliveryFee)
+
+---
+
+## 7. Design aggregates around invariants
+
+**What:** An aggregate is a cluster of objects that must be consistent together. The aggregate root enforces the rules. External code cannot violate invariants.
+
+**Why:** Without clear boundaries, inconsistent states creep in. One piece of code updates the delivery, another updates the route, and suddenly the ETA is wrong.
+
+**Test:** What must be true at all times? What rules must never be broken? The objects involved in those rules form an aggregate.
+
+```csharp
+// ❌ WRONG - no aggregate boundary, invariants violated
+class Delivery
+{
+    public List<DeliveryStop> Stops; // Exposed!
+    public Distance TotalDistance;
+}
+
+// External code can break invariants
+delivery.Stops.Add(new DeliveryStop(location));
+// Oops - TotalDistance is now wrong!
+
+// ✅ RIGHT - aggregate protects invariants
+class Delivery
+{
+    private readonly List<DeliveryStop> _stops = new();
+    private Distance _totalDistance = Distance.Zero();
+
+    public void AddStop(Location location)
+    {
+        if (_status != DeliveryStatus.Planning)
+            throw new DeliveryNotModifiableError(Id);
+
+        var previousStop = _stops[^1];
+        var stop = new DeliveryStop(location);
+        _stops.Add(stop);
+        _totalDistance = _totalDistance.Add(
+            previousStop.DistanceTo(location)); // Invariant maintained!
+    }
+
+    public void RemoveStop(StopId stopId)
+    {
+        if (_stops.Count <= 2)
+            throw new MinimumStopsRequiredError(Id);
+
+        // Recalculate total distance after removal
+        _stops.RemoveAll(s => s.Id.Equals(stopId));
+        _totalDistance = CalculateTotalDistance(); // Invariant maintained!
+    }
+
+    public Distance TotalDistance => _totalDistance;
+}
+```
+
+**Aggregate rules:**
+- One root entity per aggregate
+- External code accesses only through the root
+- The root enforces all invariants
+- Reference other aggregates by ID, not object
+- Methods should operate on the same state—if they don't, split the aggregate
+
+---
+
+## 8. Extract immutable value objects liberally
+
+**What:** When something is defined by its attributes (not identity), make it an immutable value object. Do this liberally—more value objects is usually better.
+
+**Why:** Value objects are simple. They can't change unexpectedly. They're easy to test. They make domain concepts explicit. They're also a good way to extract logic from aggregates and entities that can easily get large—keep entities focused by pulling cohesive concepts into value objects.
+
+**Test:** Does this need a unique ID to track it over time? No? It's probably a value object.
+
+```csharp
+// Entity with primitives that should be a value object
+class Delivery
+{
+    public DeliveryId Id;
+    public decimal FeeAmount;
+    public string FeeCurrency;
+}
+
+// Extract the value object
+class Delivery
+{
+    public DeliveryId Id;
+    public Money Fee;
+}
+
+// Value object in THIS codebase's idiom: a class with a private parameterless ctor (for EF),
+// a validating public ctor that throws BusinessException, { get; private set; } properties,
+// and manual Equals/GetHashCode. (Matches the existing value objects in Domain/.)
+namespace DotNetConfPl.Refactoring.Domain
+{
+    public class Money
+    {
+        private Money() { } // EF materialization only
+
+        public Money(decimal amount, Currency currency)
+        {
+            if (amount < 0)
+                throw new BusinessException("Money amount cannot be negative");
+            Amount = amount;
+            Currency = currency;
+        }
+
+        public decimal Amount { get; private set; }
+        public Currency Currency { get; private set; }
+
+        public Money Add(Money other)
+        {
+            if (Currency != other.Currency)
+                throw new BusinessException("Cannot add money in different currencies");
+            return new Money(Amount + other.Amount, Currency);
+        }
+
+        protected bool Equals(Money other) =>
+            Amount == other.Amount && Currency == other.Currency;
+
+        public override bool Equals(object obj) =>
+            obj is Money money && Equals(money);
+
+        public override int GetHashCode() =>
+            HashCode.Combine(Amount, Currency);
+    }
+}
+```
+
+**Good candidates for value objects:**
+- Money, Currency, Percentage
+- DateRange, TimeSlot, Duration
+- Address, Coordinates, Distance
+- EmailAddress, PhoneNumber, URL
+- Quantity, Weight, Temperature
+- PersonName, CompanyName
+
+---
+
+## 9. Repositories are for loading and saving full aggregates
+
+The job of a repository is to load and save entire aggregates - not partial aggregates or nested entities inside an aggregate. The `load` method takes an ID and returns the full aggregate.
+
+A repository should not exist for a domain object that is not an aggregate. Entity that is part of an aggreate -> does not have a repository. It is loaded via the aggregate root's repository.
+
+The `hydrate` method is used ONLY for constructing an aggregate from it's persisted state. It should not be abused for other use cases like creating new instances. Each creation flow should have a dedicated factory method, e.g. `Order.FromExisting()`, `Order.New()`, `Order.Draft()`.
+
+The `save` method of a repository should take the full aggregate.
+
+If you just want to query information to display without modifying state and applying business rules, create a separate read model object and don't use a repository.
+
+---
+
+## Mandatory Checklist
+
+When designing, refactoring, analyzing, or reviewing code:
+
+1. [ ] Verify domain is isolated from infrastructure (no DB/HTTP/logging in domain; generic utilities in infra; domain doesn't import infra)
+2. [ ] Verify names are from YOUR domain, not generic developer jargon
+3. [ ] Verify use cases are intentions of users, human or automated (apply the menu test)
+4. [ ] Verify business logic lives in domain objects, use cases only orchestrate
+5. [ ] Verify states are modeled as distinct types where appropriate
+6. [ ] Verify hidden domain concepts are extracted and named explicitly
+7. [ ] Verify aggregates are designed around invariants, not naive mapping of domain nouns
+8. [ ] Verify values are extracted into value objects expressing a domain concept
+9. [ ] Veirfy no abuse of hydrate methods for creation scenarios. Each creation scenario must have dedicated factory method
+
+Do not proceed until all checks pass.

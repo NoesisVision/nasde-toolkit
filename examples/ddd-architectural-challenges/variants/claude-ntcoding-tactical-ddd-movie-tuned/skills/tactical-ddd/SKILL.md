@@ -6,9 +6,9 @@ version: 1.0.0
 
 <!-- Source: ntcoding/claude-skillz, snapshot 2026-03-20 -->
 <!-- REPO-TUNED VARIANT: the conventions section + value-object example are adapted to THIS codebase
-     (ASP.NET Core on .NET 8, EF Core). This is the "skill adapted to your repo" arm of the
-     experiment — NOT the pristine public skill. The repo started on an old .NET version and is being
-     modernized: write idiomatic .NET 8, do not preserve the legacy netcoreapp-era style. -->
+     (a movie-rental backend on .NET 8, NHibernate). This is the "skill adapted to your repo" arm of
+     the experiment — NOT the pristine public skill. The repo originated on an old .NET version and is
+     being modernized: write idiomatic .NET 8, do not preserve the legacy style. -->
 
 # Tactical DDD
 
@@ -16,22 +16,27 @@ Design, refactor, analyze, and review code by applying the principles and patter
 
 ## This codebase's conventions
 
-This codebase targets **.NET 8**. It originated on an old .NET version and is being modernized as it
-is enriched — write idiomatic modern C#, do not copy the legacy style:
+This codebase is a movie-rental backend targeting **.NET 8**, persisted with NHibernate. It originated
+on an old .NET version and is being modernized as it is enriched — write idiomatic modern C#, do not
+copy the legacy style:
 
-- **File-scoped namespaces** (`namespace Foo;`), not bracketed blocks.
+- **File-scoped namespaces** (`namespace Logic.Entities;`), not bracketed blocks.
 - **Value objects as `record` / `readonly record struct`** — you get value equality, `ToString`, and
   immutability for free, so do NOT hand-roll `Equals`/`GetHashCode`. Use `init`-only / `required`
   members and a static factory (or a validating primary constructor) so an instance cannot exist in
-  an invalid state. EF Core maps these via owned types / value converters — keep a way for EF to
-  materialize them, but don't let EF needs dictate a mutable, ctor-less data bag.
+  an invalid state.
+- **Do NOT introduce a functional-extensions / `Result<T>` library** (e.g. CSharpFunctionalExtensions).
+  It is not referenced by the code you start from. Enforce invariants with a validating factory that
+  throws a domain-specific exception. Keep the dependency set as-is — adding a value-object base-class
+  library is exactly the kind of detour that breaks the build; stay with plain modern C#.
 - **Nullable reference types enabled**; use them to make "must exist" vs "may be absent" explicit
   rather than relying on runtime null checks.
-- **Invariants**: throw a domain-specific exception (or return a result type) from the factory /
-  method that enforces them — not a generic `Exception`, and not validation scattered in services.
-- **Layers**: `Domain/` (entities, value objects, invariants), `Application/` (services that
-  orchestrate), `Controllers/` (HTTP + DTOs), `Infrastructure/` (EF Core config). Domain holds no EF
-  or ASP.NET references.
+- **NHibernate constraints**: entities are mapped by NHibernate, which needs `virtual` members and a
+  (protected/private) parameterless constructor to materialize them. Preserve what NHibernate needs on
+  the *entities*, but extract cohesive concepts into immutable `record` value objects around them.
+- **Layout**: `Logic/Entities` (domain entities), `Logic/Services` (services that orchestrate),
+  `Logic/Repositories` + `Logic/Mappings` (NHibernate persistence), `Api/Controllers` (HTTP + DTOs).
+  Keep domain logic out of services and out of the persistence/API layers.
 - Keep the public API (controllers, DTOs, endpoints) unchanged when refactoring internals.
 
 ## Principles

@@ -1,0 +1,6 @@
+agent = "claude"
+model = "claude-sonnet-4-6"
+
+# Repo-specific: this skill's conventions are tuned to the movie-rental codebase
+# (modern .NET 8 idioms). Runs ONLY against that task.
+tasks = ["csharp-movie-rental-anemic"]

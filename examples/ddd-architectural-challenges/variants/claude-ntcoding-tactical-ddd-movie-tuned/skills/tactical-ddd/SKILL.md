@@ -32,8 +32,16 @@ copy the legacy style:
 - **Nullable reference types enabled**; use them to make "must exist" vs "may be absent" explicit
   rather than relying on runtime null checks.
 - **NHibernate constraints**: entities are mapped by NHibernate, which needs `virtual` members and a
-  (protected/private) parameterless constructor to materialize them. Preserve what NHibernate needs on
-  the *entities*, but extract cohesive concepts into immutable `record` value objects around them.
+  (protected/private) parameterless constructor to materialize them — add **only** those. NHibernate
+  does **not** require the legacy MVC/serialization attributes that the starting code carries; do not
+  treat them as something to be "preserved". Extract cohesive concepts into immutable `record` value
+  objects around the entities.
+- **Strip web/serialization/validation attributes off the domain entities**: the starting `Customer` /
+  `Movie` / `PurchasedMovie` carry `[Required]`, `[RegularExpression]`, `[MaxLength]`,
+  `[JsonConverter]`, `[JsonIgnore]`, `Newtonsoft.Json`, and `System.ComponentModel.DataAnnotations` —
+  these are presentation/validation leaks, not domain concerns. Move validation **into** the domain
+  (a factory or value object that throws a domain exception); JSON shaping belongs in the API/DTO
+  layer, not on the entity. The domain layer must import **no** web or serialization namespace.
 - **Layout**: `Logic/Entities` (domain entities), `Logic/Services` (services that orchestrate),
   `Logic/Repositories` + `Logic/Mappings` (NHibernate persistence), `Api/Controllers` (HTTP + DTOs).
   Keep domain logic out of services and out of the persistence/API layers.

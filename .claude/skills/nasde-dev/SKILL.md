@@ -58,6 +58,7 @@ After any change to the evaluation pipeline, CLI flags, configuration schema, ag
 **Think DX-first:** For every new option or feature, ask "where will the user be when they need this?" and put the documentation there. A feature that exists only in CLAUDE.md is invisible to most users. Check every touchpoint:
 
 **Documentation:**
+- `CHANGELOG.md` — **add an entry under `## [Unreleased]`** (Added / Changed / Fixed) for any user-visible change: new CLI flag, config field, behavior change, dependency bump. Add the `[#NN]` PR link-reference at the bottom. Easy to forget — do it as part of the change, not at release time.
 - `README.md` — user-facing documentation (CLI options table, nasde.toml config reference, explanatory text). This is where most users look first.
 - `CLAUDE.md` — agent instructions (CLI reference, nasde.toml example, architecture decisions)
 - `ARCHITECTURE.md` — system architecture with mermaid diagrams (end-to-end flow, trial lifecycle, cloud sandbox providers, assessment evaluation)

@@ -95,6 +95,10 @@ VARIANT_CLAUDE_MD_TEMPLATE = """\
 VARIANT_TOML_TEMPLATE = """\
 agent = "claude"
 model = "claude-sonnet-4-6"
+
+# Optional: restrict this variant to specific tasks (e.g. a repo-specific skill).
+# Omit for a general-purpose variant that runs against every task.
+# tasks = ["my-benchmark/task-name"]
 """
 
 GITIGNORE_TEMPLATE = """\

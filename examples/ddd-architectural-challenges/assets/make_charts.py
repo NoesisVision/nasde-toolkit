@@ -112,24 +112,33 @@ def loop_before_after(fname):
 
 
 def contrast(fname):
-    variants = ["vanilla", "guided", "public skill", "repo-tuned"]
-    weather = [OVERALL[v]["weather"] for v in variants]
-    movie = [OVERALL[v]["movie"] for v in variants]
-    x = np.arange(len(variants))
-    w = 0.38
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    ax.bar(x - w / 2, weather, w, label="WEATHER (feature, clean DDD)", color="#4285f4")
-    ax.bar(x + w / 2, movie, w, label="MOVIE (legacy refactor)", color="#db4437")
-    for i, (we, mo) in enumerate(zip(weather, movie)):
-        ax.text(i - w / 2, we + 0.01, f"{we:.2f}", ha="center", fontsize=8)
-        ax.text(i + w / 2, mo + 0.01, f"{mo:.2f}", ha="center", fontsize=8)
+    """Increment vs vanilla per task. Absolute scores across tasks are NOT comparable
+    (task difficulty sets the baseline) — the INCREMENT over vanilla is. Line at 0 =
+    vanilla; above = better than the bare model, below = worse."""
+    steps = ["vanilla", "guided", "public skill", "repo-tuned"]
+    x = np.arange(len(steps))
+    w_inc = [OVERALL[v]["weather"] - OVERALL["vanilla"]["weather"] for v in steps]
+    m_inc = [OVERALL[v]["movie"] - OVERALL["vanilla"]["movie"] for v in steps]
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.axhline(0, color="#9aa0a6", linewidth=1.4, linestyle="--", zorder=1)
+    ax.text(0.02, 0.004, "vanilla baseline", color="#777", fontsize=9, va="bottom")
+    ax.plot(x, w_inc, "-o", color="#4285f4", linewidth=2.6, markersize=8,
+            label="Weather (feature, clean DDD)")
+    ax.plot(x, m_inc, "-o", color="#db4437", linewidth=2.6, markersize=8,
+            label="Movie (legacy refactor)")
+    for xi, yi in zip(x, w_inc):
+        ax.annotate(f"{yi:+.2f}", (xi, yi), textcoords="offset points", xytext=(0, 9),
+                    ha="center", fontsize=9, color="#4285f4")
+    for xi, yi in zip(x, m_inc):
+        ax.annotate(f"{yi:+.2f}", (xi, yi), textcoords="offset points", xytext=(0, -16),
+                    ha="center", fontsize=9, color="#db4437")
     ax.set_xticks(x)
-    ax.set_xticklabels(variants, fontsize=10)
-    ax.set_ylim(0, 1.0)
-    ax.set_ylabel("median, normalized 0-1")
-    ax.set_title("Same skill, two tasks: tuning wins on weather, ties on movie",
-                 fontsize=13, fontweight="bold")
-    ax.legend(fontsize=10, frameon=False)
+    ax.set_xticklabels(steps, fontsize=11)
+    ax.set_ylabel("quality gain over vanilla (normalized points)")
+    ax.set_title("How much each step lifts quality OVER the bare model",
+                 fontsize=14, fontweight="bold", pad=12)
+    ax.set_ylim(-0.04, 0.17)
+    ax.legend(fontsize=10, frameon=False, loc="upper left")
     ax.spines[["top", "right"]].set_visible(False)
     plt.tight_layout()
     plt.savefig(fname, dpi=140, bbox_inches="tight")
@@ -185,7 +194,7 @@ if __name__ == "__main__":
     radar(WEATHER, "Weather task - quality by dimension", "radar_weather.png")
     radar(MOVIE, "Movie task - quality by dimension", "radar_movie.png")
     loop_before_after("loop_before_after.png")
-    contrast("contrast_weather_movie.png")
+    contrast("increment_vs_vanilla.png")
     ops_tokens("weather", "ops_tokens_weather.png")
     ops_tokens("movie", "ops_tokens_movie.png")
     ops_time("weather", "ops_time_weather.png")

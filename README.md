@@ -189,9 +189,13 @@ We took a public DDD skill ([Nick Tune's `tactical-ddd`](https://github.com/NTCo
 | public skill | 0.85 | 0.60 |
 | repo-tuned skill | **0.92** | **0.62** |
 
-**The effect is task-dependent.** On the clean-feature task, tuning the skill to the repo is a clear win (0.92 vs 0.85 public — well above measurement noise). On the messy legacy refactor the variants bunch up (0.56–0.62) — the differences are within noise, so we *don't* claim a winner there.
+**The effect is task-dependent.** Absolute scores across tasks aren't comparable — task difficulty sets the baseline (movie starts lower because it's harder). What *is* comparable is the **increment over vanilla** on each task: how much each step lifts quality above the bare model.
 
-Per-dimension radars make this visible at a glance (test quality stays flat everywhere — the skill teaches modeling, not testing):
+![Quality gain over vanilla](examples/ddd-architectural-challenges/assets/increment_vs_vanilla.png)
+
+The same repo-tuned skill adds **+0.13** on the clean-feature task but only **+0.06** on the legacy refactor — twice the payoff where the design space is open. (Nothing dipped below the line — no configuration here was worse than vanilla — but the chart would show it if one did.)
+
+Per-dimension radars show *where* the gains land (test quality stays flat everywhere — the skill teaches modeling, not testing):
 
 | Weather — quality by dimension | Movie — quality by dimension |
 |---|---|

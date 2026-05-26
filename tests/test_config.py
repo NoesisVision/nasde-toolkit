@@ -68,7 +68,7 @@ name = "test"
     config = load_project_config(tmp_path)
     assert config.evaluation.model == "claude-opus-4-7"
     assert config.evaluation.dimensions_file == "assessment_dimensions.json"
-    assert config.evaluation.max_turns == 30
+    assert config.evaluation.max_turns == 60
     assert config.evaluation.allowed_tools is None
     assert config.evaluation.mcp_config is None
     assert config.evaluation.skills_dir is None

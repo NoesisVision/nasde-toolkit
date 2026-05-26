@@ -178,6 +178,12 @@ The criteria spell out what each score means for each dimension. Here is the ful
 
 **The insight:** the same "DDD guidance" skill helps Claude a little (+3.5) and *badly* hurts Codex (-22). The per-dimension breakdown pinpoints *where* Codex regresses — domain modeling, encapsulation, extensibility — which would be invisible without this assessment. Skill optimization is agent-specific.
 
+### Deep dive — does a public skill, and tuning it, actually help?
+
+A separate study took a public DDD skill (the `tactical-ddd` skill from `ntcoding/claude-skillz`) and its repo-tuned version across four configurations on two deliberately different tasks — a feature on a clean DDD codebase and a legacy anemic→rich refactor. The headline: **the effect is task-dependent** — tuning the skill to the repo adds **+0.13** quality on the clean-feature task but only **+0.06** on the legacy refactor (increment over the bare model; absolute scores across tasks aren't comparable). Two lessons that generalize: judge *per dimension*, not one aggregate; and a skill present on disk is not a skill used — verify it activated.
+
+→ Full tables, per-dimension radars, and token/time charts in **[Benchmark Results](docs/benchmark-results.md#deep-dive--tactical-ddd-skill-public-vs-repo-tuned-claude-code)**.
+
 ### More benchmarks in the repo
 
 - **Refactoring katas (Java + Python)** — four classic refactorings scored on behavior preservation, clarity, technique, scope discipline. *Takeaway:* a candidate "refactoring skill" didn't move the score — shipping it would have been based on vibes.
@@ -402,7 +408,7 @@ append_system_prompt = "Pay special attention to SOLID principles when scoring."
 | `backend` | `claude` | Subprocess backend: `claude` or `codex` |
 | `model` | `claude-opus-4-7` | Evaluator model |
 | `dimensions_file` | `assessment_dimensions.json` | Scoring dimensions file |
-| `max_turns` | `30` | Max conversation turns |
+| `max_turns` | `60` | Max evaluator conversation turns (raise for DDD-rich workspaces with many small files) |
 | `allowed_tools` | `["Read", "Glob", "Grep"]` | Tool whitelist |
 | `mcp_config` | — | Path to MCP server config JSON |
 | `skills_dir` | — | Path to evaluator skills directory |
@@ -472,6 +478,28 @@ The **whole** skill directory (including `references/`) is staged into the
 sandbox — no copy under `variants/`. The legacy
 `variants/<v>/skills/<name>/` copy path still works unchanged (and now also
 carries `references/`, which it previously dropped).
+
+## Scoping a variant to specific tasks (`tasks`)
+
+Some variants only make sense for one task — for example, a skill whose code
+examples are *tuned to a particular repo's conventions*. Running such a variant
+against a different codebase produces misleading results. Declare a `tasks`
+scope in the variant's `variant.toml`:
+
+```toml
+agent = "claude"
+model = "claude-sonnet-4-6"
+
+# This variant's skill references this repo's value objects, so it should only
+# run against that task.
+tasks = ["csharp-anemic-to-rich-domain"]
+```
+
+The scope is enforced either way you run: with `--all-variants` a scoped variant
+runs **only** against its declared tasks (others show as `SKIPPED`); with a single
+`--variant`, asking for a task outside its scope aborts with a clear error rather
+than running against the wrong repo. Omit `tasks` (the default) for a
+general-purpose variant that runs everywhere.
 
 ## Commands
 
@@ -581,7 +609,7 @@ build_commands = []
 backend = "claude"                            # "claude" (default) | "codex"
 model = "claude-opus-4-7"
 dimensions_file = "assessment_dimensions.json"
-# max_turns = 30                              # Max evaluator conversation turns
+# max_turns = 60                              # Max evaluator conversation turns (default 60)
 # allowed_tools = ["Read", "Glob", "Grep"]    # Override default tool whitelist
 # mcp_config = "./evaluator_mcp.json"         # MCP server config for evaluator
 # skills_dir = "./evaluator_skills"           # Skills directory for evaluator

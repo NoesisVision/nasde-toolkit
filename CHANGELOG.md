@@ -9,6 +9,24 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- **Variant task-scoping: `tasks` array in `variant.toml`.** A variant may declare
+  `tasks = [...]` to restrict it to specific tasks — use it for a repo-specific
+  variant (e.g. a skill tuned to one repo's conventions) so it never runs against
+  the wrong codebase. With `--all-variants` a scoped variant runs only against its
+  declared tasks (others SKIPPED); with a single `--variant`, requesting a task
+  outside its scope aborts with a clear error. The scope wins over an explicit
+  `--tasks` filter. Absent/empty → unscoped (the default). ([#54])
+
+### Changed
+- **Evaluator default `max_turns` raised 30 → 60.** Avoids `error_max_turns` on
+  large/complex workspaces (e.g. DDD refactors). Override via `[evaluation]
+  max_turns` in `nasde.toml`. ([#54])
+
+### Fixed
+- **Bump `starlette` 1.0.0 → 1.1.0** (PYSEC-2026-161; transitive via
+  harbor/fastapi/mcp). ([#54])
+
 ## [0.4.0] — 2026-05-21
 
 ### Added
@@ -390,4 +408,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#50]: https://github.com/NoesisVision/nasde-toolkit/pull/50
 [#51]: https://github.com/NoesisVision/nasde-toolkit/pull/51
 [#52]: https://github.com/NoesisVision/nasde-toolkit/pull/52
+[#54]: https://github.com/NoesisVision/nasde-toolkit/pull/54
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

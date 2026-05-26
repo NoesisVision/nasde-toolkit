@@ -30,6 +30,45 @@ Results from the three example benchmarks included in `examples/`. All scores ar
 
 **Takeaway:** Architectural guidance helps Claude (+3.5) but dramatically hurts Codex (-22.0). The same skill applied to different agents can have opposite effects — this is exactly the kind of insight NASDE is designed to surface.
 
+### Deep dive — tactical-ddd skill: public vs repo-tuned (Claude Code)
+
+A focused follow-up on the same benchmark family: we took a public DDD skill ([`tactical-ddd` from `ntcoding/claude-skillz`](https://github.com/NTCoding/claude-skillz)) and a repo-tuned version, and measured four configurations of Claude Code on two deliberately different tasks — a **feature on a clean DDD codebase** (`ddd-weather-discount`) and a **legacy anemic→rich refactor** (`csharp-movie-rental-anemic`). Each configuration was run repeatedly and each run scored repeatedly; the numbers below are medians (normalized 0–1). Skill activation was verified per run — a mounted skill the agent never invokes scores like no skill at all.
+
+| Configuration | Weather (feature) | Movie (legacy) |
+|---|:---:|:---:|
+| vanilla (no skill) | 0.79 | 0.56 |
+| guided (manual DDD hints, no skill) | 0.84 | 0.58 |
+| public skill | 0.85 | 0.60 |
+| repo-tuned skill | **0.92** | **0.62** |
+
+**The effect is task-dependent.** Absolute scores across tasks aren't comparable — task difficulty sets the baseline (movie starts lower because it's harder). What *is* comparable is the **increment over vanilla** on each task: how much each step lifts quality above the bare model.
+
+<p align="center">
+  <img src="../examples/ddd-architectural-challenges/assets/increment_vs_vanilla.png" width="520" alt="Quality gain over vanilla">
+</p>
+
+The same repo-tuned skill adds **+0.13** on the clean-feature task but only **+0.06** on the legacy refactor — twice the payoff where the design space is open.
+
+Per-dimension radars show *where* the gains land (test quality stays flat everywhere — the skill teaches modeling, not testing):
+
+<p align="center">
+  <img src="../examples/ddd-architectural-challenges/assets/radar_weather.png" width="380" alt="Weather radar">
+  <img src="../examples/ddd-architectural-challenges/assets/radar_movie.png" width="380" alt="Movie radar">
+</p>
+
+What does the gain cost? Token usage and run time per configuration — and the answer is **not** the simple "better costs more" you might expect:
+
+<p align="center">
+  <img src="../examples/ddd-architectural-challenges/assets/ops_tokens_weather.png" width="240" alt="Weather tokens">
+  <img src="../examples/ddd-architectural-challenges/assets/ops_tokens_movie.png" width="240" alt="Movie tokens">
+  <img src="../examples/ddd-architectural-challenges/assets/ops_time_weather.png" width="240" alt="Weather time">
+  <img src="../examples/ddd-architectural-challenges/assets/ops_time_movie.png" width="240" alt="Movie time">
+</p>
+
+Cost doesn't track quality. On weather the top-scoring repo-tuned skill spends *fewer* tokens than guided or public; on movie the public skill is the cheapest of all four. The real overhead is run time on the messy refactor, where the skill arms take roughly twice as long as the bare model.
+
+**Two lessons that generalize:** (1) judge one aggregate number and you miss the story — a real per-dimension gain hides inside an averaged score, which is why we show radars, not a single bar; (2) a skill present on disk is not a skill used — always verify it activated before trusting the result.
+
 ## UC1: Project-Specific Setup — NASDE Dev Skill
 
 1 task: Add multi-attempt support to the nasde-toolkit itself. Claude only (project-specific skill, cross-agent comparison not applicable).

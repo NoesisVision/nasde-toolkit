@@ -166,7 +166,7 @@ build_commands = []
 backend = "claude"                            # "claude" (default) | "codex"
 model = "claude-opus-4-7"
 dimensions_file = "assessment_dimensions.json"
-# max_turns = 30                              # Max evaluator conversation turns
+# max_turns = 60                              # Max evaluator conversation turns (default 60)
 # allowed_tools = ["Read", "Glob", "Grep"]    # Override default tool whitelist
 # mcp_config = "./evaluator_mcp.json"         # MCP server config for evaluator
 # skills_dir = "./evaluator_skills"           # Skills directory for evaluator
@@ -255,12 +255,24 @@ Declares the agent type and the model the variant runs against. Every variant MU
 agent = "claude"                    # "claude" | "codex" | "gemini"
 model = "claude-sonnet-4-6"         # REQUIRED. Model appropriate for the agent family.
 
+tasks = ["my-benchmark/task-a"]     # Optional: task-scope. Restrict this variant to specific tasks.
+
 [[skill]]                           # Optional (ADR-009): skill-by-reference, Claude only.
 path = "../../../src/plugins/my-plugin/skills/my-skill"   # source skill dir (required)
 ref  = "abc1234"                    # optional git ref, same semantics as [nasde.source]
 ```
 
 **Model priority**: `--model` CLI flag > `variant.toml [model]`. Missing model in both places → SystemExit with a clear error.
+
+**`tasks` (variant task-scope)**: optional list of task names this variant is
+meant to run against. Use it for a *repo-specific* variant — e.g. a skill whose
+examples reference one repo's conventions — so it never runs against the wrong
+codebase. The scope is enforced in **both** run modes: with `--all-variants` a
+scoped variant runs only against its declared tasks (others are skipped with a
+SKIPPED status); with a single `--variant`, if none of the requested tasks fall in
+the variant's scope the run aborts with a clear error. Either way the scope wins
+over an explicit `--tasks` filter. Absent or empty → unscoped (runs against every
+task, the default).
 
 **`[[skill]]` (skill-by-reference)**: each entry stages the **whole** skill dir
 (incl. `references/`) into `/app/.claude/skills/<name>/` from a source path —

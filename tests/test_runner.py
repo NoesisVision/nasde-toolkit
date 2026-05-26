@@ -23,6 +23,8 @@ from nasde_toolkit.runner import (
     _is_gemini_agent,
     collect_available_variants,
     load_variant_agent_type,
+    load_variant_task_scope,
+    scope_tasks_for_variant,
 )
 
 
@@ -197,6 +199,49 @@ def test_load_variant_agent_type_missing_field_raises(tmp_path: Path) -> None:
     (tmp_path / "variant.toml").write_text('model = "o3"')
     with pytest.raises(SystemExit):
         load_variant_agent_type(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# variant task-scope
+# ---------------------------------------------------------------------------
+
+
+def test_load_variant_task_scope_absent_is_none(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "claude"')
+    assert load_variant_task_scope(tmp_path) is None
+
+
+def test_load_variant_task_scope_empty_list_is_none(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "claude"\ntasks = []')
+    assert load_variant_task_scope(tmp_path) is None
+
+
+def test_load_variant_task_scope_returns_list(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "claude"\ntasks = ["a", "b"]')
+    assert load_variant_task_scope(tmp_path) == ["a", "b"]
+
+
+def test_load_variant_task_scope_non_string_entries_raise(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "claude"\ntasks = [1, 2]')
+    with pytest.raises(SystemExit):
+        load_variant_task_scope(tmp_path)
+
+
+def test_scope_tasks_unscoped_variant_keeps_all(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "claude"')
+    assert scope_tasks_for_variant(tmp_path, ["a", "b", "c"], None) == ["a", "b", "c"]
+
+
+def test_scope_tasks_scoped_variant_intersects(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "claude"\ntasks = ["b"]')
+    assert scope_tasks_for_variant(tmp_path, ["a", "b", "c"], None) == ["b"]
+
+
+def test_scope_tasks_scope_wins_over_explicit_filter(tmp_path: Path) -> None:
+    # Even if the user asked for task "a" via --tasks, a variant scoped to "b"
+    # only runs "b" — and here "b" was filtered out, so nothing runs.
+    (tmp_path / "variant.toml").write_text('agent = "claude"\ntasks = ["b"]')
+    assert scope_tasks_for_variant(tmp_path, ["a"], ["a"]) == []
 
 
 # ---------------------------------------------------------------------------

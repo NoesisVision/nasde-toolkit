@@ -1,7 +1,7 @@
 # Task: Refactor Anemic Domain Model to Rich Domain Model
 
 ## Context
-You are working in `/app`, a C# ASP.NET Core 2.2 application that manages companies, persons, and employees. The codebase follows a classic anemic domain model anti-pattern: domain classes (`Person`, `Company`, `Employee`) are plain data containers with only public getters and setters, while all business logic lives in application service classes (`PersonService`, `CompanyService`, `EmployeeService`).
+You are working in `/app`, a C# ASP.NET Core application (targeting **.NET 8**) that manages companies, persons, and employees. The codebase originated on an older .NET version and still carries its dated style: domain classes (`Person`, `Company`, `Employee`) are plain data containers with only public getters and setters, while all business logic lives in application service classes (`PersonService`, `CompanyService`, `EmployeeService`) — a classic anemic domain model anti-pattern. Bring the domain model up to modern standards as you enrich it.
 
 The project structure:
 ```
@@ -34,10 +34,11 @@ Specifically:
 - Domain objects enforce their own invariants — constructors and methods should reject invalid state
 - Services contain only orchestration: load, call domain method, save
 - Value objects are immutable with equality based on attributes
-- Follow existing C# conventions in the project
+- **Use modern C# / .NET idioms** appropriate to .NET 8 — e.g. `record` / `readonly record struct` for value objects, `required` / `init`-only properties, file-scoped namespaces, nullable reference types, and pattern matching where they make the code clearer. Do not preserve the legacy `netcoreapp`-era style.
 
 ## Success Criteria
-1. The project compiles successfully
+1. The project compiles successfully on .NET 8
 2. Domain entities contain behavior methods (not just getters/setters)
 3. Service classes are thin orchestrators — no business logic in if/else blocks
 4. At least one value object has been introduced
+5. The code reads like a modern .NET 8 codebase, not a port of a .NET Core 2.x app

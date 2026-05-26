@@ -1,0 +1,6 @@
+agent = "claude"
+model = "claude-sonnet-4-6"
+
+# Repo-specific: this skill's examples reference the DDD-starter codebase's value
+# objects, so it should ONLY run against the DDD-starter tasks. --all-variants honors this.
+tasks = ["ddd-weather-discount", "ddd-threshold-discount"]

@@ -5,11 +5,47 @@ version: 1.0.0
 ---
 
 <!-- Source: ntcoding/claude-skillz, snapshot 2026-03-20 -->
-<!-- Code examples translated verbatim from the upstream TypeScript to C#. Content is otherwise unchanged. -->
+<!-- REPO-TUNED VARIANT: the conventions section + value-object example are adapted to THIS codebase
+     (a movie-rental backend on .NET 8, NHibernate). This is the "skill adapted to your repo" arm of
+     the experiment — NOT the pristine public skill. The repo originated on an old .NET version and is
+     being modernized: write idiomatic .NET 8, do not preserve the legacy style. -->
 
 # Tactical DDD
 
 Design, refactor, analyze, and review code by applying the principles and patterns of tactical domain-driven design.
+
+## This codebase's conventions
+
+This codebase is a movie-rental backend targeting **.NET 8**, persisted with NHibernate. It originated
+on an old .NET version and is being modernized as it is enriched — write idiomatic modern C#, do not
+copy the legacy style:
+
+- **File-scoped namespaces** (`namespace Logic.Entities;`), not bracketed blocks.
+- **Value objects as `record` / `readonly record struct`** — you get value equality, `ToString`, and
+  immutability for free, so do NOT hand-roll `Equals`/`GetHashCode`. Use `init`-only / `required`
+  members and a static factory (or a validating primary constructor) so an instance cannot exist in
+  an invalid state.
+- **Do NOT introduce a functional-extensions / `Result<T>` library** (e.g. CSharpFunctionalExtensions).
+  It is not referenced by the code you start from. Enforce invariants with a validating factory that
+  throws a domain-specific exception. Keep the dependency set as-is — adding a value-object base-class
+  library is exactly the kind of detour that breaks the build; stay with plain modern C#.
+- **Nullable reference types enabled**; use them to make "must exist" vs "may be absent" explicit
+  rather than relying on runtime null checks.
+- **NHibernate constraints**: entities are mapped by NHibernate, which needs `virtual` members and a
+  (protected/private) parameterless constructor to materialize them — add **only** those. NHibernate
+  does **not** require the legacy MVC/serialization attributes that the starting code carries; do not
+  treat them as something to be "preserved". Extract cohesive concepts into immutable `record` value
+  objects around the entities.
+- **Strip web/serialization/validation attributes off the domain entities**: the starting `Customer` /
+  `Movie` / `PurchasedMovie` carry `[Required]`, `[RegularExpression]`, `[MaxLength]`,
+  `[JsonConverter]`, `[JsonIgnore]`, `Newtonsoft.Json`, and `System.ComponentModel.DataAnnotations` —
+  these are presentation/validation leaks, not domain concerns. Move validation **into** the domain
+  (a factory or value object that throws a domain exception); JSON shaping belongs in the API/DTO
+  layer, not on the entity. The domain layer must import **no** web or serialization namespace.
+- **Layout**: `Logic/Entities` (domain entities), `Logic/Services` (services that orchestrate),
+  `Logic/Repositories` + `Logic/Mappings` (NHibernate persistence), `Api/Controllers` (HTTP + DTOs).
+  Keep domain logic out of services and out of the persistence/API layers.
+- Keep the public API (controllers, DTOs, endpoints) unchanged when refactoring internals.
 
 ## Principles
 
@@ -452,28 +488,37 @@ class Delivery
     public Money Fee;
 }
 
-class Money
+// Value object in modern .NET 8 idiom: a readonly record struct — value equality,
+// ToString and immutability for free (no hand-rolled Equals/GetHashCode), with a
+// validating factory so an invalid instance cannot exist. File-scoped namespace.
+namespace DotNetConfPl.Refactoring.Domain;
+
+public readonly record struct Money
 {
     public decimal Amount { get; }
     public Currency Currency { get; }
 
-    public Money(decimal amount, Currency currency)
+    private Money(decimal amount, Currency currency)
     {
         Amount = amount;
         Currency = currency;
     }
 
-    public Money Add(Money other)
-    {
-        if (Currency != other.Currency)
-            throw new CurrencyMismatchError(Currency, other.Currency);
-        return new Money(Amount + other.Amount, Currency);
-    }
+    public static Money Of(decimal amount, Currency currency) =>
+        amount < 0
+            ? throw new DomainException("Money amount cannot be negative")
+            : new Money(amount, currency);
 
-    public bool Equals(Money other)
-        => Amount == other.Amount && Currency == other.Currency;
+    public Money Add(Money other) =>
+        Currency != other.Currency
+            ? throw new DomainException("Cannot add money in different currencies")
+            : new Money(Amount + other.Amount, Currency);
 }
 ```
+
+> EF Core maps a `readonly record struct` value object via an owned type or a value
+> converter — keep the model expressible to EF, but don't regress to a mutable,
+> ctor-less data bag just to satisfy the mapper.
 
 **Good candidates for value objects:**
 - Money, Currency, Percentage

@@ -1,0 +1,6 @@
+agent = "claude"
+model = "claude-sonnet-4-6"
+
+# Repo-specific: this skill's examples reference the anemic-refactor codebase's
+# conventions, so it should ONLY run against that task. --all-variants honors this.
+tasks = ["csharp-anemic-to-rich-domain"]

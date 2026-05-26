@@ -5,11 +5,34 @@ version: 1.0.0
 ---
 
 <!-- Source: ntcoding/claude-skillz, snapshot 2026-03-20 -->
-<!-- Code examples translated verbatim from the upstream TypeScript to C#. Content is otherwise unchanged. -->
+<!-- REPO-TUNED VARIANT: the conventions section + value-object example are adapted to THIS codebase
+     (ASP.NET Core on .NET 8, EF Core). This is the "skill adapted to your repo" arm of the
+     experiment — NOT the pristine public skill. The repo started on an old .NET version and is being
+     modernized: write idiomatic .NET 8, do not preserve the legacy netcoreapp-era style. -->
 
 # Tactical DDD
 
 Design, refactor, analyze, and review code by applying the principles and patterns of tactical domain-driven design.
+
+## This codebase's conventions
+
+This codebase targets **.NET 8**. It originated on an old .NET version and is being modernized as it
+is enriched — write idiomatic modern C#, do not copy the legacy style:
+
+- **File-scoped namespaces** (`namespace Foo;`), not bracketed blocks.
+- **Value objects as `record` / `readonly record struct`** — you get value equality, `ToString`, and
+  immutability for free, so do NOT hand-roll `Equals`/`GetHashCode`. Use `init`-only / `required`
+  members and a static factory (or a validating primary constructor) so an instance cannot exist in
+  an invalid state. EF Core maps these via owned types / value converters — keep a way for EF to
+  materialize them, but don't let EF needs dictate a mutable, ctor-less data bag.
+- **Nullable reference types enabled**; use them to make "must exist" vs "may be absent" explicit
+  rather than relying on runtime null checks.
+- **Invariants**: throw a domain-specific exception (or return a result type) from the factory /
+  method that enforces them — not a generic `Exception`, and not validation scattered in services.
+- **Layers**: `Domain/` (entities, value objects, invariants), `Application/` (services that
+  orchestrate), `Controllers/` (HTTP + DTOs), `Infrastructure/` (EF Core config). Domain holds no EF
+  or ASP.NET references.
+- Keep the public API (controllers, DTOs, endpoints) unchanged when refactoring internals.
 
 ## Principles
 
@@ -452,28 +475,37 @@ class Delivery
     public Money Fee;
 }
 
-class Money
+// Value object in modern .NET 8 idiom: a readonly record struct — value equality,
+// ToString and immutability for free (no hand-rolled Equals/GetHashCode), with a
+// validating factory so an invalid instance cannot exist. File-scoped namespace.
+namespace DotNetConfPl.Refactoring.Domain;
+
+public readonly record struct Money
 {
     public decimal Amount { get; }
     public Currency Currency { get; }
 
-    public Money(decimal amount, Currency currency)
+    private Money(decimal amount, Currency currency)
     {
         Amount = amount;
         Currency = currency;
     }
 
-    public Money Add(Money other)
-    {
-        if (Currency != other.Currency)
-            throw new CurrencyMismatchError(Currency, other.Currency);
-        return new Money(Amount + other.Amount, Currency);
-    }
+    public static Money Of(decimal amount, Currency currency) =>
+        amount < 0
+            ? throw new DomainException("Money amount cannot be negative")
+            : new Money(amount, currency);
 
-    public bool Equals(Money other)
-        => Amount == other.Amount && Currency == other.Currency;
+    public Money Add(Money other) =>
+        Currency != other.Currency
+            ? throw new DomainException("Cannot add money in different currencies")
+            : new Money(Amount + other.Amount, Currency);
 }
 ```
+
+> EF Core maps a `readonly record struct` value object via an owned type or a value
+> converter — keep the model expressible to EF, but don't regress to a mutable,
+> ctor-less data bag just to satisfy the mapper.
 
 **Good candidates for value objects:**
 - Money, Currency, Percentage

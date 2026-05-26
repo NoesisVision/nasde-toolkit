@@ -1,0 +1,21 @@
+version = "1.0"
+
+[metadata]
+name = "csharp-movie-rental-anemic"
+description = "Refactor an anemic movie-rental ('Online Theater') model to a rich domain model in a C# NHibernate application"
+difficulty = "intermediate"
+language = "C#"
+framework = ".NET"
+
+[agent]
+timeout_sec = 1800
+
+[environment]
+memory_mb = 6144
+
+[verifier]
+timeout_sec = 300
+
+[nasde.source]
+git = "https://github.com/vkhorikov/AnemicDomainModel.git"
+ref = "dotnet6"

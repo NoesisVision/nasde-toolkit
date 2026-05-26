@@ -4,7 +4,7 @@ Evaluate the AI-generated code across five dimensions.
 
 ## 1. Domain Modeling (0–25)
 
-Evaluate how well the ThresholdDiscount follows DDD building blocks established by PercentageDiscount and ValueDiscount.
+Evaluate how well the ThresholdDiscount follows DDD building blocks established by PercentageDiscount and ValueDiscount. Focus on whether the implementation **makes the implicit explicit** (rich domain language) — do the names of types and operations communicate intent, or are they generic primitives?
 
 | Score | Criteria |
 |-------|----------|
@@ -22,6 +22,9 @@ Evaluate how well the ThresholdDiscount follows DDD building blocks established 
 - Are fields `readonly` / init-only?
 - Does it validate percentage (0–100) and threshold (> 0)?
 - Is it properly integrated into the Discount discriminated union (`Apply`/`Match` methods)?
+- **The menu test (Nick Tunes' tactical-ddd, principle #3)**: reading this code, would a sales-domain expert recognize the names (`ThresholdDiscount`, `Threshold`, `Apply`, `ApplyOn`) as things from their world? Or do you see programmer jargon (`Calculate`, `Process`, `Handle`, `Manager`, `Helper`)?
+- **Implicit-to-explicit test (principle #6)**: is the threshold modeled as a meaningful concept (e.g. a `Money`/`Price` value object, or a clearly-named field) or smuggled as a raw `decimal`? Are method names like `Apply` returning rich types (e.g. `Price`) or primitives?
+- **Value object liberality (principle #8)**: are concepts like `Threshold` and `Percentage` extracted as their own immutable value objects (or reusing existing ones like `Money`), or just bag-of-decimals on `ThresholdDiscount`?
 
 ## 2. Encapsulation (0–20)
 
@@ -39,6 +42,8 @@ Evaluate whether business rules are contained within domain objects.
 - Can invalid ThresholdDiscount instances be created?
 - Is the "apply only when price > threshold" rule inside the domain object?
 - Are validation rules enforced at construction time?
+- **Aggregate invariant test (principle #7)**: what must be true *at all times* for a `ThresholdDiscount` to make sense? (e.g. `0 ≤ percentage ≤ 100`, `threshold > 0`.) Are those rules enforced *inside* the object, or does the caller have to remember to check them?
+- **Anemic-model test (principle #4)**: does the discount object *decide* anything (e.g. `Apply(price)` returns the result), or is it a passive data carrier where some service has to do `if (price > discount.Threshold) ...` from the outside?
 
 ## 3. Architecture Compliance (0–20)
 
@@ -76,6 +81,7 @@ Evaluate how well the discriminated union design supports adding future discount
 - Does `Discount` have a third case/variant for ThresholdDiscount?
 - Does `Apply(Money price)` return correct result (apply only when price > threshold)?
 - Are pattern matching methods (`Match`, `Switch`, or C# pattern match) updated?
+- **Hidden-concept test (principle #6)**: is the "apply only when price > threshold" rule encapsulated *inside* `ThresholdDiscount.ApplyOn(Money)` — so the caller just writes `discount.ApplyOn(price)` and gets back the right money — or is the rule leaked to callers as `if (price > discount.Threshold) ...`? The decision and the action belong together (principle #4, "avoid anemic"): one decision-method, not a separate `IsApplicable` flag.
 - Would adding a 4th discount variant be straightforward following the same pattern?
 
 ## 5. Test Quality (0–20)

@@ -2,6 +2,15 @@
 
 Evaluate the agent's solution across five dimensions.
 
+**Modern .NET expectation (applies throughout):** the project targets .NET 8. A
+strong solution reads like a modern .NET 8 codebase, not a port of a .NET Core 2.x
+app. Reward idiomatic modern C# where it improves the domain model — `record` /
+`readonly record struct` for value objects (free value equality), `required` /
+`init`-only properties, file-scoped namespaces, nullable reference types, pattern
+matching. Penalize value objects hand-rolled with manual `Equals`/`GetHashCode`
+boilerplate and dated `netcoreapp`-era style when a `record` would express the
+concept more clearly.
+
 ## 1. Domain Modeling (0–25)
 
 | Score | Criteria |
@@ -18,6 +27,7 @@ Evaluate the agent's solution across five dimensions.
 - Does `Company` protect its invariants (contact employee, source)?
 - Is the employee-company relationship modeled with proper invariant enforcement?
 - Are constructors/factory methods used instead of public setters?
+- **Modern idioms**: are value objects expressed as `record` / `readonly record struct` (value equality for free) rather than classes with hand-written `Equals`/`GetHashCode`? Are file-scoped namespaces, `init`/`required`, and nullable reference types used? Code that achieves rich DDD but in dated .NET Core 2.x style caps this dimension at 20 (not exemplary).
 
 ## 2. Encapsulation (0–20)
 

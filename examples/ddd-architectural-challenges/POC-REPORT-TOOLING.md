@@ -13,6 +13,12 @@ experiment branch:
   `focus-vanilla` / `focus-skill` prefixes and **estimates dollar cost from a
   hardcoded price table** (we decided NOT to estimate cost). Superseded by
   `build_experiment_log.py`.
+- `EXPERIMENT_LOG.md` — OUTPUT of `build_experiment_log.py` (per-attempt journal).
+- `EXPERIMENT_STATUS.md` — paired human verdict that accompanies that log.
+
+The EXPERIMENT_* files live here (not on the experiment/release branch) because they
+are script artifacts, not part of the shipped example. The release example keeps only
+the rendered chart PNGs as worked-example results.
 
 ## Why parked, not shipped
 These were built ad-hoc during the tactical-ddd experiment. To belong in the

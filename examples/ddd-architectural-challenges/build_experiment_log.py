@@ -33,13 +33,13 @@ DIMS = [("domain_modeling", 25), ("encapsulation", 20),
 #   mode "hash":   ids are trial-dir hashes (after the final __)
 ARMS = [
     ("movie-rental", "csharp-movie-rental-anemic", "vanilla", "none", "suffix",
-     ["movie-vanilla-smoke", "movie-vanilla-iter2", "movie-vanilla-iter3"]),
+     ["movie-vanilla-smoke", "movie-vanilla-iter2", "movie-vanilla-iter3", "movie-vanilla-n5a"]),
     ("movie-rental", "csharp-movie-rental-anemic", "guided", "none", "suffix",
-     ["movie-guided-2", "movie-guided-iter2", "movie-guided-iter3"]),
+     ["movie-guided-2", "movie-guided-iter2", "movie-guided-iter3", "movie-guided-n5a"]),
     ("movie-rental", "csharp-movie-rental-anemic", "public-skill", "forced-on", "suffix",
-     ["movie-public-1", "movie-public-iter2", "movie-public-iter3"]),
+     ["movie-public-1", "movie-public-iter2", "movie-public-iter3", "movie-public-n5a"]),
     ("movie-rental", "csharp-movie-rental-anemic", "repo-tuned (iter1-fix)", "forced-on", "suffix",
-     ["movie-tuned-2", "movie-tuned-iter2", "movie-tuned-iter3"]),
+     ["movie-tuned-2", "movie-tuned-iter2", "movie-tuned-iter3", "movie-tuned-n5a"]),
 
     # WEATHER — consolidated to n=5 per variant (2026-05-27 significance run).
     # auto-on counted as forced (inv=1 in both); each entry = one clean attempt.
@@ -139,6 +139,11 @@ def main(jobs_dir):
              "got — judge evals are repeated measurements of the same code, not independent samples), and its "
              "σ is the **between-attempt** stdev (the agent's run-to-run spread). This is the number to compare "
              "across variants; significance uses a Welch t-test on these attempt-means, not the flat eval pool.")
+    o.append("")
+    o.append("_Movie raised to n=5 attempts/variant (2026-05-27). Two tuned-movie attempts were "
+             "discarded as environment/API failures (one Docker OOM during agent install under 8× "
+             "parallelism; one Anthropic 529-overload retry-storm that hit the 1800s agent timeout) — "
+             "neither produced a solution to score, so tuned-movie stands at n=4 healthy attempts._")
     o.append("")
 
     cur_bench = None

@@ -41,31 +41,30 @@ ARMS = [
     ("movie-rental", "csharp-movie-rental-anemic", "repo-tuned (iter1-fix)", "forced-on", "suffix",
      ["movie-tuned-2", "movie-tuned-iter2", "movie-tuned-iter3"]),
 
-    ("weather", "ddd-weather-discount", "vanilla (2 freshest w/3 evals)", "none", "hash",
-     ["a2G4Zsy", "je53EFf"]),
-    ("weather", "ddd-weather-discount", "guided", "none", "hash",
-     ["KgfH97s", "nB8vCiA", "tENrXFW"]),
-    ("weather", "ddd-weather-discount", "public-pristine (NOT activated)", "auto-failed", "hash",
-     ["zge4Pka", "E9zcoVF", "k4n5owf"]),
-    ("weather", "ddd-weather-discount", "repo-tuned (DDD-starter)", "auto-on (pre-forced)", "hash",
-     ["z9Dgfep", "Rmq7iby"]),
-    ("weather", "ddd-weather-discount", "public-pristine FORCED (new)", "forced-on", "suffix",
-     ["weather-public-forced-1", "weather-public-forced-2", "weather-public-iter3"]),
-    ("weather", "ddd-weather-discount", "vanilla FORCED iter3", "none", "suffix",
-     ["weather-vanilla-iter3"]),
-    ("weather", "ddd-weather-discount", "repo-tuned FORCED iter3", "forced-on", "suffix",
-     ["weather-tuned-iter3"]),
+    # WEATHER — consolidated to n=5 per variant (2026-05-27 significance run).
+    # auto-on counted as forced (inv=1 in both); each entry = one clean attempt.
+    ("weather", "ddd-weather-discount", "vanilla (n=5)", "none", "mixed",
+     [("hash", "a2G4Zsy"), ("hash", "je53EFf"), ("suffix", "weather-vanilla-iter3"),
+      ("suffix", "weather-vanilla-n5b")]),
+    ("weather", "ddd-weather-discount", "guided (n=5)", "none", "mixed",
+     [("hash", "KgfH97s"), ("hash", "nB8vCiA"), ("hash", "tENrXFW"),
+      ("suffix", "weather-guided-n5a")]),
+    ("weather", "ddd-weather-discount", "public-skill (n=5)", "forced-on", "mixed",
+     [("suffix", "weather-public-forced-1"), ("suffix", "weather-public-forced-2"),
+      ("suffix", "weather-public-iter3"), ("suffix", "weather-public-n5a")]),
+    ("weather", "ddd-weather-discount", "repo-tuned (n=5)", "forced/auto-on", "mixed",
+     [("hash", "z9Dgfep"), ("hash", "Rmq7iby"), ("suffix", "weather-tuned-iter3"),
+      ("suffix", "weather-tuned-n5a")]),
 ]
 
 
 def attempt_dirs_suffix(jobs_dir, suffix):
-    """The single trial dir for a job-suffix attempt."""
+    """All trial dirs under a job-suffix (a --attempts N job holds N attempts)."""
     jobs = [d for d in glob.glob(os.path.join(jobs_dir, "*" + suffix + "*")) if os.path.isdir(d) and "reeval" not in d]
-    if not jobs:
-        return None, []
-    job = jobs[0]
-    tds = [d for d in glob.glob(os.path.join(job, "*")) if os.path.isdir(d) and glob.glob(os.path.join(d, "assessment_eval*.json"))]
-    return (tds[0] if tds else None), (tds[:1])
+    tds = []
+    for job in jobs:
+        tds += [d for d in glob.glob(os.path.join(job, "*")) if os.path.isdir(d) and glob.glob(os.path.join(d, "assessment_eval*.json"))]
+    return tds  # list of attempt dirs (each its own attempt)
 
 
 def attempt_dirs_hash(jobs_dir, h):
@@ -134,9 +133,12 @@ def main(jobs_dir):
     o.append("")
     o.append("**One row = one attempt** (single agent run). `hash` locates the trial dir under `jobs/`. "
              "`inv` = Skill-tool invocations (**0 = skill never activated → row reflects ~vanilla, not the skill**). "
-             "`rew` = Harbor functional pass (1/0). `#ev` = independent judge evals pooled into this row. "
-             "Per-dim and `norm` cells = **mean(σ)** across those evals (σ = population stdev). "
-             "Evaluator noise ≈ 0.02–0.05 norm → treat smaller variant gaps as ties.")
+             "`rew` = Harbor functional pass (1/0). `#ev` = independent judge evals on this attempt; "
+             "the row's `norm`/per-dim = **mean(σ)** across those evals (within-attempt judge spread). "
+             "**POOLED = mean of attempt-means** (each attempt counts once, regardless of how many evals it "
+             "got — judge evals are repeated measurements of the same code, not independent samples), and its "
+             "σ is the **between-attempt** stdev (the agent's run-to-run spread). This is the number to compare "
+             "across variants; significance uses a Welch t-test on these attempt-means, not the flat eval pool.")
     o.append("")
 
     cur_bench = None
@@ -153,22 +155,28 @@ def main(jobs_dir):
         o.append(head)
         o.append("|" + "---|" * (6 + len(DIMS) + 3))
         arm_scores, arm_perdim = [], defaultdict(list)
-        for aid in ids:
-            if mode == "suffix":
-                rep_td, ev_dirs = attempt_dirs_suffix(jobs_dir, aid)
-                disp_hash = os.path.basename(rep_td).split("__")[-1] if rep_td else "—"
+        n_evals_total = 0
+        attempts = []  # (display_id, rep_td, ev_dirs) — one per actual attempt
+        for raw_id in ids:
+            kind, aid = raw_id if mode == "mixed" else (mode, raw_id)
+            if kind == "suffix":
+                for td in attempt_dirs_suffix(jobs_dir, aid):
+                    attempts.append((os.path.basename(td).split("__")[-1], td, [td]))
             else:
                 rep_td, ev_dirs = attempt_dirs_hash(jobs_dir, aid)
-                disp_hash = aid
+                attempts.append((aid, rep_td, ev_dirs))
+        for aid, rep_td, ev_dirs in attempts:
+            disp_hash = aid
             if not ev_dirs:
                 o.append(f"| {aid} | — | RUNNING/MISSING |" + " |" * (4 + len(DIMS) + 3))
                 continue
             scores, perdim = collect_evals(ev_dirs)
             meta = read_meta(rep_td)
             inv = skill_inv(rep_td)
-            arm_scores += scores
+            arm_scores.append(st.mean(scores))
             for k, v in perdim.items():
-                arm_perdim[k] += v
+                arm_perdim[k].append(st.mean(v))
+            n_evals_total += len(scores)
             normc = f"{f(st.mean(scores))}({f(st.pstdev(scores),3)})" if scores else "—"
             dimc = [f"{f(st.mean(perdim[n]),1)}({f(st.pstdev(perdim[n]),1)})" if perdim.get(n) else "—" for n, m in DIMS]
             tok = f"{int(meta['in']/1000)}/{int(meta['out']/1000)}/{int(meta['cache']/1000)}" if meta.get("in") else "—"
@@ -177,9 +185,11 @@ def main(jobs_dir):
             o.append(f"| {aid} | `{disp_hash}` | {inv} | {f(meta.get('reward'),0)} | {evflag} | {normc} | "
                      + " | ".join(dimc) + f" | {tstr} | {tok} | {f(meta.get('cost'))} |")
         if arm_scores:
-            normc = f"**{f(st.mean(arm_scores))}({f(st.pstdev(arm_scores),3)})**"
+            sd = st.stdev(arm_scores) if len(arm_scores) > 1 else 0.0
+            normc = f"**{f(st.mean(arm_scores))}({f(sd,3)})**"
             dimc = [f"**{f(st.mean(arm_perdim[n]),1)}**" if arm_perdim.get(n) else "—" for n, m in DIMS]
-            o.append(f"| **POOLED: {len(ids)} attempts** |  |  |  | **{len(arm_scores)}** | {normc} | "
+            o.append(f"| **POOLED: {len(arm_scores)} attempts (mean of attempt-means; {n_evals_total} evals)** "
+                     f"|  |  |  | **{len(arm_scores)}** | {normc} | "
                      + " | ".join(dimc) + " |  |  |  |")
         o.append("")
     print("\n".join(o))

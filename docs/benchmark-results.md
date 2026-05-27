@@ -32,22 +32,22 @@ Results from the three example benchmarks included in `examples/`. All scores ar
 
 ### Deep dive — tactical-ddd skill: public vs repo-tuned (Claude Code)
 
-A focused follow-up on the same benchmark family: we took a public DDD skill ([`tactical-ddd` from `ntcoding/claude-skillz`](https://github.com/NTCoding/claude-skillz)) and a repo-tuned version, and measured four configurations of Claude Code on two deliberately different tasks — a **feature on a clean DDD codebase** (`ddd-weather-discount`) and a **legacy anemic→rich refactor** (`csharp-movie-rental-anemic`). Each configuration was run repeatedly and each run scored repeatedly; the numbers below are medians (normalized 0–1). Skill activation was verified per run — a mounted skill the agent never invokes scores like no skill at all.
+A focused follow-up on the same benchmark family: we took a public DDD skill ([`tactical-ddd` from `ntcoding/claude-skillz`](https://github.com/NTCoding/claude-skillz)) and a repo-tuned version, and measured four configurations of Claude Code on two deliberately different tasks — a **feature on a clean DDD codebase** (`ddd-weather-discount`) and a **legacy anemic→rich refactor** (`csharp-movie-rental-anemic`). Each configuration was run repeatedly and each run scored repeatedly; the numbers below are averages (normalized 0–1). Skill activation was verified per run — a mounted skill the agent never invokes scores like no skill at all.
 
 | Configuration | Weather (feature) | Movie (legacy) |
 |---|:---:|:---:|
 | vanilla (no skill) | 0.79 | 0.56 |
-| guided (manual DDD hints, no skill) | 0.84 | 0.58 |
-| public skill | 0.85 | 0.60 |
-| repo-tuned skill | **0.92** | **0.62** |
+| guided (manual DDD hints, no skill) | 0.80 | 0.57 |
+| public skill | 0.86 | 0.54 |
+| repo-tuned skill | **0.91** | **0.61** |
 
-**The effect is task-dependent.** Absolute scores across tasks aren't comparable — task difficulty sets the baseline (movie starts lower because it's harder). What *is* comparable is the **increment over vanilla** on each task: how much each step lifts quality above the bare model.
+**The effect is task-dependent — and the comparison that matters is against the bare model, not between skills.** Absolute scores across tasks aren't comparable (task difficulty sets the baseline; movie starts lower because it's harder), so we compare the **increment over vanilla** on each task and only call a gap real when it clears a Welch t-test at 95%. On both tasks the **repo-tuned skill significantly beats the bare model** (+0.12 weather, +0.05 movie) and beats hand-written hints. The **public skill helps only on the clean feature** (+0.07, significant); on the legacy refactor it doesn't beat vanilla at all. Hand-written hints (`guided`) never clear the bar — about the same as no skill.
 
 <p align="center">
   <img src="../examples/ddd-architectural-challenges/assets/increment_vs_vanilla.png" width="520" alt="Quality gain over vanilla">
 </p>
 
-The same repo-tuned skill adds **+0.13** on the clean-feature task but only **+0.06** on the legacy refactor — twice the payoff where the design space is open.
+On the clean feature every step lifts quality (public +0.07, repo-tuned +0.12). On the legacy refactor only the repo-tuned skill clears the line (+0.05); the public skill dips just below vanilla — off-the-shelf doesn't help where the task fixes the design shape, and tuning is what recovers a gain.
 
 Per-dimension radars show *where* the gains land (test quality stays flat everywhere — the skill teaches modeling, not testing):
 
@@ -65,7 +65,7 @@ What does the gain cost? Token usage and run time per configuration — and the 
   <img src="../examples/ddd-architectural-challenges/assets/ops_time_movie.png" width="240" alt="Movie time">
 </p>
 
-Cost doesn't track quality. On weather the top-scoring repo-tuned skill spends *fewer* tokens than guided or public; on movie the public skill is the cheapest of all four. The real overhead is run time on the messy refactor, where the skill arms take roughly twice as long as the bare model.
+Cost doesn't track quality. On weather the top-scoring repo-tuned skill spends *fewer* tokens than guided or public; on movie the public skill is the cheapest of all four in tokens. The real overhead is run time on the messy refactor, where the skill arms run noticeably longer than the bare model (~1.5–1.6×). Dollar cost is deliberately not estimated.
 
 **Two lessons that generalize:** (1) judge one aggregate number and you miss the story — a real per-dimension gain hides inside an averaged score, which is why we show radars, not a single bar; (2) a skill present on disk is not a skill used — always verify it activated before trusting the result.
 

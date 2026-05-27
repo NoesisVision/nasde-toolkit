@@ -39,7 +39,7 @@ ARMS = [
     ("movie-rental", "csharp-movie-rental-anemic", "public-skill", "forced-on", "suffix",
      ["movie-public-1", "movie-public-iter2", "movie-public-iter3", "movie-public-n5a"]),
     ("movie-rental", "csharp-movie-rental-anemic", "repo-tuned (iter1-fix)", "forced-on", "suffix",
-     ["movie-tuned-2", "movie-tuned-iter2", "movie-tuned-iter3", "movie-tuned-n5a"]),
+     ["movie-tuned-2", "movie-tuned-iter2", "movie-tuned-iter3", "movie-tuned-n5a", "movie-tuned-n5d"]),
 
     # WEATHER — consolidated to n=5 per variant (2026-05-27 significance run).
     # auto-on counted as forced (inv=1 in both); each entry = one clean attempt.
@@ -140,10 +140,11 @@ def main(jobs_dir):
              "σ is the **between-attempt** stdev (the agent's run-to-run spread). This is the number to compare "
              "across variants; significance uses a Welch t-test on these attempt-means, not the flat eval pool.")
     o.append("")
-    o.append("_Movie raised to n=5 attempts/variant (2026-05-27). Two tuned-movie attempts were "
-             "discarded as environment/API failures (one Docker OOM during agent install under 8× "
-             "parallelism; one Anthropic 529-overload retry-storm that hit the 1800s agent timeout) — "
-             "neither produced a solution to score, so tuned-movie stands at n=4 healthy attempts._")
+    o.append("_Movie raised to n=5 attempts/variant (2026-05-27). All four variants at n=5. "
+             "Three tuned-movie attempts were discarded along the way as environment/API failures "
+             "(Docker OOM during agent install under 8× parallelism; Anthropic overload + a laptop-sleep "
+             "that severed the agent's API stream mid-run) — none produced a solution to score, so they "
+             "were removed from jobs/ and re-run until 5 healthy attempts were collected._")
     o.append("")
 
     cur_bench = None

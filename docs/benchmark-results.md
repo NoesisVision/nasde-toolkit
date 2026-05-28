@@ -69,6 +69,10 @@ Cost doesn't track quality. On weather the top-scoring repo-tuned skill spends *
 
 **Two lessons that generalize:** (1) judge one aggregate number and you miss the story — a real per-dimension gain hides inside an averaged score, which is why we show radars, not a single bar; (2) a skill present on disk is not a skill used — always verify it activated before trusting the result.
 
+**Significance.** Gaps are called real only when a 95% confidence interval (percentile bootstrap on per-attempt means) excludes zero. Full per-dimension tables are here:
+- [Per-dimension significance — bootstrap](../examples/ddd-architectural-challenges/SIGNIFICANCE-per-dimension-bootstrap.md)
+- [Per-dimension significance — Bayesian bootstrap vs bootstrap](../examples/ddd-architectural-challenges/SIGNIFICANCE-per-dimension-bayes-vs-bootstrap.md) (the two methods agree on every aggregate verdict)
+
 ## UC1: Project-Specific Setup — NASDE Dev Skill
 
 1 task: Add multi-attempt support to the nasde-toolkit itself. Claude only (project-specific skill, cross-agent comparison not applicable).

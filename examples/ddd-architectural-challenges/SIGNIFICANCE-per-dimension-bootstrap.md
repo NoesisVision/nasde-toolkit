@@ -12,7 +12,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Weather — Overall
 
-![Weather Overall forest](../assets/forest_weather_overall.png)
+![Weather Overall forest](assets/forest_weather_overall.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -22,7 +22,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Weather — Domain Modeling
 
-![Weather Domain Modeling forest](../assets/forest_weather_domain_modeling.png)
+![Weather Domain Modeling forest](assets/forest_weather_domain_modeling.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -32,7 +32,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Weather — Encapsulation
 
-![Weather Encapsulation forest](../assets/forest_weather_encapsulation.png)
+![Weather Encapsulation forest](assets/forest_weather_encapsulation.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -42,7 +42,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Weather — Architecture
 
-![Weather Architecture forest](../assets/forest_weather_architecture_compliance.png)
+![Weather Architecture forest](assets/forest_weather_architecture_compliance.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -52,7 +52,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Weather — Extensibility
 
-![Weather Extensibility forest](../assets/forest_weather_extensibility.png)
+![Weather Extensibility forest](assets/forest_weather_extensibility.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -62,7 +62,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Weather — Test Quality
 
-![Weather Test Quality forest](../assets/forest_weather_test_quality.png)
+![Weather Test Quality forest](assets/forest_weather_test_quality.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -74,7 +74,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Movie — Overall
 
-![Movie Overall forest](../assets/forest_movie_overall.png)
+![Movie Overall forest](assets/forest_movie_overall.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -84,7 +84,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Movie — Domain Modeling
 
-![Movie Domain Modeling forest](../assets/forest_movie_domain_modeling.png)
+![Movie Domain Modeling forest](assets/forest_movie_domain_modeling.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -94,7 +94,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Movie — Encapsulation
 
-![Movie Encapsulation forest](../assets/forest_movie_encapsulation.png)
+![Movie Encapsulation forest](assets/forest_movie_encapsulation.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -104,7 +104,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Movie — Architecture
 
-![Movie Architecture forest](../assets/forest_movie_architecture_compliance.png)
+![Movie Architecture forest](assets/forest_movie_architecture_compliance.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -114,7 +114,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Movie — Extensibility
 
-![Movie Extensibility forest](../assets/forest_movie_extensibility.png)
+![Movie Extensibility forest](assets/forest_movie_extensibility.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|
@@ -124,7 +124,7 @@ Each configuration compared **against the bare model (vanilla)**, per quality di
 
 ### Movie — Test Quality
 
-![Movie Test Quality forest](../assets/forest_movie_test_quality.png)
+![Movie Test Quality forest](assets/forest_movie_test_quality.png)
 
 | vs vanilla | Δ | 95% CI | Verdict |
 |---|---:|---|---|

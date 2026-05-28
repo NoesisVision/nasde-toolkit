@@ -56,6 +56,8 @@ Per-dimension radars show *where* the gains land (test quality stays flat everyw
   <img src="../examples/ddd-architectural-challenges/assets/radar_movie.png" width="380" alt="Movie radar">
 </p>
 
+This is where the per-dimension view earns its keep, and it changes the Movie story. The aggregate says the repo-tuned skill barely moved on Movie (+0.05) — but per dimension it significantly lifts **four of five**: architecture (+0.12), encapsulation (+0.08), domain modeling (+0.04), extensibility (+0.05). What flattens the headline is the fifth dimension — test quality actually drops (−0.035, also significant) because the skill teaches domain design, not testing, and that one axis drags the average back down. So "barely moved" is an artifact of averaging: on the legacy refactor the skill *does* rebuild the code, it just doesn't touch tests. (Full per-dimension significance, both methods, in the tables linked below.)
+
 What does the gain cost? Token usage and run time per configuration — and the answer is **not** the simple "better costs more" you might expect:
 
 <p align="center">

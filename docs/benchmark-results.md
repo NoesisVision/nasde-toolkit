@@ -41,7 +41,7 @@ A focused follow-up on the same benchmark family: we took a public DDD skill ([`
 | public skill | 0.86 | 0.54 |
 | repo-tuned skill | **0.91** | **0.61** |
 
-**The effect is task-dependent — and the comparison that matters is against the bare model, not between skills.** Absolute scores across tasks aren't comparable (task difficulty sets the baseline; movie starts lower because it's harder), so we compare the **increment over vanilla** on each task and only call a gap real when it clears a Welch t-test at 95%. On both tasks the **repo-tuned skill significantly beats the bare model** (+0.12 weather, +0.05 movie) and beats hand-written hints. The **public skill helps only on the clean feature** (+0.07, significant); on the legacy refactor it doesn't beat vanilla at all. Hand-written hints (`guided`) never clear the bar — about the same as no skill.
+**The effect is task-dependent — and the comparison that matters is against the bare model, not between skills.** Absolute scores across tasks aren't comparable (task difficulty sets the baseline; movie starts lower because it's harder), so we compare the **increment over vanilla** on each task and only call a gap real when its 95% confidence interval (percentile bootstrap on per-attempt means) excludes zero. On both tasks the **repo-tuned skill significantly beats the bare model** (+0.12 weather, +0.05 movie) and beats hand-written hints. The **public skill helps only on the clean feature** (+0.07, significant); on the legacy refactor it doesn't beat vanilla at all. Hand-written hints (`guided`) never clear the bar — about the same as no skill.
 
 <p align="center">
   <img src="../examples/ddd-architectural-challenges/assets/increment_vs_vanilla.png" width="520" alt="Quality gain over vanilla">

@@ -10,10 +10,12 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import click
 import typer
 from rich.console import Console
 from rich.panel import Panel
+from typer._click.core import Command as ClickCommand
+from typer._click.core import Context as ClickContext
+from typer._click.formatting import HelpFormatter as ClickHelpFormatter
 from typer.core import TyperGroup
 
 if TYPE_CHECKING:
@@ -23,18 +25,18 @@ console = Console()
 
 
 class _BannerGroup(TyperGroup):
-    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+    def format_help(self, ctx: ClickContext, formatter: ClickHelpFormatter) -> None:
         from nasde_toolkit.banner import print_banner
 
         print_banner(console)
         super().format_help(ctx, formatter)
 
-    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+    def get_command(self, ctx: ClickContext, cmd_name: str) -> ClickCommand | None:
         cmd = super().get_command(ctx, cmd_name)
         if cmd is not None:
             original_format_help = cmd.format_help
 
-            def patched_format_help(ctx: click.Context, formatter: click.HelpFormatter) -> None:
+            def patched_format_help(ctx: ClickContext, formatter: ClickHelpFormatter) -> None:
                 from nasde_toolkit.banner import print_banner
 
                 print_banner(console)

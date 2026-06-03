@@ -8,6 +8,7 @@ assessment_summary.json. Idempotent and re-runnable.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from rich.console import Console
@@ -52,7 +53,13 @@ def _find_trial_dirs(path: Path) -> list[Path]:
 
 
 def _numbered_eval_files(trial_dir: Path) -> list[Path]:
-    return sorted(trial_dir.glob("assessment_eval_*.json"))
+    pattern = re.compile(r"assessment_eval_(\d+)\.json$")
+    indexed = [
+        (int(match.group(1)), path)
+        for path in trial_dir.glob("assessment_eval_*.json")
+        if (match := pattern.search(path.name))
+    ]
+    return [path for _, path in sorted(indexed, key=lambda pair: pair[0])]
 
 
 def _normalize_raw_files(trial_dir: Path, bare: Path, numbered: list[Path], dry_run: bool) -> bool:

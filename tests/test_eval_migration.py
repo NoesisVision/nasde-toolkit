@@ -55,6 +55,24 @@ def test_migrate_numbered_plus_duplicate_bare_deletes_bare(tmp_path: Path) -> No
     assert summary["groups"][0]["n"] == 2
 
 
+def test_migrate_picks_highest_numerically_not_lexicographically(tmp_path: Path) -> None:
+    for i in range(1, 10):
+        _write(tmp_path, f"assessment_eval_{i}.json", _eval_payload(0.5))
+    _write(tmp_path, "assessment_eval_10.json", _eval_payload(0.9))
+    _write(tmp_path, "assessment_eval.json", _eval_payload(0.9))
+
+    outcome = migrate_trial_evals(tmp_path)
+
+    assert outcome == "migrated"
+    assert not (tmp_path / "assessment_eval.json").exists()
+    assert not (tmp_path / "assessment_eval_11.json").exists()
+    numbered = sorted(p.name for p in tmp_path.glob("assessment_eval_*.json"))
+    assert "assessment_eval_10.json" in numbered
+    assert len(numbered) == 10
+    summary = json.loads((tmp_path / "assessment_summary.json").read_text())
+    assert summary["groups"][0]["n"] == 10
+
+
 def test_migrate_divergent_bare_is_promoted(tmp_path: Path) -> None:
     _write(tmp_path, "assessment_eval_1.json", _eval_payload(0.6))
     _write(tmp_path, "assessment_eval.json", _eval_payload(0.9))

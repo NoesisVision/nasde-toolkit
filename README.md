@@ -112,6 +112,8 @@ The workspace also contains the agent's full trace — tool-call trajectory, tok
 
 You decide how strict the criteria are — spell out a ground-truth structure, enumerate exact checks, or leave room for judgment. Whatever gives you a signal you trust.
 
+**The reviewer runs more than once.** An LLM judge is non-deterministic — score the same workspace twice and you can get 0.61 then 0.71. So by default NASDE evaluates each trial **3 times** (`eval_repetitions`, set in `nasde.toml [evaluation]` or with `--eval-repetitions`) and reports the **mean** rather than any single run. Each evaluation is kept as its own `assessment_eval_<N>.json`; a derived `assessment_summary.json` holds the per-dimension mean, standard deviation, and range. Means are computed only within a single judge model — a Claude review and a Codex review are different benchmarks and are never averaged together.
+
 **The reviewer is itself a coding agent** (`claude` or `codex` CLI). Instead of stuffing the whole workspace into a prompt, it navigates with real tools — `Read`, `Glob`, `Grep`, and optionally MCP analysis servers — reading only what each dimension actually needs. That's why reviews stay tractable on large workspaces.
 
 ## The evaluation pipeline, end to end
@@ -291,12 +293,13 @@ nasde results-export jobs/2026-03-13__14-30-00 --to ~/Dropbox/nasde-results -C m
 The destination is any path you like — an iCloud or Dropbox folder, an external drive, or a git repo you commit yourself. NASDE just writes files there; it never talks to a cloud provider, so there's nothing to authenticate. Each trial becomes one flat folder `<job>__<trial>/` containing:
 
 - `metrics.json` — self-contained summary: timing, model, variant, task, reward
-- `assessment_eval*.json` — the reviewer's per-dimension scores and reasoning (all repetitions)
+- `assessment_eval_*.json` — the reviewer's per-dimension scores and reasoning (one file per repetition)
+- `assessment_summary.json` — per-dimension mean/std/range across repetitions (the representative result)
 - `trajectory.json` — the agent's full tool-call trace, for post-hoc efficiency analysis
 - `changes.patch` — exactly what the agent changed (a code diff, not the multi-GB workspace)
 - `verifier_stdout.txt`, `reward.txt` — the rough-test output
 
-You can pass several paths at once, mixing whole jobs and individual trials — NASDE figures out which is which. Re-running is safe: anything already exported is skipped.
+You can pass several paths at once, mixing whole jobs and individual trials — NASDE figures out which is which. Re-running is safe: it merges (copying any evaluations added since the last export) and never re-touches the immutable trajectory or patch.
 
 > **Experimental / beta.** This command is new; the layout may still change. Feedback welcome.
 

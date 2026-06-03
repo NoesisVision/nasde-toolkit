@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,8 +17,10 @@ from nasde_toolkit.evaluator import (
     _aggregate_evaluations,
     _build_evaluator_prompt,
     _build_opik_scores,
+    _dimensions_fingerprint,
     _dominant_group,
     _evaluate_and_record_trial,
+    _evaluation_from_dict,
     _load_expected_dimensions,
     _next_eval_index,
     _parse_evaluation_response,
@@ -32,6 +35,7 @@ def _make_evaluation(
     evaluator_model: str = "claude-opus-4-7",
     dim_score: int = 8,
     timestamp: str = "2026-06-03T10:00:00+00:00",
+    dimensions_fingerprint: str = "fp-default",
 ) -> EvaluationResult:
     return EvaluationResult(
         task_name="demo-task",
@@ -45,6 +49,7 @@ def _make_evaluation(
         summary="summary text",
         harbor_reward=1.0,
         duration_sec=100.0,
+        dimensions_fingerprint=dimensions_fingerprint,
     )
 
 
@@ -148,6 +153,83 @@ def test_aggregate_std_n1_is_zero() -> None:
     assert group.n == 1
     assert group.dimensions[0].std == 0.0
     assert group.normalized_score_std == 0.0
+
+
+def test_aggregate_same_model_different_fingerprints_yields_two_groups() -> None:
+    evals = [
+        _make_evaluation(0.6, dimensions_fingerprint="aaa"),
+        _make_evaluation(0.7, dimensions_fingerprint="aaa"),
+        _make_evaluation(0.9, dimensions_fingerprint="bbb"),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    by_fp = {g.dimensions_fingerprint: g for g in summary.groups}
+    assert set(by_fp) == {"aaa", "bbb"}
+    assert by_fp["aaa"].n == 2
+    assert by_fp["bbb"].n == 1
+    assert by_fp["aaa"].evaluator_model == "claude-opus-4-7"
+
+
+def test_aggregate_legacy_no_fingerprint_is_empty_cluster() -> None:
+    evals = [
+        _make_evaluation(0.6, dimensions_fingerprint=""),
+        _make_evaluation(0.7, dimensions_fingerprint=""),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    assert len(summary.groups) == 1
+    assert summary.groups[0].dimensions_fingerprint == ""
+    assert summary.groups[0].n == 2
+
+
+def test_dimensions_fingerprint_stable_under_whitespace_reformat(tmp_path: Path) -> None:
+    payload = {
+        "dimensions": [
+            {"name": "a", "title": "A", "max_score": 10, "description": "desc a"},
+            {"name": "b", "title": "B", "max_score": 5, "description": "desc b"},
+        ]
+    }
+    compact = tmp_path / "compact.json"
+    compact.write_text(json.dumps(payload, separators=(",", ":")))
+    pretty = tmp_path / "pretty.json"
+    pretty.write_text(json.dumps(payload, indent=4))
+
+    assert _dimensions_fingerprint(compact) == _dimensions_fingerprint(pretty)
+
+
+def test_dimensions_fingerprint_changes_on_description_edit(tmp_path: Path) -> None:
+    base = {"dimensions": [{"name": "a", "max_score": 10, "description": "original"}]}
+    p1 = tmp_path / "v1.json"
+    p1.write_text(json.dumps(base))
+    p2 = tmp_path / "v2.json"
+    p2.write_text(json.dumps({"dimensions": [{"name": "a", "max_score": 10, "description": "EDITED"}]}))
+    p3 = tmp_path / "v3.json"
+    p3.write_text(json.dumps({"dimensions": [{"name": "a", "max_score": 50, "description": "original"}]}))
+    p4 = tmp_path / "v4.json"
+    added_dim = {
+        "dimensions": [
+            {"name": "a", "max_score": 10, "description": "original"},
+            {"name": "b", "max_score": 5},
+        ]
+    }
+    p4.write_text(json.dumps(added_dim))
+
+    fp1 = _dimensions_fingerprint(p1)
+    assert fp1 != _dimensions_fingerprint(p2)
+    assert fp1 != _dimensions_fingerprint(p3)
+    assert fp1 != _dimensions_fingerprint(p4)
+
+
+def test_dimensions_fingerprint_empty_when_file_missing(tmp_path: Path) -> None:
+    assert _dimensions_fingerprint(tmp_path / "nope.json") == ""
+
+
+def test_evaluation_fingerprint_survives_json_round_trip() -> None:
+    evaluation = _make_evaluation(0.6, dimensions_fingerprint="abc123")
+    reloaded = _evaluation_from_dict(json.loads(json.dumps(asdict(evaluation))))
+    assert reloaded.dimensions_fingerprint == "abc123"
+    legacy = _evaluation_from_dict({"trial_name": "t", "dimensions": []})
+    assert legacy.dimensions_fingerprint == ""
 
 
 def test_write_assessment_summary_has_no_reasoning(tmp_path: Path) -> None:

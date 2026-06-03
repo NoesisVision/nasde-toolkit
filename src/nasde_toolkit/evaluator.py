@@ -8,6 +8,7 @@ to Opik as feedback scores on existing traces.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import statistics
@@ -53,6 +54,7 @@ class EvaluationResult:
     summary: str = ""
     harbor_reward: float = 0.0
     duration_sec: float = 0.0
+    dimensions_fingerprint: str = ""
 
 
 @dataclass
@@ -69,13 +71,15 @@ class DimensionStats:
 
 @dataclass
 class EvaluatorGroupSummary:
-    """Mean aggregate over evaluations sharing one evaluator model.
+    """Mean aggregate over evaluations sharing one (evaluator model, rubric).
 
-    Averages are computed only within a single evaluator cluster — scores from
-    different judge models are different benchmarks and never mixed.
+    Averages are computed only within a single (evaluator_model,
+    dimensions_fingerprint) cluster — a different judge model OR a changed
+    assessment_dimensions.json rubric is a different benchmark, never mixed.
     """
 
     evaluator_model: str
+    dimensions_fingerprint: str
     n: int
     dominant: bool
     dimensions: list[DimensionStats] = field(default_factory=list)
@@ -304,6 +308,7 @@ async def evaluate_trial(
     evaluation.duration_sec = duration_sec
     evaluation.evaluator_model = eval_config.model
     evaluation.timestamp = datetime.now(UTC).isoformat()
+    evaluation.dimensions_fingerprint = _dimensions_fingerprint(dimensions_path)
 
     total_max = sum(dim.max_score for dim in evaluation.dimensions)
     console.print(f"  Score: {evaluation.total_score}/{total_max} ({evaluation.normalized_score:.2f})")
@@ -344,6 +349,13 @@ def _load_expected_dimensions(dimensions_path: Path) -> list[dict] | None:
     dims: list[dict] | None = data.get("dimensions", [])
     _validate_expected_dimensions(dims, dimensions_path)
     return dims
+
+
+def _dimensions_fingerprint(dimensions_path: Path) -> str:
+    if not dimensions_path.exists():
+        return ""
+    normalized = json.dumps(_load_json(dimensions_path), sort_keys=True)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
 
 
 def _validate_expected_dimensions(dims: list[dict] | None, source: Path) -> None:
@@ -684,16 +696,18 @@ def _evaluation_from_dict(data: dict) -> EvaluationResult:
         summary=data.get("summary", ""),
         harbor_reward=data.get("harbor_reward", 0.0),
         duration_sec=data.get("duration_sec", 0.0),
+        dimensions_fingerprint=data.get("dimensions_fingerprint", ""),
     )
 
 
 def _aggregate_evaluations(evaluations: list[EvaluationResult]) -> AssessmentSummary:
-    clusters: dict[str, list[EvaluationResult]] = {}
+    clusters: dict[tuple[str, str], list[EvaluationResult]] = {}
     for evaluation in evaluations:
-        clusters.setdefault(evaluation.evaluator_model, []).append(evaluation)
-    dominant_model = _dominant_evaluator_model(clusters)
+        key = (evaluation.evaluator_model, evaluation.dimensions_fingerprint)
+        clusters.setdefault(key, []).append(evaluation)
+    dominant_key = _dominant_cluster_key(clusters)
     groups = [
-        _aggregate_one_group(model, members, dominant=model == dominant_model) for model, members in clusters.items()
+        _aggregate_one_group(key[0], key[1], members, dominant=key == dominant_key) for key, members in clusters.items()
     ]
     return AssessmentSummary(
         task_name=_first_stable([e.task_name for e in evaluations], "task_name"),
@@ -703,9 +717,9 @@ def _aggregate_evaluations(evaluations: list[EvaluationResult]) -> AssessmentSum
     )
 
 
-def _dominant_evaluator_model(clusters: dict[str, list[EvaluationResult]]) -> str:
-    def cluster_key(item: tuple[str, list[EvaluationResult]]) -> tuple[int, str]:
-        model, members = item
+def _dominant_cluster_key(clusters: dict[tuple[str, str], list[EvaluationResult]]) -> tuple[str, str]:
+    def cluster_key(item: tuple[tuple[str, str], list[EvaluationResult]]) -> tuple[int, str]:
+        _, members = item
         latest_timestamp = max(e.timestamp for e in members)
         return len(members), latest_timestamp
 
@@ -713,11 +727,12 @@ def _dominant_evaluator_model(clusters: dict[str, list[EvaluationResult]]) -> st
 
 
 def _aggregate_one_group(
-    evaluator_model: str, members: list[EvaluationResult], dominant: bool
+    evaluator_model: str, dimensions_fingerprint: str, members: list[EvaluationResult], dominant: bool
 ) -> EvaluatorGroupSummary:
     normalized = [e.normalized_score for e in members]
     return EvaluatorGroupSummary(
         evaluator_model=evaluator_model,
+        dimensions_fingerprint=dimensions_fingerprint,
         n=len(members),
         dominant=dominant,
         dimensions=_aggregate_dimensions(members),

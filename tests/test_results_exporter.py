@@ -200,3 +200,44 @@ def test_export_preserves_immutable_files_on_merge(job_dir: Path, tmp_path: Path
 
     assert (out / "changes.patch").read_text() == "SENTINEL"
     assert (out / "trajectory.json").read_text() == "SENTINEL"
+
+
+def _make_bare_only_trial(trial_dir: Path) -> None:
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "trial_name": trial_dir.name,
+                "task_name": "demo-task",
+                "source": "demo-bench",
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
+    (trial_dir / "config.json").write_text(json.dumps({"agent": {"name": "demo-variant"}}))
+    (trial_dir / "assessment_eval.json").write_text(json.dumps({"normalized_score": 0.7}))
+
+
+def test_export_copies_legacy_bare_assessment(tmp_path: Path) -> None:
+    trial = tmp_path / "jobs" / "2026-06-03__legacy-job" / "demo-task__bare1"
+    _make_bare_only_trial(trial)
+    dest = tmp_path / "export"
+
+    summary = export_results([trial], dest)
+
+    out = dest / "2026-06-03__legacy-job__demo-task__bare1"
+    assert (out / "assessment_eval_1.json").exists()
+    assert not (out / "assessment_eval.json").exists()
+    assert out.name in summary.exported
+
+
+def test_export_legacy_bare_idempotent(tmp_path: Path) -> None:
+    trial = tmp_path / "jobs" / "2026-06-03__legacy-job" / "demo-task__bare2"
+    _make_bare_only_trial(trial)
+    dest = tmp_path / "export"
+
+    export_results([trial], dest)
+    second = export_results([trial], dest)
+
+    out = dest / "2026-06-03__legacy-job__demo-task__bare2"
+    assert out.name in second.skipped

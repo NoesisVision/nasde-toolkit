@@ -170,15 +170,31 @@ def _resolve_model_name(trial_dir: Path) -> str:
 
 def _copy_assessment_files(trial_dir: Path, out_dir: Path) -> int:
     copied = 0
-    for assessment in sorted(trial_dir.glob("assessment_eval_*.json")):
+    numbered = sorted(trial_dir.glob("assessment_eval_*.json"))
+    for assessment in numbered:
         dest_file = out_dir / assessment.name
         if not dest_file.exists():
             shutil.copy2(assessment, dest_file)
             copied += 1
+    if not numbered:
+        copied += _copy_legacy_bare_assessment(trial_dir, out_dir)
     summary_src = trial_dir / "assessment_summary.json"
     if summary_src.exists():
         shutil.copy2(summary_src, out_dir / "assessment_summary.json")
     return copied
+
+
+def _copy_legacy_bare_assessment(trial_dir: Path, out_dir: Path) -> int:
+    bare = trial_dir / "assessment_eval.json"
+    dest_file = out_dir / "assessment_eval_1.json"
+    if not bare.exists() or dest_file.exists():
+        return 0
+    shutil.copy2(bare, dest_file)
+    console.print(
+        f"  [yellow]legacy bare assessment_eval.json in {trial_dir.name} — exported as "
+        f"assessment_eval_1.json; run `nasde migrate-evals` to normalize.[/yellow]"
+    )
+    return 1
 
 
 def _copy_verifier_files(trial_dir: Path, out_dir: Path) -> None:

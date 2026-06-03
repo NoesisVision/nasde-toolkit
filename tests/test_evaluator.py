@@ -11,24 +11,31 @@ from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator import (
     DimensionScore,
     EvaluationResult,
+    _aggregate_evaluations,
     _build_evaluator_prompt,
     _load_expected_dimensions,
     _next_eval_index,
     _parse_evaluation_response,
     _resolve_trajectory_path,
+    _write_assessment_summary,
     _write_evaluation_result,
 )
 
 
-def _make_evaluation(normalized_score: float, evaluator_model: str = "claude-opus-4-7") -> EvaluationResult:
+def _make_evaluation(
+    normalized_score: float,
+    evaluator_model: str = "claude-opus-4-7",
+    dim_score: int = 8,
+    timestamp: str = "2026-06-03T10:00:00+00:00",
+) -> EvaluationResult:
     return EvaluationResult(
         task_name="demo-task",
         trial_name="demo-task__abc",
         agent_name="demo-variant",
         evaluator_model=evaluator_model,
-        timestamp="2026-06-03T10:00:00+00:00",
-        dimensions=[DimensionScore(name="domain_modeling", score=8, max_score=10, reasoning="ok")],
-        total_score=8,
+        timestamp=timestamp,
+        dimensions=[DimensionScore(name="domain_modeling", score=dim_score, max_score=10, reasoning="ok")],
+        total_score=dim_score,
         normalized_score=normalized_score,
         summary="summary text",
         harbor_reward=1.0,
@@ -60,6 +67,73 @@ def test_write_evaluation_result_is_append_only(tmp_path: Path) -> None:
     assert not (tmp_path / "assessment_eval.json").exists()
     assert json.loads(first.read_text())["normalized_score"] == 0.5
     assert json.loads(second.read_text())["normalized_score"] == 0.7
+
+
+def test_aggregate_mean_std_minmax() -> None:
+    evals = [
+        _make_evaluation(0.6, dim_score=6),
+        _make_evaluation(0.7, dim_score=7),
+        _make_evaluation(0.62, dim_score=8),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    assert len(summary.groups) == 1
+    group = summary.groups[0]
+    assert group.n == 3
+    dim = group.dimensions[0]
+    assert dim.mean == 7.0
+    assert dim.min == 6.0
+    assert dim.max == 8.0
+    assert dim.std == 1.0
+    assert group.normalized_score_mean == 0.64
+
+
+def test_aggregate_groups_by_evaluator_model_never_mixes() -> None:
+    evals = [
+        _make_evaluation(0.6, evaluator_model="claude-opus-4-7", dim_score=6),
+        _make_evaluation(0.7, evaluator_model="claude-opus-4-7", dim_score=7),
+        _make_evaluation(0.5, evaluator_model="codex-gpt-5", dim_score=4),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    by_model = {g.evaluator_model: g for g in summary.groups}
+    assert set(by_model) == {"claude-opus-4-7", "codex-gpt-5"}
+    assert by_model["claude-opus-4-7"].n == 2
+    assert by_model["codex-gpt-5"].n == 1
+    assert by_model["claude-opus-4-7"].dimensions[0].mean == 6.5
+
+
+def test_dominant_group_is_max_n() -> None:
+    evals = [
+        _make_evaluation(0.6, evaluator_model="claude-opus-4-7"),
+        _make_evaluation(0.7, evaluator_model="claude-opus-4-7"),
+        _make_evaluation(0.5, evaluator_model="codex-gpt-5"),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    dominant = [g for g in summary.groups if g.dominant]
+    assert len(dominant) == 1
+    assert dominant[0].evaluator_model == "claude-opus-4-7"
+
+
+def test_aggregate_std_n1_is_zero() -> None:
+    summary = _aggregate_evaluations([_make_evaluation(0.6, dim_score=6)])
+    group = summary.groups[0]
+    assert group.n == 1
+    assert group.dimensions[0].std == 0.0
+    assert group.normalized_score_std == 0.0
+
+
+def test_write_assessment_summary_has_no_reasoning(tmp_path: Path) -> None:
+    _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
+    _write_evaluation_result(tmp_path, _make_evaluation(0.7, dim_score=7))
+
+    summary = _write_assessment_summary(tmp_path)
+    assert summary is not None
+    raw = (tmp_path / "assessment_summary.json").read_text()
+    assert "reasoning" not in raw
+    parsed = json.loads(raw)
+    assert parsed["groups"][0]["n"] == 2
 
 
 def test_evaluate_trial_uses_configured_backend() -> None:

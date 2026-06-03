@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import statistics
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -52,6 +53,49 @@ class EvaluationResult:
     summary: str = ""
     harbor_reward: float = 0.0
     duration_sec: float = 0.0
+
+
+@dataclass
+class DimensionStats:
+    """Aggregate statistics for one dimension across repeated evaluations."""
+
+    name: str
+    max_score: int
+    mean: float
+    std: float
+    min: float
+    max: float
+
+
+@dataclass
+class EvaluatorGroupSummary:
+    """Mean aggregate over evaluations sharing one evaluator model.
+
+    Averages are computed only within a single evaluator cluster — scores from
+    different judge models are different benchmarks and never mixed.
+    """
+
+    evaluator_model: str
+    n: int
+    dominant: bool
+    dimensions: list[DimensionStats] = field(default_factory=list)
+    normalized_score_mean: float = 0.0
+    normalized_score_std: float = 0.0
+    normalized_score_min: float = 0.0
+    normalized_score_max: float = 0.0
+    total_score_mean: float = 0.0
+    harbor_reward: float = 0.0
+    duration_sec_mean: float = 0.0
+
+
+@dataclass
+class AssessmentSummary:
+    """Representative result of a trial: per-evaluator-cluster mean aggregates."""
+
+    task_name: str
+    trial_name: str
+    agent_name: str
+    groups: list[EvaluatorGroupSummary] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +175,7 @@ async def _evaluate_and_record_trial(
             if not evaluation:
                 return None
             _write_evaluation_result(trial_dir, evaluation)
+            _write_assessment_summary(trial_dir)
             if with_opik:
                 await asyncio.to_thread(_upload_to_opik, evaluation, project_name)
             return evaluation
@@ -567,6 +612,127 @@ def _next_eval_index(trial_dir: Path) -> int:
         int(match.group(1)) for path in trial_dir.glob("assessment_eval_*.json") if (match := pattern.search(path.name))
     ]
     return max(indices, default=0) + 1
+
+
+def _write_assessment_summary(trial_dir: Path) -> AssessmentSummary | None:
+    evaluations = _load_raw_evaluations(trial_dir)
+    if not evaluations:
+        return None
+    summary = _aggregate_evaluations(evaluations)
+    output_path = trial_dir / "assessment_summary.json"
+    with open(output_path, "w") as f:
+        json.dump(asdict(summary), f, indent=2)
+    console.print(f"  Written: {output_path}")
+    return summary
+
+
+def _load_raw_evaluations(trial_dir: Path) -> list[EvaluationResult]:
+    pattern = re.compile(r"assessment_eval_(\d+)\.json$")
+    numbered = sorted(
+        (
+            (int(match.group(1)), path)
+            for path in trial_dir.glob("assessment_eval_*.json")
+            if (match := pattern.search(path.name))
+        ),
+        key=lambda pair: pair[0],
+    )
+    return [_evaluation_from_dict(_load_json(path)) for _, path in numbered]
+
+
+def _evaluation_from_dict(data: dict) -> EvaluationResult:
+    dimensions = [DimensionScore(**dim) for dim in data.get("dimensions", [])]
+    return EvaluationResult(
+        task_name=data.get("task_name", ""),
+        trial_name=data.get("trial_name", ""),
+        agent_name=data.get("agent_name", ""),
+        evaluator_model=data.get("evaluator_model", ""),
+        timestamp=data.get("timestamp", ""),
+        dimensions=dimensions,
+        total_score=data.get("total_score", 0),
+        normalized_score=data.get("normalized_score", 0.0),
+        summary=data.get("summary", ""),
+        harbor_reward=data.get("harbor_reward", 0.0),
+        duration_sec=data.get("duration_sec", 0.0),
+    )
+
+
+def _aggregate_evaluations(evaluations: list[EvaluationResult]) -> AssessmentSummary:
+    clusters: dict[str, list[EvaluationResult]] = {}
+    for evaluation in evaluations:
+        clusters.setdefault(evaluation.evaluator_model, []).append(evaluation)
+    dominant_model = _dominant_evaluator_model(clusters)
+    groups = [
+        _aggregate_one_group(model, members, dominant=model == dominant_model) for model, members in clusters.items()
+    ]
+    return AssessmentSummary(
+        task_name=_first_stable([e.task_name for e in evaluations], "task_name"),
+        trial_name=_first_stable([e.trial_name for e in evaluations], "trial_name"),
+        agent_name=_first_stable([e.agent_name for e in evaluations], "agent_name"),
+        groups=groups,
+    )
+
+
+def _dominant_evaluator_model(clusters: dict[str, list[EvaluationResult]]) -> str:
+    def cluster_key(item: tuple[str, list[EvaluationResult]]) -> tuple[int, str]:
+        model, members = item
+        latest_timestamp = max(e.timestamp for e in members)
+        return len(members), latest_timestamp
+
+    return max(clusters.items(), key=cluster_key)[0]
+
+
+def _aggregate_one_group(
+    evaluator_model: str, members: list[EvaluationResult], dominant: bool
+) -> EvaluatorGroupSummary:
+    normalized = [e.normalized_score for e in members]
+    return EvaluatorGroupSummary(
+        evaluator_model=evaluator_model,
+        n=len(members),
+        dominant=dominant,
+        dimensions=_aggregate_dimensions(members),
+        normalized_score_mean=round(statistics.mean(normalized), 4),
+        normalized_score_std=_sample_std(normalized),
+        normalized_score_min=round(min(normalized), 4),
+        normalized_score_max=round(max(normalized), 4),
+        total_score_mean=round(statistics.mean([e.total_score for e in members]), 4),
+        harbor_reward=_first_stable([e.harbor_reward for e in members], "harbor_reward"),
+        duration_sec_mean=round(statistics.mean([e.duration_sec for e in members]), 4),
+    )
+
+
+def _aggregate_dimensions(members: list[EvaluationResult]) -> list[DimensionStats]:
+    ordered_names = [dim.name for dim in members[0].dimensions]
+    stats: list[DimensionStats] = []
+    for name in ordered_names:
+        scores = [float(dim.score) for e in members for dim in e.dimensions if dim.name == name]
+        max_score = next(dim.max_score for dim in members[0].dimensions if dim.name == name)
+        stats.append(
+            DimensionStats(
+                name=name,
+                max_score=max_score,
+                mean=round(statistics.mean(scores), 4),
+                std=_sample_std(scores),
+                min=round(min(scores), 4),
+                max=round(max(scores), 4),
+            )
+        )
+    return stats
+
+
+def _sample_std(values: list[float]) -> float:
+    if len(values) < 2:
+        return 0.0
+    return round(statistics.stdev(values), 4)
+
+
+def _first_stable[T](values: list[T], field_name: str) -> T:
+    distinct = {repr(v) for v in values}
+    if len(distinct) > 1:
+        console.print(
+            f"  [yellow]Warning: divergent '{field_name}' across evaluations "
+            f"({sorted(distinct)}); keeping the first.[/yellow]"
+        )
+    return values[0]
 
 
 # ---------------------------------------------------------------------------

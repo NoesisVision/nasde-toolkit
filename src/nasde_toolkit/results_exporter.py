@@ -229,10 +229,11 @@ def _capture_patch(workspace: Path) -> str:
 
 
 def _capture_untracked(workspace: Path) -> str:
-    listing = _run_git(workspace, ["ls-files", "--others", "--exclude-standard"])
+    listing = _run_git_bytes(workspace, ["ls-files", "--others", "--exclude-standard", "-z"])
     chunks: list[str] = []
-    for relative_path in listing.splitlines():
-        if relative_path:
+    for raw_path in listing.split(b"\x00"):
+        if raw_path:
+            relative_path = raw_path.decode("utf-8", "surrogateescape")
             chunks.append(_diff_untracked_file(workspace, relative_path))
     return "".join(chunks)
 
@@ -254,6 +255,18 @@ def _run_git(workspace: Path, args: list[str], accept_diff_exit: bool = False) -
     )
     if completed.returncode != 0 and not (accept_diff_exit and completed.returncode == 1):
         raise RuntimeError(f"git {' '.join(args)} failed in {workspace}: {completed.stderr.strip()}")
+    return completed.stdout
+
+
+def _run_git_bytes(workspace: Path, args: list[str]) -> bytes:
+    completed = subprocess.run(
+        ["git", "-C", str(workspace), *args],
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        stderr = completed.stderr.decode("utf-8", "replace").strip()
+        raise RuntimeError(f"git {' '.join(args)} failed in {workspace}: {stderr}")
     return completed.stdout
 
 

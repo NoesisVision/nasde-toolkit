@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from nasde_toolkit.results_exporter import (
+    _capture_patch,
     _classify_path,
     export_results,
 )
@@ -241,3 +242,20 @@ def test_export_legacy_bare_idempotent(tmp_path: Path) -> None:
 
     out = dest / "2026-06-03__legacy-job__demo-task__bare2"
     assert out.name in second.skipped
+
+
+def test_capture_patch_includes_non_ascii_untracked_filename(tmp_path: Path) -> None:
+    workspace = tmp_path / "artifacts" / "workspace"
+    workspace.mkdir(parents=True)
+    _git(workspace, "init", "-q")
+    _git(workspace, "config", "user.email", "test@example.com")
+    _git(workspace, "config", "user.name", "test")
+    _git(workspace, "config", "core.quotepath", "true")
+    (workspace / "seed.txt").write_text("seed\n")
+    _git(workspace, "add", "-A")
+    _git(workspace, "commit", "-q", "-m", "baseline")
+    (workspace / "café.txt").write_text("accented untracked body\n")
+
+    patch = _capture_patch(workspace)
+
+    assert "accented untracked body" in patch

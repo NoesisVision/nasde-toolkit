@@ -53,8 +53,9 @@ def _make_trial(trial_dir: Path, *, with_repo: bool = True) -> None:
     (trial_dir / "config.json").write_text(
         json.dumps({"agent": {"name": "demo-variant", "model_name": "claude-sonnet-4-6"}})
     )
-    (trial_dir / "assessment_eval.json").write_text(json.dumps({"normalized_score": 0.7}))
     (trial_dir / "assessment_eval_1.json").write_text(json.dumps({"normalized_score": 0.6}))
+    (trial_dir / "assessment_eval_2.json").write_text(json.dumps({"normalized_score": 0.7}))
+    (trial_dir / "assessment_summary.json").write_text(json.dumps({"groups": [{"n": 2}]}))
     agent_dir = trial_dir / "agent"
     agent_dir.mkdir()
     (agent_dir / "trajectory.json").write_text(json.dumps({"steps": []}))
@@ -91,8 +92,10 @@ def test_export_flat_layout(job_dir: Path, tmp_path: Path) -> None:
     out = dest / "2026-06-03__demo-job__demo-task__aaa111"
     assert out.is_dir()
     assert (out / "metrics.json").exists()
-    assert (out / "assessment_eval.json").exists()
     assert (out / "assessment_eval_1.json").exists()
+    assert (out / "assessment_eval_2.json").exists()
+    assert (out / "assessment_summary.json").exists()
+    assert not (out / "assessment_eval.json").exists()
     assert (out / "trajectory.json").exists()
     assert (out / "verifier_stdout.txt").exists()
     assert (out / "reward.txt").exists()
@@ -146,3 +149,33 @@ def test_dedup_trial_inside_listed_job(job_dir: Path, tmp_path: Path) -> None:
     dest = tmp_path / "export"
     summary = export_results([job_dir, job_dir / "demo-task__aaa111"], dest)
     assert len(summary.exported) == 2
+
+
+def test_export_merges_new_evals(job_dir: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+
+    trial = job_dir / "demo-task__aaa111"
+    (trial / "assessment_eval_3.json").write_text(json.dumps({"normalized_score": 0.8}))
+
+    second = export_results([job_dir], dest)
+
+    out = dest / "2026-06-03__demo-job__demo-task__aaa111"
+    assert (out / "assessment_eval_3.json").exists()
+    assert out.name in second.exported
+
+
+def test_export_preserves_immutable_files_on_merge(job_dir: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+
+    out = dest / "2026-06-03__demo-job__demo-task__aaa111"
+    (out / "changes.patch").write_text("SENTINEL")
+    (out / "trajectory.json").write_text("SENTINEL")
+
+    trial = job_dir / "demo-task__aaa111"
+    (trial / "assessment_eval_3.json").write_text(json.dumps({"normalized_score": 0.8}))
+    export_results([job_dir], dest)
+
+    assert (out / "changes.patch").read_text() == "SENTINEL"
+    assert (out / "trajectory.json").read_text() == "SENTINEL"

@@ -96,25 +96,28 @@ def _export_one_trial(
 ) -> None:
     out_dir = dest / f"{job_name}__{trial_dir.name}"
     label = out_dir.name
-    if out_dir.exists():
-        console.print(f"  [dim]skip (exists): {label}[/dim]")
-        summary.skipped.append(label)
-        return
+    existed = out_dir.exists()
     try:
-        out_dir.mkdir(parents=True)
+        out_dir.mkdir(parents=True, exist_ok=True)
         _write_metrics(trial_dir, out_dir)
-        _copy_assessment_files(trial_dir, out_dir)
+        copied = _copy_assessment_files(trial_dir, out_dir)
         _copy_verifier_files(trial_dir, out_dir)
-        if include_trajectory:
+        if include_trajectory and not (out_dir / "trajectory.json").exists():
             _copy_trajectory(trial_dir, out_dir)
-        _write_patch(trial_dir, out_dir)
+        if not (out_dir / "changes.patch").exists():
+            _write_patch(trial_dir, out_dir)
     except Exception as error:
-        shutil.rmtree(out_dir, ignore_errors=True)
+        if not existed:
+            shutil.rmtree(out_dir, ignore_errors=True)
         console.print(f"  [red]FAIL: {label} — {error}[/red]")
         summary.failed.append(label)
         return
-    console.print(f"  [green]exported: {label}[/green]")
-    summary.exported.append(label)
+    if copied > 0 or not existed:
+        console.print(f"  [green]exported: {label}[/green]")
+        summary.exported.append(label)
+    else:
+        console.print(f"  [dim]skip (up to date): {label}[/dim]")
+        summary.skipped.append(label)
 
 
 def _write_metrics(trial_dir: Path, out_dir: Path) -> None:
@@ -153,9 +156,17 @@ def _resolve_model_name(trial_dir: Path) -> str:
     return model
 
 
-def _copy_assessment_files(trial_dir: Path, out_dir: Path) -> None:
-    for assessment in sorted(trial_dir.glob("assessment_eval*.json")):
-        shutil.copy2(assessment, out_dir / assessment.name)
+def _copy_assessment_files(trial_dir: Path, out_dir: Path) -> int:
+    copied = 0
+    for assessment in sorted(trial_dir.glob("assessment_eval_*.json")):
+        dest_file = out_dir / assessment.name
+        if not dest_file.exists():
+            shutil.copy2(assessment, dest_file)
+            copied += 1
+    summary_src = trial_dir / "assessment_summary.json"
+    if summary_src.exists():
+        shutil.copy2(summary_src, out_dir / "assessment_summary.json")
+    return copied
 
 
 def _copy_verifier_files(trial_dir: Path, out_dir: Path) -> None:

@@ -84,6 +84,27 @@ def test_classify_job_vs_trial(job_dir: Path) -> None:
     assert _classify_path(job_dir / "result.json") is None
 
 
+def test_classify_job_dir_without_result_children_is_skipped(tmp_path: Path) -> None:
+    job = tmp_path / "2026-06-03__orphan-job"
+    job.mkdir()
+    (job / "result.json").write_text(json.dumps({"n_total_trials": 2, "stats": {}}))
+    (job / "partial-child").mkdir()
+
+    assert _classify_path(job) is None
+
+
+def test_classify_trial_requires_trial_name(tmp_path: Path) -> None:
+    no_name = tmp_path / "no-name"
+    no_name.mkdir()
+    (no_name / "result.json").write_text(json.dumps({"foo": 1}))
+    assert _classify_path(no_name) is None
+
+    with_name = tmp_path / "with-name"
+    with_name.mkdir()
+    (with_name / "result.json").write_text(json.dumps({"trial_name": "demo__abc"}))
+    assert _classify_path(with_name) == "trial"
+
+
 def test_export_flat_layout(job_dir: Path, tmp_path: Path) -> None:
     dest = tmp_path / "export"
     summary = export_results([job_dir], dest)

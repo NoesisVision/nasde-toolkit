@@ -82,9 +82,21 @@ def _classify_path(path: Path) -> str | None:
         return None
     if _collect_trial_dirs(path):
         return "job"
-    if (path / "result.json").exists():
+    if _is_trial_result(path):
         return "trial"
+    if (path / "result.json").exists():
+        console.print(
+            f"[yellow]SKIP: {path} has a result.json but no trial_name and no trial-shaped "
+            f"children — ambiguous, not exporting.[/yellow]"
+        )
     return None
+
+
+def _is_trial_result(path: Path) -> bool:
+    result_path = path / "result.json"
+    if not result_path.exists():
+        return False
+    return bool(_load_json(result_path).get("trial_name"))
 
 
 def _export_one_trial(

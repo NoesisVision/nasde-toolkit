@@ -553,11 +553,20 @@ def _validate_dimensions(
 # ---------------------------------------------------------------------------
 
 
-def _write_evaluation_result(trial_dir: Path, evaluation: EvaluationResult) -> None:
-    output_path = trial_dir / "assessment_eval.json"
+def _write_evaluation_result(trial_dir: Path, evaluation: EvaluationResult) -> Path:
+    output_path = trial_dir / f"assessment_eval_{_next_eval_index(trial_dir)}.json"
     with open(output_path, "w") as f:
         json.dump(asdict(evaluation), f, indent=2)
     console.print(f"  Written: {output_path}")
+    return output_path
+
+
+def _next_eval_index(trial_dir: Path) -> int:
+    pattern = re.compile(r"assessment_eval_(\d+)\.json$")
+    indices = [
+        int(match.group(1)) for path in trial_dir.glob("assessment_eval_*.json") if (match := pattern.search(path.name))
+    ]
+    return max(indices, default=0) + 1
 
 
 # ---------------------------------------------------------------------------

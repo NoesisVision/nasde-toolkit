@@ -9,11 +9,57 @@ import pytest
 
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator import (
+    DimensionScore,
+    EvaluationResult,
     _build_evaluator_prompt,
     _load_expected_dimensions,
+    _next_eval_index,
     _parse_evaluation_response,
     _resolve_trajectory_path,
+    _write_evaluation_result,
 )
+
+
+def _make_evaluation(normalized_score: float, evaluator_model: str = "claude-opus-4-7") -> EvaluationResult:
+    return EvaluationResult(
+        task_name="demo-task",
+        trial_name="demo-task__abc",
+        agent_name="demo-variant",
+        evaluator_model=evaluator_model,
+        timestamp="2026-06-03T10:00:00+00:00",
+        dimensions=[DimensionScore(name="domain_modeling", score=8, max_score=10, reasoning="ok")],
+        total_score=8,
+        normalized_score=normalized_score,
+        summary="summary text",
+        harbor_reward=1.0,
+        duration_sec=100.0,
+    )
+
+
+def test_next_eval_index_empty_dir_is_one(tmp_path: Path) -> None:
+    assert _next_eval_index(tmp_path) == 1
+
+
+def test_next_eval_index_skips_to_highest_plus_one(tmp_path: Path) -> None:
+    (tmp_path / "assessment_eval_1.json").write_text("{}")
+    (tmp_path / "assessment_eval_2.json").write_text("{}")
+    assert _next_eval_index(tmp_path) == 3
+
+
+def test_next_eval_index_ignores_bare_file(tmp_path: Path) -> None:
+    (tmp_path / "assessment_eval.json").write_text("{}")
+    assert _next_eval_index(tmp_path) == 1
+
+
+def test_write_evaluation_result_is_append_only(tmp_path: Path) -> None:
+    first = _write_evaluation_result(tmp_path, _make_evaluation(0.5))
+    second = _write_evaluation_result(tmp_path, _make_evaluation(0.7))
+
+    assert first.name == "assessment_eval_1.json"
+    assert second.name == "assessment_eval_2.json"
+    assert not (tmp_path / "assessment_eval.json").exists()
+    assert json.loads(first.read_text())["normalized_score"] == 0.5
+    assert json.loads(second.read_text())["normalized_score"] == 0.7
 
 
 def test_evaluate_trial_uses_configured_backend() -> None:

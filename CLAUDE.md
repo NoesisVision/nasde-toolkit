@@ -73,6 +73,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system architecture with dia
 - **Auto-generated Dockerfile**: When a task has no `environment/Dockerfile`, nasde generates one from `source.git` + `[docker]`. For local paths, also generates `docker-compose.yaml` to override the build context. See `docker.py:ensure_task_environment()`.
 - **`[nasde.plugin]` (ADR-009)**: Ships a local Claude Code plugin (dir with `.claude-plugin/plugin.json`) into the sandbox with one `task.toml` declaration. `docker.py:ensure_task_plugin()` stages the plugin tree (at `ref` via a temp worktree) into a gitignored `_nasde-plugin/` inside the **active** build context (Harbor pins context to `environment/`; with `[nasde.source]` the context is the source repo/worktree — nasde reads it back from the generated compose and stages there), then appends a sentinel-fenced `COPY`+build stage to the Dockerfile (generated base if none, hand-written preserved). `plugin_registration.py` then registers the plugin's own `skills/` (whole dirs) and injects its MCP server (from `<plugin>/.mcp.json`, env-wrapped) into the task's `task.toml` — idempotent, fenced, never clobbers an author-declared same-name server. Skill-by-reference (`[[skill]]` in `variant.toml`) feeds the same skill-registration machinery. Derived sandbox files are merged into the variant's `harbor_config.json` each run. MCP injection writes `task.toml` because Harbor reads MCP servers only from there (`trial.py` → `task.config.environment.mcp_servers`).
 - **Pass-through CLI**: `nasde harbor ...` delegates to Harbor's Typer app via `add_typer()`. `nasde opik ...` forwards args to Opik's Click CLI via `ctx.args`.
+- **Results export (EXPERIMENTAL)**: `results_exporter.py` + `nasde results-export PATHS... --to DIR` copy the analytic *essence* of trial artifacts out of the gitignored `jobs/` tree into a flat per-trial layout (`DIR/<job>__<trial>/` with `metrics.json`, `assessment_eval*.json`, `trajectory.json`, `changes.patch`, `verifier_stdout.txt`, `reward.txt`). Filesystem-as-interface: `DIR` is any plain path (iCloud/Dropbox/git repo) — no cloud SDK. It scans Harbor artifacts (`result.json`/`config.json`/`assessment_eval*.json`/workspace), **not** the best-effort `EXPERIMENT_LOG.md`. `metrics.json` is a self-contained summary composed from `result.json`+`config.json`. The code diff is captured as a patch (`git diff HEAD` + untracked via `git diff --no-index`, never `git add` — the workspace `.git` index is left untouched). Selection is a mixed positional list of job and/or trial dirs (auto-classified: a dir whose children have `result.json` is a job, else a dir with its own `result.json` is a trial); re-export is idempotent (existing `<job>__<trial>/` skipped). Reuses `_collect_trial_dirs`/`_load_json`/`_compute_duration_sec`/`_resolve_agent_name` from `evaluator.py`. Deliberately does **not** model "experiments" (one job can belong to many — a future UI layer's concern).
 - See `docs/adr/` for detailed decision records.
 
 ## CLI reference
@@ -92,6 +93,10 @@ nasde run [OPTIONS]              # Run benchmark (Harbor trial + assessment eval
 nasde eval JOB_DIR [OPTIONS]     # Re-run assessment on existing job
   --with-opik                        # Upload scores to Opik
   -C, --project-dir PATH
+
+nasde results-export PATHS... [OPTIONS]   # [EXPERIMENTAL] Export trial artifact essence to a plain dir
+  -t, --to PATH                      # Destination dir (iCloud/Dropbox/git repo/any path) — required
+  -C, --project-dir PATH             # PATHS may mix job and trial dirs (type auto-detected)
 
 nasde init [PROJECT_DIR]         # Scaffold new benchmark project
   -n, --name TEXT

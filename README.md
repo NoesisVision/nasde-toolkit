@@ -273,9 +273,32 @@ nasde run --variant vanilla -C my-benchmark --without-eval
 
 # Re-run the reviewer on an existing trial (no re-execution)
 nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
+
+# [Experimental] Back up the results essence so they don't only live in jobs/
+nasde results-export jobs/2026-03-13__14-30-00 --to ~/Dropbox/nasde-results -C my-benchmark
 ```
 
 Authentication is covered in detail in the [Authentication](#authentication) section — in short, export an API key (`ANTHROPIC_API_KEY` / `CODEX_API_KEY` / `GEMINI_API_KEY`) **or** just use whatever OAuth subscription you're already logged into via `claude` / `codex` / `gemini login`.
+
+## Exporting results (experimental)
+
+By default a run's output lives only in the local, gitignored `jobs/` directory — and most of its weight is build junk (compiled binaries, `.git` checkouts) that's useless for analysis. If you clear `jobs/`, the results are gone. `nasde results-export` copies just the **essence** of each trial into a plain destination directory so your results survive and travel:
+
+```bash
+nasde results-export jobs/2026-03-13__14-30-00 --to ~/Dropbox/nasde-results -C my-benchmark
+```
+
+The destination is any path you like — an iCloud or Dropbox folder, an external drive, or a git repo you commit yourself. NASDE just writes files there; it never talks to a cloud provider, so there's nothing to authenticate. Each trial becomes one flat folder `<job>__<trial>/` containing:
+
+- `metrics.json` — self-contained summary: timing, model, variant, task, reward
+- `assessment_eval*.json` — the reviewer's per-dimension scores and reasoning (all repetitions)
+- `trajectory.json` — the agent's full tool-call trace, for post-hoc efficiency analysis
+- `changes.patch` — exactly what the agent changed (a code diff, not the multi-GB workspace)
+- `verifier_stdout.txt`, `reward.txt` — the rough-test output
+
+You can pass several paths at once, mixing whole jobs and individual trials — NASDE figures out which is which. Re-running is safe: anything already exported is skipped.
+
+> **Experimental / beta.** This command is new; the layout may still change. Feedback welcome.
 
 ## Cloud sandbox providers
 

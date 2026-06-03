@@ -365,6 +365,49 @@ def eval_command(
     )
 
 
+@app.command(name="results-export")
+def results_export_command(
+    paths: list[Path] = typer.Argument(
+        ...,
+        help="Job and/or trial directories to export (mixed OK — type is auto-detected).",
+    ),
+    to: Path = typer.Option(
+        ...,
+        "--to",
+        "-t",
+        help="Destination directory (iCloud, Dropbox, a git repo — any plain path).",
+    ),
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project.",
+    ),
+) -> None:
+    """[EXPERIMENTAL] Export the essence of trial artifacts to a plain directory.
+
+    Copies metrics, assessment scores, the agent trajectory, and a code patch for
+    each trial into a flat per-trial layout, so results survive even when jobs/ is
+    cleared and without relying on Opik or EXPERIMENT_LOG.md.
+    """
+    from nasde_toolkit.config import load_project_config
+    from nasde_toolkit.results_exporter import export_results
+
+    load_project_config(project_dir.resolve())
+
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
+    console.print(
+        Panel(
+            f"[bold]Results Export[/bold] [yellow](experimental)[/yellow]\nDest: {to}\nInputs: {len(paths)}",
+            title="nasde",
+        )
+    )
+
+    export_results([p.resolve() for p in paths], to.resolve())
+
+
 # ---------------------------------------------------------------------------
 # Harbor pass-through (Typer → Typer)
 # ---------------------------------------------------------------------------

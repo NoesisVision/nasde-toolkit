@@ -32,6 +32,8 @@ Results from the three example benchmarks included in `examples/`. All scores ar
 
 ### Deep dive — tactical-ddd skill: public vs repo-tuned (Claude Code)
 
+> For the full narrative walkthrough of this analysis — why we trust the numbers, how per-dimension scoring changes the story, and what it means for skill authors — see the write-up on the Noesis Vision blog: [Running a private benchmark for a DDD implementation skill](https://noesisvision.substack.com/p/why-you-should-benchmark-your-agent).
+
 A focused follow-up on the same benchmark family: we took a public DDD skill ([`tactical-ddd` from `ntcoding/claude-skillz`](https://github.com/NTCoding/claude-skillz)) and a repo-tuned version, and measured four configurations of Claude Code on two deliberately different tasks — a **feature on a clean DDD codebase** (`ddd-weather-discount`) and a **legacy anemic→rich refactor** (`csharp-movie-rental-anemic`). Each configuration was run repeatedly and each run scored repeatedly; the numbers below are averages (normalized 0–1). Skill activation was verified per run — a mounted skill the agent never invokes scores like no skill at all.
 
 | Configuration | Weather (feature) | Movie (legacy) |

@@ -429,6 +429,57 @@ def results_export_command(
     export_results([p.resolve() for p in paths], to.resolve())
 
 
+@app.command(name="migrate-evals")
+def migrate_evals_command(
+    path: Path = typer.Argument(
+        ...,
+        help="Job, jobs/ root, or trial directory whose eval files to normalize.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show what would change without touching any files.",
+    ),
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project.",
+    ),
+) -> None:
+    """Normalize legacy assessment eval files to the numbered + summary scheme.
+
+    Renames a bare assessment_eval.json to assessment_eval_1.json, removes a
+    bare file that duplicates the highest numbered one, and (re)computes
+    assessment_summary.json. Idempotent.
+    """
+    from nasde_toolkit.config import load_project_config
+    from nasde_toolkit.eval_migration import migrate_job_evals
+
+    load_project_config(project_dir.resolve())
+
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
+    console.print(
+        Panel(
+            f"[bold]Migrate Evals[/bold]{' [yellow](dry-run)[/yellow]' if dry_run else ''}\nPath: {path}",
+            title="nasde",
+        )
+    )
+
+    outcomes = migrate_job_evals(path.resolve(), dry_run=dry_run)
+
+    from rich.table import Table
+
+    table = Table(title="Migration outcomes")
+    table.add_column("Outcome", style="bold")
+    table.add_column("Trials", justify="right")
+    for name, count in outcomes.items():
+        table.add_row(name, str(count))
+    console.print(table)
+
+
 # ---------------------------------------------------------------------------
 # Harbor pass-through (Typer → Typer)
 # ---------------------------------------------------------------------------

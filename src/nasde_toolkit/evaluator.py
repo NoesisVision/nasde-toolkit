@@ -194,8 +194,23 @@ async def _run_trial_evaluations(
         async with semaphore:
             return await evaluate_trial(trial_dir, project_root, eval_config)
 
-    results = await asyncio.gather(*[_one_evaluation() for _ in range(eval_config.eval_repetitions)])
-    return [result for result in results if result is not None]
+    results = await asyncio.gather(
+        *[_one_evaluation() for _ in range(eval_config.eval_repetitions)],
+        return_exceptions=True,
+    )
+    return _keep_successful_evaluations(trial_dir, results)
+
+
+def _keep_successful_evaluations(
+    trial_dir: Path, results: list[EvaluationResult | None | BaseException]
+) -> list[EvaluationResult]:
+    successful: list[EvaluationResult] = []
+    for result in results:
+        if isinstance(result, BaseException):
+            console.print(f"  [yellow]Evaluation rep failed for {trial_dir.name}: {result}[/yellow]")
+        elif isinstance(result, EvaluationResult):
+            successful.append(result)
+    return successful
 
 
 def _warn_if_throttled(trial_dirs: list[Path], max_concurrent: int, eval_repetitions: int) -> None:

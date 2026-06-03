@@ -119,7 +119,7 @@ async def evaluate_job(
         console.print("[yellow]No trial directories found.[/yellow]")
         return []
 
-    _warn_if_throttled(trial_dirs, max_concurrent)
+    _warn_if_throttled(trial_dirs, max_concurrent, eval_config.eval_repetitions)
     semaphore = asyncio.Semaphore(max_concurrent)
     coros = [
         _evaluate_and_record_trial(
@@ -168,31 +168,47 @@ async def _evaluate_and_record_trial(
     eval_config: EvaluationConfig | None = None,
 ) -> EvaluationResult | None:
     eval_config = eval_config or EvaluationConfig()
-    async with semaphore:
-        console.print(f"\n[bold]Evaluating: {trial_dir.name}[/bold]")
-        try:
-            evaluation = await evaluate_trial(trial_dir, project_root, eval_config)
-            if not evaluation:
-                return None
-            _write_evaluation_result(trial_dir, evaluation)
-            _write_assessment_summary(trial_dir)
-            if with_opik:
-                await asyncio.to_thread(_upload_to_opik, evaluation, project_name)
-            return evaluation
-        except Exception as exc:
-            console.print(f"[red]Assessment failed for {trial_dir.name}: {exc}[/red]")
+    console.print(f"\n[bold]Evaluating: {trial_dir.name} (x{eval_config.eval_repetitions})[/bold]")
+    try:
+        evaluations = await _run_trial_evaluations(trial_dir, project_root, semaphore, eval_config)
+        if not evaluations:
             return None
+        for evaluation in evaluations:
+            _write_evaluation_result(trial_dir, evaluation)
+        summary = _write_assessment_summary(trial_dir)
+        if with_opik and summary is not None:
+            await asyncio.to_thread(_upload_to_opik, summary, project_name)
+        return evaluations[-1]
+    except Exception as exc:
+        console.print(f"[red]Assessment failed for {trial_dir.name}: {exc}[/red]")
+        return None
 
 
-def _warn_if_throttled(trial_dirs: list[Path], max_concurrent: int) -> None:
-    if len(trial_dirs) <= max_concurrent:
+async def _run_trial_evaluations(
+    trial_dir: Path,
+    project_root: Path,
+    semaphore: asyncio.Semaphore,
+    eval_config: EvaluationConfig,
+) -> list[EvaluationResult]:
+    async def _one_evaluation() -> EvaluationResult | None:
+        async with semaphore:
+            return await evaluate_trial(trial_dir, project_root, eval_config)
+
+    results = await asyncio.gather(*[_one_evaluation() for _ in range(eval_config.eval_repetitions)])
+    return [result for result in results if result is not None]
+
+
+def _warn_if_throttled(trial_dirs: list[Path], max_concurrent: int, eval_repetitions: int) -> None:
+    total_evaluations = len(trial_dirs) * eval_repetitions
+    if total_evaluations <= max_concurrent:
         return
     unique_tasks = {td.name.rsplit("__", 1)[0] for td in trial_dirs}
     n_tasks = len(unique_tasks)
     n_attempts = len(trial_dirs) // max(n_tasks, 1)
-    breakdown = f"{n_tasks} tasks x {n_attempts} attempts" if n_attempts > 1 else f"{n_tasks} tasks"
+    attempts_part = f"{n_tasks} tasks x {n_attempts} attempts" if n_attempts > 1 else f"{n_tasks} tasks"
+    breakdown = f"{attempts_part} x {eval_repetitions} repetitions" if eval_repetitions > 1 else attempts_part
     console.print(
-        f"[yellow]Warning: {len(trial_dirs)} trials to evaluate ({breakdown}), "
+        f"[yellow]Warning: {total_evaluations} evaluations to run ({breakdown}), "
         f"but max concurrent evals is {max_concurrent}. "
         f"Evaluations will be throttled. Use --max-concurrent-eval to adjust.[/yellow]"
     )
@@ -740,62 +756,67 @@ def _first_stable[T](values: list[T], field_name: str) -> T:
 # ---------------------------------------------------------------------------
 
 
-def _upload_to_opik(evaluation: EvaluationResult, project_name: str) -> None:
+def _upload_to_opik(summary: AssessmentSummary, project_name: str) -> None:
     try:
         import opik
     except ImportError:
         console.print("  [yellow]WARN: opik not installed, skipping upload[/yellow]")
         return
 
+    group = _dominant_group(summary)
     client = opik.Opik()
-    trace_id = _find_opik_trace(client, evaluation.trial_name, evaluation.agent_name, project_name)
+    trace_id = _find_opik_trace(client, summary.trial_name, summary.agent_name, project_name)
 
     if not trace_id:
-        console.print(f"  Creating new trace for {evaluation.trial_name}")
+        console.print(f"  Creating new trace for {summary.trial_name}")
         new_trace = client.trace(
-            name=f"{evaluation.trial_name}__assessment-eval",
+            name=f"{summary.trial_name}__assessment-eval",
             project_name=project_name,
-            input={"task_name": evaluation.task_name},
-            output={"summary": evaluation.summary},
+            input={"task_name": summary.task_name},
+            output={"summary": f"mean over n={group.n} ({group.evaluator_model})"},
         )
         trace_id = new_trace.id
 
-    scores = _build_opik_scores(trace_id, evaluation)
+    scores = _build_opik_scores(trace_id, group)
     client.log_traces_feedback_scores(scores, project_name=project_name)  # type: ignore[arg-type]
     client.flush()
     console.print(f"  Uploaded {len(scores)} feedback scores to Opik (trace {trace_id})")
 
 
-def _build_opik_scores(trace_id: str, evaluation: EvaluationResult) -> list[dict]:
-    scores = [
+def _dominant_group(summary: AssessmentSummary) -> EvaluatorGroupSummary:
+    return next((g for g in summary.groups if g.dominant), summary.groups[0])
+
+
+def _build_opik_scores(trace_id: str, group: EvaluatorGroupSummary) -> list[dict[str, object]]:
+    scores: list[dict[str, object]] = [
         {
             "id": trace_id,
             "name": f"arch_{dim.name}",
-            "value": float(dim.score) / float(dim.max_score),
-            "reason": dim.reasoning,
+            "value": round(dim.mean / dim.max_score, 4),
+            "reason": f"mean {dim.mean} ± {dim.std} over n={group.n} ({group.evaluator_model})",
         }
-        for dim in evaluation.dimensions
+        for dim in group.dimensions
     ]
     scores.append(
         {
             "id": trace_id,
             "name": "arch_total",
-            "value": evaluation.normalized_score,
-            "reason": evaluation.summary,
+            "value": group.normalized_score_mean,
+            "reason": f"mean normalized over n={group.n} ({group.evaluator_model})",
         }
     )
     scores.append(
         {
             "id": trace_id,
             "name": "reward",
-            "value": evaluation.harbor_reward,
+            "value": group.harbor_reward,
         }
     )
     scores.append(
         {
             "id": trace_id,
             "name": "duration_sec",
-            "value": evaluation.duration_sec,
+            "value": group.duration_sec_mean,
         }
     )
     return scores

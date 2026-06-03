@@ -150,6 +150,23 @@ def test_eval_command_forwards_evaluation_config(mock_evaluate_job: AsyncMock, t
     assert eval_config.include_trajectory is True
 
 
+@patch("nasde_toolkit.evaluator.evaluate_job", new_callable=AsyncMock)
+def test_eval_command_eval_repetitions_flag_overrides_config(mock_evaluate_job: AsyncMock, tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text(
+        '[project]\nname = "test"\n[defaults]\nvariant = "vanilla"\n[evaluation]\neval_repetitions = 3\n'
+    )
+    job_dir = tmp_path / "jobs" / "job1"
+    job_dir.mkdir(parents=True)
+
+    result = runner.invoke(
+        app,
+        ["eval", str(job_dir), "--eval-repetitions", "5", "-C", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+    eval_config = mock_evaluate_job.call_args.kwargs["eval_config"]
+    assert eval_config.eval_repetitions == 5
+
+
 @patch("nasde_toolkit.results_exporter.export_results")
 def test_results_export_command_forwards_paths_and_dest(mock_export: object, tmp_path: Path) -> None:
     (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n[defaults]\nvariant = "vanilla"\n')

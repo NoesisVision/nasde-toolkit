@@ -62,6 +62,7 @@ class EvaluationConfig:
     skills_dir: str | None = None
     append_system_prompt: str | None = None
     include_trajectory: bool = False
+    eval_repetitions: int = 3
 
 
 @dataclass
@@ -155,12 +156,20 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
             skills_dir=eval_raw.get("skills_dir"),
             append_system_prompt=eval_raw.get("append_system_prompt"),
             include_trajectory=eval_raw.get("include_trajectory", False),
+            eval_repetitions=_parse_eval_repetitions(eval_raw),
         ),
         reporting=ReportingConfig(
             platform=reporting_raw.get("platform", "opik"),
             project_name=reporting_raw.get("project_name", project.get("name", "")),
         ),
     )
+
+
+def _parse_eval_repetitions(eval_raw: dict) -> int:
+    repetitions = eval_raw.get("eval_repetitions", 3)
+    if not isinstance(repetitions, int) or repetitions < 1:
+        raise ValueError(f"[evaluation] eval_repetitions must be an integer >= 1, got {repetitions!r}.")
+    return repetitions
 
 
 def _discover_tasks(project_dir: Path, default_docker: DockerConfig) -> list[TaskConfig]:

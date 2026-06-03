@@ -69,6 +69,15 @@ def _no_banner_callback(value: bool) -> None:
         suppress_banner()
 
 
+def _override_eval_repetitions(config: ProjectConfig, eval_repetitions: int | None) -> None:
+    if eval_repetitions is None:
+        return
+    if eval_repetitions < 1:
+        console.print("[red]ERROR: --eval-repetitions must be >= 1.[/red]")
+        raise typer.Exit(1)
+    config.evaluation.eval_repetitions = eval_repetitions
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
@@ -200,6 +209,11 @@ def run(
         "--max-concurrent-eval",
         help="Max concurrent assessment evaluations (default: 10).",
     ),
+    eval_repetitions: int | None = typer.Option(
+        None,
+        "--eval-repetitions",
+        help="Judge evaluations per trial (default: from nasde.toml [evaluation], fallback 3).",
+    ),
     harbor_env: str | None = typer.Option(
         None,
         "--harbor-env",
@@ -225,6 +239,7 @@ def run(
     from nasde_toolkit.runner import collect_available_variants, run_benchmark
 
     config = load_project_config(project_dir.resolve())
+    _override_eval_repetitions(config, eval_repetitions)
     tasks_filter = [t.strip() for t in tasks.split(",")] if tasks else None
     resolved_harbor_env = harbor_env or config.default_harbor_env
     resolved_model = model
@@ -330,6 +345,11 @@ def eval_command(
         "--max-concurrent-eval",
         help="Max concurrent assessment evaluations (default: 10).",
     ),
+    eval_repetitions: int | None = typer.Option(
+        None,
+        "--eval-repetitions",
+        help="Judge evaluations per trial (default: from nasde.toml [evaluation], fallback 3).",
+    ),
     project_dir: Path = typer.Option(
         Path("."),
         "--project-dir",
@@ -342,6 +362,7 @@ def eval_command(
     from nasde_toolkit.evaluator import evaluate_job
 
     config = load_project_config(project_dir.resolve())
+    _override_eval_repetitions(config, eval_repetitions)
 
     from nasde_toolkit.banner import print_banner
 

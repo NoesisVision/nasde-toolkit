@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -13,6 +15,7 @@ from nasde_toolkit.evaluator import (
     EvaluationResult,
     _aggregate_evaluations,
     _build_evaluator_prompt,
+    _evaluate_and_record_trial,
     _load_expected_dimensions,
     _next_eval_index,
     _parse_evaluation_response,
@@ -134,6 +137,57 @@ def test_write_assessment_summary_has_no_reasoning(tmp_path: Path) -> None:
     assert "reasoning" not in raw
     parsed = json.loads(raw)
     assert parsed["groups"][0]["n"] == 2
+
+
+def test_eval_repetitions_writes_n_files(tmp_path: Path) -> None:
+    scores = iter([0.6, 0.7, 0.62])
+    config = EvaluationConfig(eval_repetitions=3)
+
+    async def fake_evaluate_trial(
+        trial_dir: Path, project_root: Path, eval_config: EvaluationConfig
+    ) -> EvaluationResult:
+        return _make_evaluation(next(scores), dim_score=6)
+
+    with patch("nasde_toolkit.evaluator.evaluate_trial", side_effect=fake_evaluate_trial):
+        asyncio.run(
+            _evaluate_and_record_trial(
+                tmp_path,
+                tmp_path,
+                "proj",
+                with_opik=False,
+                semaphore=asyncio.Semaphore(10),
+                eval_config=config,
+            )
+        )
+
+    numbered = sorted(p.name for p in tmp_path.glob("assessment_eval_*.json"))
+    assert numbered == ["assessment_eval_1.json", "assessment_eval_2.json", "assessment_eval_3.json"]
+    summary = json.loads((tmp_path / "assessment_summary.json").read_text())
+    assert summary["groups"][0]["n"] == 3
+
+
+def test_eval_repetitions_one_writes_single_file(tmp_path: Path) -> None:
+    config = EvaluationConfig(eval_repetitions=1)
+
+    async def fake_evaluate_trial(
+        trial_dir: Path, project_root: Path, eval_config: EvaluationConfig
+    ) -> EvaluationResult:
+        return _make_evaluation(0.6, dim_score=6)
+
+    with patch("nasde_toolkit.evaluator.evaluate_trial", side_effect=fake_evaluate_trial):
+        asyncio.run(
+            _evaluate_and_record_trial(
+                tmp_path,
+                tmp_path,
+                "proj",
+                with_opik=False,
+                semaphore=asyncio.Semaphore(10),
+                eval_config=config,
+            )
+        )
+
+    numbered = sorted(p.name for p in tmp_path.glob("assessment_eval_*.json"))
+    assert numbered == ["assessment_eval_1.json"]
 
 
 def test_evaluate_trial_uses_configured_backend() -> None:

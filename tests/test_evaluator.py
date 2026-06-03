@@ -15,6 +15,8 @@ from nasde_toolkit.evaluator import (
     EvaluationResult,
     _aggregate_evaluations,
     _build_evaluator_prompt,
+    _build_opik_scores,
+    _dominant_group,
     _evaluate_and_record_trial,
     _load_expected_dimensions,
     _next_eval_index,
@@ -117,6 +119,27 @@ def test_dominant_group_is_max_n() -> None:
     dominant = [g for g in summary.groups if g.dominant]
     assert len(dominant) == 1
     assert dominant[0].evaluator_model == "claude-opus-4-7"
+
+
+def test_build_opik_scores_uses_dominant_group_with_std_and_n() -> None:
+    evals = [
+        _make_evaluation(0.6, evaluator_model="claude-opus-4-7", dim_score=6),
+        _make_evaluation(0.7, evaluator_model="claude-opus-4-7", dim_score=8),
+        _make_evaluation(0.5, evaluator_model="codex-gpt-5", dim_score=4),
+    ]
+    summary = _aggregate_evaluations(evals)
+    group = _dominant_group(summary)
+    scores = _build_opik_scores("trace-1", group)
+
+    by_name = {s["name"]: s for s in scores}
+    assert group.evaluator_model == "claude-opus-4-7"
+    assert by_name["arch_domain_modeling"]["value"] == 0.7
+    assert "arch_domain_modeling_std" in by_name
+    assert "arch_total" in by_name
+    assert "arch_total_std" in by_name
+    assert by_name["eval_n"]["value"] == 2.0
+    assert "reward" in by_name
+    assert "duration_sec" in by_name
 
 
 def test_aggregate_std_n1_is_zero() -> None:

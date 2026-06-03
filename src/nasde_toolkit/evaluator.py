@@ -788,21 +788,46 @@ def _dominant_group(summary: AssessmentSummary) -> EvaluatorGroupSummary:
 
 
 def _build_opik_scores(trace_id: str, group: EvaluatorGroupSummary) -> list[dict[str, object]]:
-    scores: list[dict[str, object]] = [
-        {
-            "id": trace_id,
-            "name": f"arch_{dim.name}",
-            "value": round(dim.mean / dim.max_score, 4),
-            "reason": f"mean {dim.mean} ± {dim.std} over n={group.n} ({group.evaluator_model})",
-        }
-        for dim in group.dimensions
-    ]
+    scores: list[dict[str, object]] = []
+    for dim in group.dimensions:
+        scores.append(
+            {
+                "id": trace_id,
+                "name": f"arch_{dim.name}",
+                "value": round(dim.mean / dim.max_score, 4),
+                "reason": f"mean {dim.mean} ± {dim.std} over n={group.n} ({group.evaluator_model})",
+            }
+        )
+        scores.append(
+            {
+                "id": trace_id,
+                "name": f"arch_{dim.name}_std",
+                "value": round(dim.std / dim.max_score, 4),
+                "reason": f"normalized std over n={group.n} ({group.evaluator_model})",
+            }
+        )
     scores.append(
         {
             "id": trace_id,
             "name": "arch_total",
             "value": group.normalized_score_mean,
             "reason": f"mean normalized over n={group.n} ({group.evaluator_model})",
+        }
+    )
+    scores.append(
+        {
+            "id": trace_id,
+            "name": "arch_total_std",
+            "value": group.normalized_score_std,
+            "reason": f"normalized-score std over n={group.n} ({group.evaluator_model})",
+        }
+    )
+    scores.append(
+        {
+            "id": trace_id,
+            "name": "eval_n",
+            "value": float(group.n),
+            "reason": f"number of {group.evaluator_model} evaluations aggregated",
         }
     )
     scores.append(

@@ -19,6 +19,19 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   `--tasks` filter. Absent/empty → unscoped (the default). ([#54])
 
 ### Changed
+- **Bump Harbor `0.6` → `0.13`.** Pulls 6 minor releases of upstream fixes and
+  features (incl. network-policy config). A full API audit (diffing the 0.13.0
+  wheel against 0.6.4 for every symbol nasde uses — `Job`/`JobConfig`,
+  `ClaudeCode`/`Codex`/`GeminiCli`, `BaseEnvironment.exec/upload_file`,
+  `MCPServerConfig`, the `Step` trajectory model) found **no breaking changes**
+  to our surface. The dependency is now declared as
+  `harbor[daytona,modal,e2b,runloop,gke]` rather than `harbor[cloud]`: since 0.8
+  the `[cloud]` extra pulls the `novita` provider, which pins the pre-release
+  `novita-sandbox==2.0.0a3` (no stable 2.x) and makes `uv lock` unsolvable. We
+  declare only the providers nasde documents. Floors raised to match Harbor 0.13:
+  `typer>=0.16`, `litellm>=1.83.14`; `rich` capped `<16`. The Opik deferred-metrics
+  monkeypatch (ADR-006) is retained — opik 2.0.55 still reads `Step.metrics` only
+  at construction, so the token-usage bug persists. ([#56])
 - **Evaluator default `max_turns` raised 30 → 60.** Avoids `error_max_turns` on
   large/complex workspaces (e.g. DDD refactors). Override via `[evaluation]
   max_turns` in `nasde.toml`. ([#54])
@@ -409,4 +422,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#51]: https://github.com/NoesisVision/nasde-toolkit/pull/51
 [#52]: https://github.com/NoesisVision/nasde-toolkit/pull/52
 [#54]: https://github.com/NoesisVision/nasde-toolkit/pull/54
+[#56]: https://github.com/NoesisVision/nasde-toolkit/pull/56
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

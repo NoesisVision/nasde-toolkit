@@ -215,5 +215,5 @@ def test_calibrate_publish_forwards_resolved_sink(mock_publish: object, tmp_path
     assert result.exit_code == 0, result.output
     kwargs = mock_publish.call_args.kwargs  # type: ignore[attr-defined]
     assert kwargs["repo"] == "NoesisVision/nasde-calibration"
-    assert kwargs["repo_url"] == "https://github.com/NoesisVision/nasde-calibration.git"
+    assert kwargs["repo_url"] == "git@github.com:NoesisVision/nasde-calibration.git"
     assert kwargs["platform_override"] == "github"

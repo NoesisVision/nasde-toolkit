@@ -5,11 +5,17 @@ import pytest
 from nasde_toolkit.calibration_resolve import SystemExitMessage, resolve_sink
 
 
-def test_resolve_github_https_url() -> None:
+def test_resolve_github_https_url_uses_ssh_push() -> None:
     sink = resolve_sink("https://github.com/NoesisVision/nasde-calibration")
     assert sink.platform == "github"
     assert sink.slug == "NoesisVision/nasde-calibration"
-    assert sink.push_url == "https://github.com/NoesisVision/nasde-calibration.git"
+    assert sink.push_url == "git@github.com:NoesisVision/nasde-calibration.git"
+
+
+def test_resolve_self_hosted_host_preserved_in_push_url() -> None:
+    sink = resolve_sink("https://gitlab.acme.internal/team/repo")
+    assert sink.platform == "gitlab"
+    assert sink.push_url == "git@gitlab.acme.internal:team/repo.git"
 
 
 def test_resolve_gitlab_ssh_url() -> None:

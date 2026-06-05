@@ -42,7 +42,7 @@ class SystemExitMessage(SystemExit):
 def _resolve_from_url(repo: str, platform_override: str) -> ResolvedSink:
     platform = detect_platform(repo, platform_override)
     slug = _slug_from_url(repo)
-    return ResolvedSink(slug=slug, push_url=_normalize_push_url(repo), platform=platform)
+    return ResolvedSink(slug=slug, push_url=_ssh_push_url(platform, slug, repo), platform=platform)
 
 
 def _resolve_from_slug(repo: str, platform_override: str) -> ResolvedSink:
@@ -52,8 +52,7 @@ def _resolve_from_slug(repo: str, platform_override: str) -> ResolvedSink:
             f"(\"github\" or \"gitlab\") in nasde.toml so the platform can be resolved."
         )
     platform = detect_platform("", platform_override)
-    host = _HOSTS[platform]
-    return ResolvedSink(slug=repo, push_url=f"git@{host}:{repo}.git", platform=platform)
+    return ResolvedSink(slug=repo, push_url=_ssh_push_url(platform, repo, ""), platform=platform)
 
 
 def _looks_like_url(repo: str) -> bool:
@@ -70,8 +69,15 @@ def _slug_from_url(repo: str) -> str:
     return without_scheme.split("/", 1)[-1].strip("/")
 
 
-def _normalize_push_url(repo: str) -> str:
-    cleaned = repo.strip()
-    if not cleaned.endswith(".git"):
-        cleaned = f"{cleaned}.git"
-    return cleaned
+def _ssh_push_url(platform: str, slug: str, repo: str) -> str:
+    host = _host_from_url(repo) or _HOSTS[platform]
+    return f"git@{host}:{slug}.git"
+
+
+def _host_from_url(repo: str) -> str:
+    if not repo:
+        return ""
+    if "@" in repo and "://" not in repo:
+        return repo.split("@", 1)[1].split(":", 1)[0]
+    without_scheme = repo.split("://", 1)[-1]
+    return without_scheme.split("/", 1)[0]

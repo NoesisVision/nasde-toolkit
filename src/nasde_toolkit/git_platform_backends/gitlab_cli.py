@@ -34,7 +34,7 @@ class GitLabCliBackend:
 
     def find_open_pr_for_branch(self, repo: str, head_branch: str) -> PrRef | None:
         result = self._run(
-            ["mr", "list", "--repo", repo, "--source-branch", head_branch, "--output", "json"],
+            ["mr", "list", "--repo", repo, "--source-branch", head_branch, "--all", "--output", "json"],
             check=True,
         )
         entries = _parse_json_list(result.stdout)
@@ -50,7 +50,10 @@ class GitLabCliBackend:
              "--title", title, "--description", body_markdown, "--yes"],
         )
         url = _last_url(result.stdout)
-        return PrRef(number=_mr_iid_from_url(url), url=url)
+        number = _mr_iid_from_url(url)
+        if not url or number == 0:
+            raise RuntimeError(f"glab mr create succeeded but no MR URL was parsed from output: {result.stdout!r}")
+        return PrRef(number=number, url=url)
 
     def fetch_pr_comments(self, repo: str, pr_number: int) -> list[ReviewComment]:
         project = quote(repo, safe="")
@@ -58,7 +61,7 @@ class GitLabCliBackend:
             ["api", "--paginate", f"projects/{project}/merge_requests/{pr_number}/notes"],
             check=True,
         )
-        return [_note_comment(raw) for raw in _parse_json_list(result.stdout) if not raw.get("system")]
+        return [_note_comment(raw) for raw in _parse_paginated_arrays(result.stdout) if not raw.get("system")]
 
     def validate_cli_installed(self) -> None:
         if shutil.which("glab") is not None:
@@ -116,8 +119,8 @@ def _note_comment(raw: dict) -> ReviewComment:
         author=(raw.get("author") or {}).get("username", ""),
         created_at=raw.get("created_at", ""),
         is_inline=is_inline,
-        path=position.get("new_path"),
-        line=position.get("new_line"),
+        path=position.get("new_path") or position.get("old_path"),
+        line=position.get("new_line") or position.get("old_line"),
         diff_hunk=None,
     )
 
@@ -126,7 +129,7 @@ def _last_url(text: str) -> str:
     for token in reversed(text.split()):
         if token.startswith("http"):
             return token.strip()
-    return text.strip().splitlines()[-1].strip() if text.strip() else ""
+    return ""
 
 
 def _mr_iid_from_url(url: str) -> int:
@@ -146,3 +149,20 @@ def _parse_json_list(text: str) -> list[dict]:
     if not text:
         return []
     return json.loads(text)
+
+
+def _parse_paginated_arrays(text: str) -> list[dict]:
+    text = text.strip()
+    if not text:
+        return []
+    decoder = json.JSONDecoder()
+    items: list[dict] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        chunk, end = decoder.raw_decode(text, index)
+        items.extend(chunk)
+        index = end
+        while index < length and text[index] in " \t\r\n":
+            index += 1
+    return items

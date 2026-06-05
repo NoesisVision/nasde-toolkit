@@ -164,13 +164,26 @@ def _open_pr_for_trial(
     feature: str,
 ) -> PrRef:
     workspace = trial_dir / "artifacts" / "workspace"
+    metrics = _build_metrics(trial_dir)
+    summary = _summarize_trial(trial_dir)
+    title = _pr_title(trial_dir, summary)
+    body = _render_pr_body(summary, metrics)
     ensure_base_branch(repo_url, base, workspace)
     patch_text = _capture_patch(workspace)
-    push_feature_branch(repo_url, base, feature, workspace, patch_text, _calibration_files(trial_dir))
-    summary = _aggregate_evaluations(_load_raw_evaluations(trial_dir))
-    title = _pr_title(trial_dir, summary)
-    body = _render_pr_body(summary, _build_metrics(trial_dir))
+    push_feature_branch(repo_url, base, feature, workspace, patch_text, _calibration_files(trial_dir, metrics))
     return backend.create_pr(repo, head=feature, base=base, title=title, body_markdown=body)
+
+
+def _summarize_trial(trial_dir: Path) -> AssessmentSummary:
+    evaluations = _load_raw_evaluations(trial_dir)
+    if not evaluations:
+        return AssessmentSummary(
+            task_name=trial_dir.name,
+            trial_name=trial_dir.name,
+            agent_name="",
+            groups=[],
+        )
+    return _aggregate_evaluations(evaluations)
 
 
 def _pull_one_trial_comments(
@@ -188,14 +201,14 @@ def _pull_one_trial_comments(
     return TrialComments(label=trial_dir.name, pr_number=pr.number, pr_url=pr.url, comments=comments)
 
 
-def _calibration_files(trial_dir: Path) -> dict[str, str]:
+def _calibration_files(trial_dir: Path, metrics: dict) -> dict[str, str]:
     files: dict[str, str] = {}
     for assessment in sorted(trial_dir.glob("assessment_eval_*.json")):
-        files[assessment.name] = assessment.read_text()
+        files[assessment.name] = assessment.read_text(encoding="utf-8")
     summary_path = trial_dir / "assessment_summary.json"
     if summary_path.exists():
-        files["assessment_summary.json"] = summary_path.read_text()
-    files["metrics.json"] = json.dumps(_build_metrics(trial_dir), indent=2)
+        files["assessment_summary.json"] = summary_path.read_text(encoding="utf-8")
+    files["metrics.json"] = json.dumps(metrics, indent=2)
     return files
 
 
@@ -231,6 +244,11 @@ def _workspace_short_sha(workspace: Path) -> str:
 
 def _slug_from_origin(origin: str) -> str:
     cleaned = origin.strip()
+    if not cleaned:
+        raise RuntimeError(
+            "Trial workspace has no git origin remote — cannot derive a base-branch key. "
+            "The workspace .git must point at the source repo."
+        )
     if cleaned.endswith(".git"):
         cleaned = cleaned[: -len(".git")]
     if "@" in cleaned and "://" not in cleaned:
@@ -238,7 +256,10 @@ def _slug_from_origin(origin: str) -> str:
     else:
         cleaned = cleaned.split("://", 1)[-1]
         cleaned = cleaned.split("/", 1)[-1] if "/" in cleaned else cleaned
-    return cleaned.strip("/").replace("/", "-")
+    slug = cleaned.strip("/").replace("/", "-")
+    if not slug:
+        raise RuntimeError(f"Could not derive a repo slug from origin '{origin}'.")
+    return slug
 
 
 def _base_branch_name(repo_slug: str, short_sha: str) -> str:

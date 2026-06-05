@@ -44,8 +44,11 @@ class GitHubCliBackend:
              "--title", title, "--body", body_markdown],
             check=True,
         )
-        url = result.stdout.strip().splitlines()[-1].strip()
-        return PrRef(number=_pr_number_from_url(url), url=url)
+        url = _last_url(result.stdout)
+        number = _pr_number_from_url(url)
+        if not url or number == 0:
+            raise RuntimeError(f"gh pr create succeeded but no PR URL was parsed from output: {result.stdout!r}")
+        return PrRef(number=number, url=url)
 
     def fetch_pr_comments(self, repo: str, pr_number: int) -> list[ReviewComment]:
         issue_level = self._fetch_issue_comments(repo, pr_number)
@@ -75,17 +78,17 @@ class GitHubCliBackend:
 
     def _fetch_issue_comments(self, repo: str, pr_number: int) -> list[ReviewComment]:
         result = self._run(
-            ["api", "--paginate", f"repos/{repo}/issues/{pr_number}/comments"],
+            ["api", "--paginate", "--slurp", f"repos/{repo}/issues/{pr_number}/comments"],
             check=True,
         )
-        return [_issue_comment(raw) for raw in _parse_json_list(result.stdout)]
+        return [_issue_comment(raw) for raw in _flatten_slurped(result.stdout)]
 
     def _fetch_inline_comments(self, repo: str, pr_number: int) -> list[ReviewComment]:
         result = self._run(
-            ["api", "--paginate", f"repos/{repo}/pulls/{pr_number}/comments"],
+            ["api", "--paginate", "--slurp", f"repos/{repo}/pulls/{pr_number}/comments"],
             check=True,
         )
-        return [_inline_comment(raw) for raw in _parse_json_list(result.stdout)]
+        return [_inline_comment(raw) for raw in _flatten_slurped(result.stdout)]
 
     def _run(self, args: list[str], check: bool) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
@@ -118,6 +121,24 @@ def _inline_comment(raw: dict) -> ReviewComment:
 def _pr_number_from_url(url: str) -> int:
     tail = url.rstrip("/").rsplit("/", 1)[-1]
     return int(tail) if tail.isdigit() else 0
+
+
+def _last_url(text: str) -> str:
+    for token in reversed(text.split()):
+        if token.startswith("http"):
+            return token.strip()
+    return ""
+
+
+def _flatten_slurped(text: str) -> list[dict]:
+    text = text.strip()
+    if not text:
+        return []
+    pages = json.loads(text)
+    flattened: list[dict] = []
+    for page in pages:
+        flattened.extend(page)
+    return flattened
 
 
 def _parse_json(text: str) -> dict:

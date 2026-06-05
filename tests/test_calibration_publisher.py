@@ -3,11 +3,14 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from nasde_toolkit.calibration_publisher import (
     _base_branch_name,
     _feature_branch_name,
     _render_pr_body,
     _slug_from_origin,
+    _summarize_trial,
 )
 from nasde_toolkit.evaluator import (
     AssessmentSummary,
@@ -83,6 +86,25 @@ def test_slug_normalizes_ssh_and_https_to_same_key() -> None:
     ssh = _slug_from_origin("git@github.com:christianhujer/expensereport.git")
     https = _slug_from_origin("https://github.com/christianhujer/expensereport.git")
     assert ssh == https == "christianhujer-expensereport"
+
+
+def test_slug_from_empty_origin_raises() -> None:
+    with pytest.raises(RuntimeError, match="no git origin"):
+        _slug_from_origin("")
+
+
+def test_summarize_trial_returns_empty_summary_without_evals(tmp_path: Path) -> None:
+    trial = tmp_path / "trial__x"
+    trial.mkdir()
+    summary = _summarize_trial(trial)
+    assert summary.groups == []
+    assert summary.trial_name == "trial__x"
+
+
+def test_render_pr_body_no_eval_branch_is_reachable() -> None:
+    summary = AssessmentSummary(task_name="t", trial_name="t__1", agent_name="", groups=[])
+    body = _render_pr_body(summary, {"model_name": "", "harbor_reward": 0})
+    assert "No assessment evaluations" in body
 
 
 def _git(work: Path, *args: str) -> None:

@@ -131,10 +131,10 @@ def test_github_find_open_pr_returns_ref(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_github_fetch_comments_maps_issue_and_inline(monkeypatch: pytest.MonkeyPatch) -> None:
-    issue = '[{"body":"too strict","user":{"login":"sz"},"created_at":"2026-06-05T10:00:00Z"}]'
+    issue = '[[{"body":"too strict","user":{"login":"sz"},"created_at":"2026-06-05T10:00:00Z"}]]'
     inline = (
-        '[{"body":"this line is fine","user":{"login":"sz"},"created_at":"2026-06-05T10:01:00Z",'
-        '"path":"src/Movie.java","line":42,"diff_hunk":"@@ -1 +1 @@"}]'
+        '[[{"body":"this line is fine","user":{"login":"sz"},"created_at":"2026-06-05T10:01:00Z",'
+        '"path":"src/Movie.java","line":42,"diff_hunk":"@@ -1 +1 @@"}]]'
     )
 
     def fake_run(self, args, check):
@@ -183,3 +183,64 @@ def test_gitlab_create_pr_runs_in_origin_context(monkeypatch: pytest.MonkeyPatch
     assert captured["repo"] == "group/repo"
     assert "mr" in captured["args"] and "create" in captured["args"]
     assert "--source-branch" in captured["args"] and "calib/x" in captured["args"]
+
+
+def test_github_create_pr_raises_when_no_url_parsed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(GitHubCliBackend, "_run", lambda self, args, check: _completed(stdout=""))
+    with pytest.raises(RuntimeError, match="no PR URL"):
+        GitHubCliBackend().create_pr("o/r", head="h", base="b", title="t", body_markdown="x")
+
+
+def test_github_fetch_comments_handles_multipage_slurp(monkeypatch: pytest.MonkeyPatch) -> None:
+    page_split = (
+        '[[{"body":"p1","user":{"login":"sz"},"created_at":"t"}],'
+        '[{"body":"p2","user":{"login":"sz"},"created_at":"t"}]]'
+    )
+
+    def fake_run(self, args, check):
+        if "issues" in args[-1]:
+            return _completed(stdout=page_split)
+        return _completed(stdout="[[]]")
+
+    monkeypatch.setattr(GitHubCliBackend, "_run", fake_run)
+    comments = GitHubCliBackend().fetch_pr_comments("o/r", 7)
+    assert [c.body for c in comments] == ["p1", "p2"]
+
+
+def test_gitlab_fetch_comments_handles_concatenated_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    concatenated = (
+        '[{"body":"n1","system":false,"author":{"username":"sz"},"created_at":"t"}]'
+        '[{"body":"n2","system":false,"author":{"username":"sz"},"created_at":"t"}]'
+    )
+    monkeypatch.setattr(GitLabCliBackend, "_run", lambda self, args, check: _completed(stdout=concatenated))
+    comments = GitLabCliBackend().fetch_pr_comments("group/repo", 1)
+    assert [c.body for c in comments] == ["n1", "n2"]
+
+
+def test_gitlab_inline_note_falls_back_to_old_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    notes = (
+        '[{"body":"on removed line","system":false,"author":{"username":"sz"},"created_at":"t",'
+        '"position":{"old_path":"old.py","old_line":9}}]'
+    )
+    monkeypatch.setattr(GitLabCliBackend, "_run", lambda self, args, check: _completed(stdout=notes))
+    comments = GitLabCliBackend().fetch_pr_comments("group/repo", 1)
+    assert comments[0].is_inline is True
+    assert comments[0].path == "old.py"
+    assert comments[0].line == 9
+
+
+def test_gitlab_find_open_pr_includes_all_states(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_run(self, args, check):
+        captured["args"] = args
+        return _completed(stdout='[{"iid":3,"web_url":"https://gitlab.com/g/r/-/merge_requests/3"}]')
+
+    monkeypatch.setattr(GitLabCliBackend, "_run", fake_run)
+    pr = GitLabCliBackend().find_open_pr_for_branch("g/r", "calib/x")
+    assert pr is not None and pr.number == 3
+    assert "--all" in captured["args"]
+
+
+def test_detect_gitlab_label_wins_over_github_substring() -> None:
+    assert detect_platform("https://gitlab.github-enterprise.example.com/team/repo") == "gitlab"

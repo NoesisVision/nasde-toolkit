@@ -21,10 +21,11 @@ def detect_platform(repo_url: str, override: str = "") -> str:
     if override:
         return _validate_override(override)
     host = _extract_host(repo_url)
-    if "github" in host:
-        return GITHUB
-    if "gitlab" in host:
+    labels = host.split(".")
+    if any("gitlab" in label for label in labels):
         return GITLAB
+    if any("github" in label for label in labels):
+        return GITHUB
     raise ValueError(
         f"Could not detect a git platform from repo '{repo_url}'. "
         f"Set [calibration] platform to one of {SUPPORTED_PLATFORMS} in nasde.toml."

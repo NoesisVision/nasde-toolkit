@@ -429,7 +429,7 @@ def results_export_command(
     export_results([p.resolve() for p in paths], to.resolve())
 
 
-@app.command(name="migrate-evals")
+@app.command(name="migrate-evals", hidden=True)
 def migrate_evals_command(
     path: Path = typer.Argument(
         ...,
@@ -447,7 +447,11 @@ def migrate_evals_command(
         help="Path to evaluation project.",
     ),
 ) -> None:
-    """Normalize legacy assessment eval files to the numbered + summary scheme.
+    """[internal] Normalize legacy assessment eval files to the numbered + summary scheme.
+
+    Hidden from `nasde --help`: this is a one-shot migration tool for legacy
+    jobs/ trees (pre-numbered-eval scheme), not a routine user command. Still
+    invokable for future migrations.
 
     Renames a bare assessment_eval.json to assessment_eval_1.json, removes a
     bare file that duplicates the highest numbered one, and (re)computes

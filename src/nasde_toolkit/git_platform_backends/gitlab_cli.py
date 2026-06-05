@@ -46,8 +46,21 @@ class GitLabCliBackend:
     def create_pr(self, repo: str, head: str, base: str, title: str, body_markdown: str) -> PrRef:
         result = self._run_in_repo_context(
             repo,
-            ["mr", "create", "--repo", repo, "--source-branch", head, "--target-branch", base,
-             "--title", title, "--description", body_markdown, "--yes"],
+            [
+                "mr",
+                "create",
+                "--repo",
+                repo,
+                "--source-branch",
+                head,
+                "--target-branch",
+                base,
+                "--title",
+                title,
+                "--description",
+                body_markdown,
+                "--yes",
+            ],
         )
         url = _last_url(result.stdout)
         number = _mr_iid_from_url(url)
@@ -70,7 +83,7 @@ class GitLabCliBackend:
             "[red]ERROR: `glab` CLI not found on PATH.[/red]\n"
             "[yellow]Publishing calibration MRs to GitLab requires the GitLab CLI.[/yellow]\n"
             "Install it from https://gitlab.com/gitlab-org/cli, then run `glab auth login`. "
-            "For a GitHub sink, set \\[calibration] platform = \"github\" in nasde.toml (requires `gh`)."
+            'For a GitHub sink, set \\[calibration] platform = "github" in nasde.toml (requires `gh`).'
         )
         raise SystemExit(1)
 
@@ -78,10 +91,7 @@ class GitLabCliBackend:
         result = self._run(["auth", "status"], check=False)
         if result.returncode == 0:
             return
-        console.print(
-            "[red]ERROR: not authenticated with GitLab.[/red]\n"
-            "[yellow]Run `glab auth login`.[/yellow]"
-        )
+        console.print("[red]ERROR: not authenticated with GitLab.[/red]\n[yellow]Run `glab auth login`.[/yellow]")
         raise SystemExit(1)
 
     def _run(self, args: list[str], check: bool) -> subprocess.CompletedProcess[str]:
@@ -94,9 +104,7 @@ class GitLabCliBackend:
         context_dir = Path(tempfile.mkdtemp(prefix="nasde_glab_ctx_"))
         try:
             self._init_origin_context(context_dir, repo)
-            result = subprocess.run(
-                ["glab", *args], cwd=str(context_dir), capture_output=True, text=True, check=False
-            )
+            result = subprocess.run(["glab", *args], cwd=str(context_dir), capture_output=True, text=True, check=False)
             if result.returncode != 0:
                 raise RuntimeError(f"glab {' '.join(args)} failed: {result.stderr.strip()}")
             return result

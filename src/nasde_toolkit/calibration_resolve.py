@@ -49,7 +49,7 @@ def _resolve_from_slug(repo: str, platform_override: str) -> ResolvedSink:
     if not platform_override:
         raise SystemExitMessage(
             f"Repo '{repo}' is a bare slug with no host. Set [calibration] platform "
-            f"(\"github\" or \"gitlab\") in nasde.toml so the platform can be resolved."
+            f'("github" or "gitlab") in nasde.toml so the platform can be resolved.'
         )
     platform = detect_platform("", platform_override)
     return ResolvedSink(slug=repo, push_url=_ssh_push_url(platform, repo, ""), platform=platform)

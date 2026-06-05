@@ -205,8 +205,7 @@ def test_calibrate_publish_fails_without_repo(tmp_path: Path) -> None:
 @patch("nasde_toolkit.calibration_publisher.publish_trials")
 def test_calibrate_publish_forwards_resolved_sink(mock_publish: object, tmp_path: Path) -> None:
     (tmp_path / "nasde.toml").write_text(
-        '[project]\nname = "test"\n'
-        '[calibration]\nrepo = "https://github.com/NoesisVision/nasde-calibration"\n'
+        '[project]\nname = "test"\n[calibration]\nrepo = "https://github.com/NoesisVision/nasde-calibration"\n'
     )
     job_dir = tmp_path / "jobs" / "job1"
     job_dir.mkdir(parents=True)

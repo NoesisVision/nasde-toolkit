@@ -40,8 +40,7 @@ class GitHubCliBackend:
 
     def create_pr(self, repo: str, head: str, base: str, title: str, body_markdown: str) -> PrRef:
         result = self._run(
-            ["pr", "create", "--repo", repo, "--head", head, "--base", base,
-             "--title", title, "--body", body_markdown],
+            ["pr", "create", "--repo", repo, "--head", head, "--base", base, "--title", title, "--body", body_markdown],
             check=True,
         )
         url = _last_url(result.stdout)
@@ -62,7 +61,7 @@ class GitHubCliBackend:
             "[red]ERROR: `gh` CLI not found on PATH.[/red]\n"
             "[yellow]Publishing calibration PRs to GitHub requires the GitHub CLI.[/yellow]\n"
             "Install it from https://cli.github.com, then run `gh auth login`. "
-            "For a GitLab sink, set \\[calibration] platform = \"gitlab\" in nasde.toml (requires `glab`)."
+            'For a GitLab sink, set \\[calibration] platform = "gitlab" in nasde.toml (requires `glab`).'
         )
         raise SystemExit(1)
 

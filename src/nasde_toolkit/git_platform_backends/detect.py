@@ -35,9 +35,7 @@ def detect_platform(repo_url: str, override: str = "") -> str:
 def _validate_override(override: str) -> str:
     normalized = override.strip().lower()
     if normalized not in SUPPORTED_PLATFORMS:
-        raise ValueError(
-            f"Unknown [calibration] platform '{override}'. Supported: {SUPPORTED_PLATFORMS}."
-        )
+        raise ValueError(f"Unknown [calibration] platform '{override}'. Supported: {SUPPORTED_PLATFORMS}.")
     return normalized
 
 

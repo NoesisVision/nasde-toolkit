@@ -146,9 +146,7 @@ def _publish_one_trial(
             _record_skip(summary, label, base, feature, existing)
             return
         created = _open_pr_for_trial(trial_dir, backend, repo, repo_url, base, feature)
-        summary.published.append(
-            PublishedTrial(label, base, feature, created.number, created.url, created=True)
-        )
+        summary.published.append(PublishedTrial(label, base, feature, created.number, created.url, created=True))
         console.print(f"  [green]published: {label} → {created.url}[/green]")
     except Exception as error:
         console.print(f"  [red]FAIL: {label} — {error}[/red]")
@@ -352,9 +350,7 @@ def _record_skip(
     feature: str,
     existing: PrRef,
 ) -> None:
-    summary.skipped.append(
-        PublishedTrial(label, base, feature, existing.number, existing.url, created=False)
-    )
+    summary.skipped.append(PublishedTrial(label, base, feature, existing.number, existing.url, created=False))
     console.print(f"  [dim]skip (PR exists): {label} → {existing.url}[/dim]")
 
 

@@ -144,11 +144,13 @@ def _parse_json(text: str) -> dict:
     text = text.strip()
     if not text:
         return {}
-    return json.loads(text)
+    parsed: dict = json.loads(text)
+    return parsed
 
 
 def _parse_json_list(text: str) -> list[dict]:
     text = text.strip()
     if not text:
         return []
-    return json.loads(text)
+    parsed: list[dict] = json.loads(text)
+    return parsed

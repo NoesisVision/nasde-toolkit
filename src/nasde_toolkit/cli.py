@@ -19,6 +19,10 @@ from typer._click.formatting import HelpFormatter as ClickHelpFormatter
 from typer.core import TyperGroup
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from nasde_toolkit.calibration_publisher import TrialComments
+    from nasde_toolkit.calibration_resolve import ResolvedSink
     from nasde_toolkit.config import ProjectConfig
 
 console = Console()
@@ -611,7 +615,11 @@ def calibrate_pull_comments(
     _print_pulled_comments(collected)
 
 
-def _resolve_calibration_sink(config: ProjectConfig, repo_flag: str | None, resolver):  # noqa: ANN001
+def _resolve_calibration_sink(
+    config: ProjectConfig,
+    repo_flag: str | None,
+    resolver: Callable[[str, str], ResolvedSink],
+) -> ResolvedSink:
     from nasde_toolkit.calibration_resolve import SystemExitMessage
 
     repo_value = repo_flag or config.calibration.repo
@@ -622,7 +630,7 @@ def _resolve_calibration_sink(config: ProjectConfig, repo_flag: str | None, reso
         raise SystemExit(1) from error
 
 
-def _print_pulled_comments(collected) -> None:  # noqa: ANN001
+def _print_pulled_comments(collected: list[TrialComments]) -> None:
     from rich.table import Table
 
     table = Table(title="Pulled PR/MR comments")

@@ -106,6 +106,18 @@ def test_classify_trial_requires_trial_name(tmp_path: Path) -> None:
     assert _classify_path(with_name) == "trial"
 
 
+def test_classify_jobs_root_is_skipped(tmp_path: Path) -> None:
+    root = tmp_path / "jobs"
+    for job_name in ("2026-06-03__job-a", "2026-06-03__job-b"):
+        job = root / job_name
+        job.mkdir(parents=True)
+        (job / "result.json").write_text(json.dumps({"id": "x", "n_total_trials": 1, "stats": {}}))
+        _make_trial(job / "demo-task__child", with_repo=False)
+
+    assert _classify_path(root) is None
+    assert _classify_path(root / "2026-06-03__job-a") == "job"
+
+
 def test_export_flat_layout(job_dir: Path, tmp_path: Path) -> None:
     dest = tmp_path / "export"
     summary = export_results([job_dir], dest)

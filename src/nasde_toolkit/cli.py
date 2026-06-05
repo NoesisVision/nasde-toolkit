@@ -433,7 +433,7 @@ def results_export_command(
 def migrate_evals_command(
     path: Path = typer.Argument(
         ...,
-        help="Job, jobs/ root, or trial directory whose eval files to normalize.",
+        help="A jobs/ root or a single trial directory whose eval files to normalize.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -452,6 +452,10 @@ def migrate_evals_command(
     Renames a bare assessment_eval.json to assessment_eval_1.json, removes a
     bare file that duplicates the highest numbered one, and (re)computes
     assessment_summary.json. Idempotent.
+
+    Pass a jobs/ root (recurses into all trials) or a single trial directory.
+    A single job directory is not supported — pass the jobs/ root instead, since
+    a job dir's own job-level result.json is not a trial.
     """
     from nasde_toolkit.config import load_project_config
     from nasde_toolkit.eval_migration import migrate_job_evals

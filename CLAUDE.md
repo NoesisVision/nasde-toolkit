@@ -102,7 +102,8 @@ nasde results-export PATHS... [OPTIONS]   # [EXPERIMENTAL] Export trial artifact
 
 nasde migrate-evals PATH [OPTIONS]   # Normalize legacy eval files to numbered + summary scheme
   --dry-run                          # Show intended changes without touching files
-  -C, --project-dir PATH             # PATH = job, jobs/ root, or trial dir
+  -C, --project-dir PATH             # PATH = jobs/ root (recurses) OR a single trial dir
+                                     #   (a single job dir is NOT supported — pass the jobs/ root)
 
 nasde init [PROJECT_DIR]         # Scaffold new benchmark project
   -n, --name TEXT

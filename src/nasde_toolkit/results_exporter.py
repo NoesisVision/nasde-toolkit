@@ -80,16 +80,25 @@ def _append_trial(
 def _classify_path(path: Path) -> str | None:
     if not path.is_dir():
         return None
-    if _collect_trial_dirs(path):
+    if _has_trial_children(path):
         return "job"
     if _is_trial_result(path):
         return "trial"
-    if (path / "result.json").exists():
+    if _collect_trial_dirs(path):
+        console.print(
+            f"[yellow]SKIP: {path} looks like a jobs/ root (its children are job dirs, not "
+            f"trials) — pass specific jobs (e.g. jobs/*/) or a single job/trial dir.[/yellow]"
+        )
+    elif (path / "result.json").exists():
         console.print(
             f"[yellow]SKIP: {path} has a result.json but no trial_name and no trial-shaped "
             f"children — ambiguous, not exporting.[/yellow]"
         )
     return None
+
+
+def _has_trial_children(path: Path) -> bool:
+    return any(_is_trial_result(child) for child in _collect_trial_dirs(path))
 
 
 def _is_trial_result(path: Path) -> bool:

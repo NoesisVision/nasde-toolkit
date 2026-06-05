@@ -2,18 +2,327 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from dataclasses import asdict
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator import (
+    DimensionScore,
+    EvaluationResult,
+    _aggregate_evaluations,
     _build_evaluator_prompt,
+    _build_opik_scores,
+    _dimensions_fingerprint,
+    _dominant_group,
+    _evaluate_and_record_trial,
+    _evaluation_from_dict,
     _load_expected_dimensions,
+    _next_eval_index,
     _parse_evaluation_response,
     _resolve_trajectory_path,
+    _write_assessment_summary,
+    _write_evaluation_result,
 )
+
+
+def _make_evaluation(
+    normalized_score: float,
+    evaluator_model: str = "claude-opus-4-7",
+    dim_score: int = 8,
+    timestamp: str = "2026-06-03T10:00:00+00:00",
+    dimensions_fingerprint: str = "fp-default",
+) -> EvaluationResult:
+    return EvaluationResult(
+        task_name="demo-task",
+        trial_name="demo-task__abc",
+        agent_name="demo-variant",
+        evaluator_model=evaluator_model,
+        timestamp=timestamp,
+        dimensions=[DimensionScore(name="domain_modeling", score=dim_score, max_score=10, reasoning="ok")],
+        total_score=dim_score,
+        normalized_score=normalized_score,
+        summary="summary text",
+        harbor_reward=1.0,
+        duration_sec=100.0,
+        dimensions_fingerprint=dimensions_fingerprint,
+    )
+
+
+def test_next_eval_index_empty_dir_is_one(tmp_path: Path) -> None:
+    assert _next_eval_index(tmp_path) == 1
+
+
+def test_next_eval_index_skips_to_highest_plus_one(tmp_path: Path) -> None:
+    (tmp_path / "assessment_eval_1.json").write_text("{}")
+    (tmp_path / "assessment_eval_2.json").write_text("{}")
+    assert _next_eval_index(tmp_path) == 3
+
+
+def test_next_eval_index_ignores_bare_file(tmp_path: Path) -> None:
+    (tmp_path / "assessment_eval.json").write_text("{}")
+    assert _next_eval_index(tmp_path) == 1
+
+
+def test_write_evaluation_result_is_append_only(tmp_path: Path) -> None:
+    first = _write_evaluation_result(tmp_path, _make_evaluation(0.5))
+    second = _write_evaluation_result(tmp_path, _make_evaluation(0.7))
+
+    assert first.name == "assessment_eval_1.json"
+    assert second.name == "assessment_eval_2.json"
+    assert not (tmp_path / "assessment_eval.json").exists()
+    assert json.loads(first.read_text())["normalized_score"] == 0.5
+    assert json.loads(second.read_text())["normalized_score"] == 0.7
+
+
+def test_aggregate_mean_std_minmax() -> None:
+    evals = [
+        _make_evaluation(0.6, dim_score=6),
+        _make_evaluation(0.7, dim_score=7),
+        _make_evaluation(0.62, dim_score=8),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    assert len(summary.groups) == 1
+    group = summary.groups[0]
+    assert group.n == 3
+    dim = group.dimensions[0]
+    assert dim.mean == 7.0
+    assert dim.min == 6.0
+    assert dim.max == 8.0
+    assert dim.std == 1.0
+    assert group.normalized_score_mean == 0.64
+
+
+def test_aggregate_groups_by_evaluator_model_never_mixes() -> None:
+    evals = [
+        _make_evaluation(0.6, evaluator_model="claude-opus-4-7", dim_score=6),
+        _make_evaluation(0.7, evaluator_model="claude-opus-4-7", dim_score=7),
+        _make_evaluation(0.5, evaluator_model="codex-gpt-5", dim_score=4),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    by_model = {g.evaluator_model: g for g in summary.groups}
+    assert set(by_model) == {"claude-opus-4-7", "codex-gpt-5"}
+    assert by_model["claude-opus-4-7"].n == 2
+    assert by_model["codex-gpt-5"].n == 1
+    assert by_model["claude-opus-4-7"].dimensions[0].mean == 6.5
+
+
+def test_dominant_group_is_max_n() -> None:
+    evals = [
+        _make_evaluation(0.6, evaluator_model="claude-opus-4-7"),
+        _make_evaluation(0.7, evaluator_model="claude-opus-4-7"),
+        _make_evaluation(0.5, evaluator_model="codex-gpt-5"),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    dominant = [g for g in summary.groups if g.dominant]
+    assert len(dominant) == 1
+    assert dominant[0].evaluator_model == "claude-opus-4-7"
+
+
+def test_build_opik_scores_uses_dominant_group_with_std_and_n() -> None:
+    evals = [
+        _make_evaluation(0.6, evaluator_model="claude-opus-4-7", dim_score=6),
+        _make_evaluation(0.7, evaluator_model="claude-opus-4-7", dim_score=8),
+        _make_evaluation(0.5, evaluator_model="codex-gpt-5", dim_score=4),
+    ]
+    summary = _aggregate_evaluations(evals)
+    group = _dominant_group(summary)
+    scores = _build_opik_scores("trace-1", group)
+
+    by_name = {s["name"]: s for s in scores}
+    assert group.evaluator_model == "claude-opus-4-7"
+    assert by_name["arch_domain_modeling"]["value"] == 0.7
+    assert "arch_domain_modeling_std" in by_name
+    assert "arch_total" in by_name
+    assert "arch_total_std" in by_name
+    assert by_name["eval_n"]["value"] == 2.0
+    assert "reward" in by_name
+    assert "duration_sec" in by_name
+
+
+def test_aggregate_std_n1_is_zero() -> None:
+    summary = _aggregate_evaluations([_make_evaluation(0.6, dim_score=6)])
+    group = summary.groups[0]
+    assert group.n == 1
+    assert group.dimensions[0].std == 0.0
+    assert group.normalized_score_std == 0.0
+
+
+def test_aggregate_same_model_different_fingerprints_yields_two_groups() -> None:
+    evals = [
+        _make_evaluation(0.6, dimensions_fingerprint="aaa"),
+        _make_evaluation(0.7, dimensions_fingerprint="aaa"),
+        _make_evaluation(0.9, dimensions_fingerprint="bbb"),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    by_fp = {g.dimensions_fingerprint: g for g in summary.groups}
+    assert set(by_fp) == {"aaa", "bbb"}
+    assert by_fp["aaa"].n == 2
+    assert by_fp["bbb"].n == 1
+    assert by_fp["aaa"].evaluator_model == "claude-opus-4-7"
+
+
+def test_aggregate_legacy_no_fingerprint_is_empty_cluster() -> None:
+    evals = [
+        _make_evaluation(0.6, dimensions_fingerprint=""),
+        _make_evaluation(0.7, dimensions_fingerprint=""),
+    ]
+    summary = _aggregate_evaluations(evals)
+
+    assert len(summary.groups) == 1
+    assert summary.groups[0].dimensions_fingerprint == ""
+    assert summary.groups[0].n == 2
+
+
+def test_dimensions_fingerprint_stable_under_whitespace_reformat(tmp_path: Path) -> None:
+    payload = {
+        "dimensions": [
+            {"name": "a", "title": "A", "max_score": 10, "description": "desc a"},
+            {"name": "b", "title": "B", "max_score": 5, "description": "desc b"},
+        ]
+    }
+    compact = tmp_path / "compact.json"
+    compact.write_text(json.dumps(payload, separators=(",", ":")))
+    pretty = tmp_path / "pretty.json"
+    pretty.write_text(json.dumps(payload, indent=4))
+
+    assert _dimensions_fingerprint(compact) == _dimensions_fingerprint(pretty)
+
+
+def test_dimensions_fingerprint_changes_on_description_edit(tmp_path: Path) -> None:
+    base = {"dimensions": [{"name": "a", "max_score": 10, "description": "original"}]}
+    p1 = tmp_path / "v1.json"
+    p1.write_text(json.dumps(base))
+    p2 = tmp_path / "v2.json"
+    p2.write_text(json.dumps({"dimensions": [{"name": "a", "max_score": 10, "description": "EDITED"}]}))
+    p3 = tmp_path / "v3.json"
+    p3.write_text(json.dumps({"dimensions": [{"name": "a", "max_score": 50, "description": "original"}]}))
+    p4 = tmp_path / "v4.json"
+    added_dim = {
+        "dimensions": [
+            {"name": "a", "max_score": 10, "description": "original"},
+            {"name": "b", "max_score": 5},
+        ]
+    }
+    p4.write_text(json.dumps(added_dim))
+
+    fp1 = _dimensions_fingerprint(p1)
+    assert fp1 != _dimensions_fingerprint(p2)
+    assert fp1 != _dimensions_fingerprint(p3)
+    assert fp1 != _dimensions_fingerprint(p4)
+
+
+def test_dimensions_fingerprint_empty_when_file_missing(tmp_path: Path) -> None:
+    assert _dimensions_fingerprint(tmp_path / "nope.json") == ""
+
+
+def test_evaluation_fingerprint_survives_json_round_trip() -> None:
+    evaluation = _make_evaluation(0.6, dimensions_fingerprint="abc123")
+    reloaded = _evaluation_from_dict(json.loads(json.dumps(asdict(evaluation))))
+    assert reloaded.dimensions_fingerprint == "abc123"
+    legacy = _evaluation_from_dict({"trial_name": "t", "dimensions": []})
+    assert legacy.dimensions_fingerprint == ""
+
+
+def test_write_assessment_summary_has_no_reasoning(tmp_path: Path) -> None:
+    _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
+    _write_evaluation_result(tmp_path, _make_evaluation(0.7, dim_score=7))
+
+    summary = _write_assessment_summary(tmp_path)
+    assert summary is not None
+    raw = (tmp_path / "assessment_summary.json").read_text()
+    assert "reasoning" not in raw
+    parsed = json.loads(raw)
+    assert parsed["groups"][0]["n"] == 2
+
+
+def test_eval_repetitions_writes_n_files(tmp_path: Path) -> None:
+    scores = iter([0.6, 0.7, 0.62])
+    config = EvaluationConfig(eval_repetitions=3)
+
+    async def fake_evaluate_trial(
+        trial_dir: Path, project_root: Path, eval_config: EvaluationConfig
+    ) -> EvaluationResult:
+        return _make_evaluation(next(scores), dim_score=6)
+
+    with patch("nasde_toolkit.evaluator.evaluate_trial", side_effect=fake_evaluate_trial):
+        asyncio.run(
+            _evaluate_and_record_trial(
+                tmp_path,
+                tmp_path,
+                "proj",
+                with_opik=False,
+                semaphore=asyncio.Semaphore(10),
+                eval_config=config,
+            )
+        )
+
+    numbered = sorted(p.name for p in tmp_path.glob("assessment_eval_*.json"))
+    assert numbered == ["assessment_eval_1.json", "assessment_eval_2.json", "assessment_eval_3.json"]
+    summary = json.loads((tmp_path / "assessment_summary.json").read_text())
+    assert summary["groups"][0]["n"] == 3
+
+
+def test_eval_repetitions_one_writes_single_file(tmp_path: Path) -> None:
+    config = EvaluationConfig(eval_repetitions=1)
+
+    async def fake_evaluate_trial(
+        trial_dir: Path, project_root: Path, eval_config: EvaluationConfig
+    ) -> EvaluationResult:
+        return _make_evaluation(0.6, dim_score=6)
+
+    with patch("nasde_toolkit.evaluator.evaluate_trial", side_effect=fake_evaluate_trial):
+        asyncio.run(
+            _evaluate_and_record_trial(
+                tmp_path,
+                tmp_path,
+                "proj",
+                with_opik=False,
+                semaphore=asyncio.Semaphore(10),
+                eval_config=config,
+            )
+        )
+
+    numbered = sorted(p.name for p in tmp_path.glob("assessment_eval_*.json"))
+    assert numbered == ["assessment_eval_1.json"]
+
+
+def test_evaluate_and_record_trial_writes_surviving_reps_on_partial_failure(tmp_path: Path) -> None:
+    call_count = iter(range(3))
+    config = EvaluationConfig(eval_repetitions=3)
+
+    async def flaky_evaluate_trial(
+        trial_dir: Path, project_root: Path, eval_config: EvaluationConfig
+    ) -> EvaluationResult:
+        index = next(call_count)
+        if index == 1:
+            raise RuntimeError("backend boom")
+        return _make_evaluation(0.6, dim_score=6)
+
+    with patch("nasde_toolkit.evaluator.evaluate_trial", side_effect=flaky_evaluate_trial):
+        asyncio.run(
+            _evaluate_and_record_trial(
+                tmp_path,
+                tmp_path,
+                "proj",
+                with_opik=False,
+                semaphore=asyncio.Semaphore(10),
+                eval_config=config,
+            )
+        )
+
+    numbered = sorted(p.name for p in tmp_path.glob("assessment_eval_*.json"))
+    assert numbered == ["assessment_eval_1.json", "assessment_eval_2.json"]
+    summary = json.loads((tmp_path / "assessment_summary.json").read_text())
+    assert summary["groups"][0]["n"] == 2
 
 
 def test_evaluate_trial_uses_configured_backend() -> None:

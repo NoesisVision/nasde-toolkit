@@ -69,6 +69,15 @@ def _no_banner_callback(value: bool) -> None:
         suppress_banner()
 
 
+def _override_eval_repetitions(config: ProjectConfig, eval_repetitions: int | None) -> None:
+    if eval_repetitions is None:
+        return
+    if eval_repetitions < 1:
+        console.print("[red]ERROR: --eval-repetitions must be >= 1.[/red]")
+        raise typer.Exit(1)
+    config.evaluation.eval_repetitions = eval_repetitions
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
@@ -200,6 +209,11 @@ def run(
         "--max-concurrent-eval",
         help="Max concurrent assessment evaluations (default: 10).",
     ),
+    eval_repetitions: int | None = typer.Option(
+        None,
+        "--eval-repetitions",
+        help="Judge evaluations per trial (default: from nasde.toml [evaluation], fallback 3).",
+    ),
     harbor_env: str | None = typer.Option(
         None,
         "--harbor-env",
@@ -225,6 +239,7 @@ def run(
     from nasde_toolkit.runner import collect_available_variants, run_benchmark
 
     config = load_project_config(project_dir.resolve())
+    _override_eval_repetitions(config, eval_repetitions)
     tasks_filter = [t.strip() for t in tasks.split(",")] if tasks else None
     resolved_harbor_env = harbor_env or config.default_harbor_env
     resolved_model = model
@@ -330,6 +345,11 @@ def eval_command(
         "--max-concurrent-eval",
         help="Max concurrent assessment evaluations (default: 10).",
     ),
+    eval_repetitions: int | None = typer.Option(
+        None,
+        "--eval-repetitions",
+        help="Judge evaluations per trial (default: from nasde.toml [evaluation], fallback 3).",
+    ),
     project_dir: Path = typer.Option(
         Path("."),
         "--project-dir",
@@ -342,6 +362,7 @@ def eval_command(
     from nasde_toolkit.evaluator import evaluate_job
 
     config = load_project_config(project_dir.resolve())
+    _override_eval_repetitions(config, eval_repetitions)
 
     from nasde_toolkit.banner import print_banner
 
@@ -363,6 +384,108 @@ def eval_command(
             eval_config=config.evaluation,
         )
     )
+
+
+@app.command(name="results-export")
+def results_export_command(
+    paths: list[Path] = typer.Argument(
+        ...,
+        help="Job and/or trial directories to export (mixed OK — type is auto-detected).",
+    ),
+    to: Path = typer.Option(
+        ...,
+        "--to",
+        "-t",
+        help="Destination directory (iCloud, Dropbox, a git repo — any plain path).",
+    ),
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project.",
+    ),
+) -> None:
+    """[EXPERIMENTAL] Export the essence of trial artifacts to a plain directory.
+
+    Copies metrics, assessment scores, the agent trajectory, and a code patch for
+    each trial into a flat per-trial layout, so results survive even when jobs/ is
+    cleared and without relying on Opik or EXPERIMENT_LOG.md.
+    """
+    from nasde_toolkit.config import load_project_config
+    from nasde_toolkit.results_exporter import export_results
+
+    load_project_config(project_dir.resolve())
+
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
+    console.print(
+        Panel(
+            f"[bold]Results Export[/bold] [yellow](experimental)[/yellow]\nDest: {to}\nInputs: {len(paths)}",
+            title="nasde",
+        )
+    )
+
+    export_results([p.resolve() for p in paths], to.resolve())
+
+
+@app.command(name="migrate-evals", hidden=True)
+def migrate_evals_command(
+    path: Path = typer.Argument(
+        ...,
+        help="A jobs/ root or a single trial directory whose eval files to normalize.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show what would change without touching any files.",
+    ),
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project.",
+    ),
+) -> None:
+    """[internal] Normalize legacy assessment eval files to the numbered + summary scheme.
+
+    Hidden from `nasde --help`: this is a one-shot migration tool for legacy
+    jobs/ trees (pre-numbered-eval scheme), not a routine user command. Still
+    invokable for future migrations.
+
+    Renames a bare assessment_eval.json to assessment_eval_1.json, removes a
+    bare file that duplicates the highest numbered one, and (re)computes
+    assessment_summary.json. Idempotent.
+
+    Pass a jobs/ root (recurses into all trials) or a single trial directory.
+    A single job directory is not supported — pass the jobs/ root instead, since
+    a job dir's own job-level result.json is not a trial.
+    """
+    from nasde_toolkit.config import load_project_config
+    from nasde_toolkit.eval_migration import migrate_job_evals
+
+    load_project_config(project_dir.resolve())
+
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
+    console.print(
+        Panel(
+            f"[bold]Migrate Evals[/bold]{' [yellow](dry-run)[/yellow]' if dry_run else ''}\nPath: {path}",
+            title="nasde",
+        )
+    )
+
+    outcomes = migrate_job_evals(path.resolve(), dry_run=dry_run)
+
+    from rich.table import Table
+
+    table = Table(title="Migration outcomes")
+    table.add_column("Outcome", style="bold")
+    table.add_column("Trials", justify="right")
+    for name, count in outcomes.items():
+        table.add_row(name, str(count))
+    console.print(table)
 
 
 # ---------------------------------------------------------------------------

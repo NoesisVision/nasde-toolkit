@@ -23,6 +23,7 @@ build_commands = []
 [evaluation]
 model = "claude-sonnet-4-6"
 dimensions_file = "assessment_dimensions.json"
+# eval_repetitions = 3  # judge runs per trial; reported as a mean (the judge is non-deterministic)
 
 [reporting]
 platform = "opik"

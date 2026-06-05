@@ -8,8 +8,10 @@ to Opik as feedback scores on existing traces.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
+import statistics
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -52,6 +54,52 @@ class EvaluationResult:
     summary: str = ""
     harbor_reward: float = 0.0
     duration_sec: float = 0.0
+    dimensions_fingerprint: str = ""
+
+
+@dataclass
+class DimensionStats:
+    """Aggregate statistics for one dimension across repeated evaluations."""
+
+    name: str
+    max_score: int
+    mean: float
+    std: float
+    min: float
+    max: float
+
+
+@dataclass
+class EvaluatorGroupSummary:
+    """Mean aggregate over evaluations sharing one (evaluator model, rubric).
+
+    Averages are computed only within a single (evaluator_model,
+    dimensions_fingerprint) cluster — a different judge model OR a changed
+    assessment_dimensions.json rubric is a different benchmark, never mixed.
+    """
+
+    evaluator_model: str
+    dimensions_fingerprint: str
+    n: int
+    dominant: bool
+    dimensions: list[DimensionStats] = field(default_factory=list)
+    normalized_score_mean: float = 0.0
+    normalized_score_std: float = 0.0
+    normalized_score_min: float = 0.0
+    normalized_score_max: float = 0.0
+    total_score_mean: float = 0.0
+    harbor_reward: float = 0.0
+    duration_sec_mean: float = 0.0
+
+
+@dataclass
+class AssessmentSummary:
+    """Representative result of a trial: per-evaluator-cluster mean aggregates."""
+
+    task_name: str
+    trial_name: str
+    agent_name: str
+    groups: list[EvaluatorGroupSummary] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +123,7 @@ async def evaluate_job(
         console.print("[yellow]No trial directories found.[/yellow]")
         return []
 
-    _warn_if_throttled(trial_dirs, max_concurrent)
+    _warn_if_throttled(trial_dirs, max_concurrent, eval_config.eval_repetitions)
     semaphore = asyncio.Semaphore(max_concurrent)
     coros = [
         _evaluate_and_record_trial(
@@ -124,30 +172,62 @@ async def _evaluate_and_record_trial(
     eval_config: EvaluationConfig | None = None,
 ) -> EvaluationResult | None:
     eval_config = eval_config or EvaluationConfig()
-    async with semaphore:
-        console.print(f"\n[bold]Evaluating: {trial_dir.name}[/bold]")
-        try:
-            evaluation = await evaluate_trial(trial_dir, project_root, eval_config)
-            if not evaluation:
-                return None
-            _write_evaluation_result(trial_dir, evaluation)
-            if with_opik:
-                await asyncio.to_thread(_upload_to_opik, evaluation, project_name)
-            return evaluation
-        except Exception as exc:
-            console.print(f"[red]Assessment failed for {trial_dir.name}: {exc}[/red]")
+    console.print(f"\n[bold]Evaluating: {trial_dir.name} (x{eval_config.eval_repetitions})[/bold]")
+    try:
+        evaluations = await _run_trial_evaluations(trial_dir, project_root, semaphore, eval_config)
+        if not evaluations:
             return None
+        for evaluation in evaluations:
+            _write_evaluation_result(trial_dir, evaluation)
+        summary = _write_assessment_summary(trial_dir)
+        if with_opik and summary is not None:
+            await asyncio.to_thread(_upload_to_opik, summary, project_name)
+        return evaluations[-1]
+    except Exception as exc:
+        console.print(f"[red]Assessment failed for {trial_dir.name}: {exc}[/red]")
+        return None
 
 
-def _warn_if_throttled(trial_dirs: list[Path], max_concurrent: int) -> None:
-    if len(trial_dirs) <= max_concurrent:
+async def _run_trial_evaluations(
+    trial_dir: Path,
+    project_root: Path,
+    semaphore: asyncio.Semaphore,
+    eval_config: EvaluationConfig,
+) -> list[EvaluationResult]:
+    async def _one_evaluation() -> EvaluationResult | None:
+        async with semaphore:
+            return await evaluate_trial(trial_dir, project_root, eval_config)
+
+    results = await asyncio.gather(
+        *[_one_evaluation() for _ in range(eval_config.eval_repetitions)],
+        return_exceptions=True,
+    )
+    return _keep_successful_evaluations(trial_dir, results)
+
+
+def _keep_successful_evaluations(
+    trial_dir: Path, results: list[EvaluationResult | None | BaseException]
+) -> list[EvaluationResult]:
+    successful: list[EvaluationResult] = []
+    for result in results:
+        if isinstance(result, BaseException):
+            console.print(f"  [yellow]Evaluation rep failed for {trial_dir.name}: {result}[/yellow]")
+        elif isinstance(result, EvaluationResult):
+            successful.append(result)
+    return successful
+
+
+def _warn_if_throttled(trial_dirs: list[Path], max_concurrent: int, eval_repetitions: int) -> None:
+    total_evaluations = len(trial_dirs) * eval_repetitions
+    if total_evaluations <= max_concurrent:
         return
     unique_tasks = {td.name.rsplit("__", 1)[0] for td in trial_dirs}
     n_tasks = len(unique_tasks)
     n_attempts = len(trial_dirs) // max(n_tasks, 1)
-    breakdown = f"{n_tasks} tasks x {n_attempts} attempts" if n_attempts > 1 else f"{n_tasks} tasks"
+    attempts_part = f"{n_tasks} tasks x {n_attempts} attempts" if n_attempts > 1 else f"{n_tasks} tasks"
+    breakdown = f"{attempts_part} x {eval_repetitions} repetitions" if eval_repetitions > 1 else attempts_part
     console.print(
-        f"[yellow]Warning: {len(trial_dirs)} trials to evaluate ({breakdown}), "
+        f"[yellow]Warning: {total_evaluations} evaluations to run ({breakdown}), "
         f"but max concurrent evals is {max_concurrent}. "
         f"Evaluations will be throttled. Use --max-concurrent-eval to adjust.[/yellow]"
     )
@@ -228,6 +308,7 @@ async def evaluate_trial(
     evaluation.duration_sec = duration_sec
     evaluation.evaluator_model = eval_config.model
     evaluation.timestamp = datetime.now(UTC).isoformat()
+    evaluation.dimensions_fingerprint = _dimensions_fingerprint(dimensions_path)
 
     total_max = sum(dim.max_score for dim in evaluation.dimensions)
     console.print(f"  Score: {evaluation.total_score}/{total_max} ({evaluation.normalized_score:.2f})")
@@ -268,6 +349,13 @@ def _load_expected_dimensions(dimensions_path: Path) -> list[dict] | None:
     dims: list[dict] | None = data.get("dimensions", [])
     _validate_expected_dimensions(dims, dimensions_path)
     return dims
+
+
+def _dimensions_fingerprint(dimensions_path: Path) -> str:
+    if not dimensions_path.exists():
+        return ""
+    normalized = json.dumps(_load_json(dimensions_path), sort_keys=True)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
 
 
 def _validate_expected_dimensions(dims: list[dict] | None, source: Path) -> None:
@@ -553,11 +641,144 @@ def _validate_dimensions(
 # ---------------------------------------------------------------------------
 
 
-def _write_evaluation_result(trial_dir: Path, evaluation: EvaluationResult) -> None:
-    output_path = trial_dir / "assessment_eval.json"
+def _write_evaluation_result(trial_dir: Path, evaluation: EvaluationResult) -> Path:
+    output_path = trial_dir / f"assessment_eval_{_next_eval_index(trial_dir)}.json"
     with open(output_path, "w") as f:
         json.dump(asdict(evaluation), f, indent=2)
     console.print(f"  Written: {output_path}")
+    return output_path
+
+
+def _next_eval_index(trial_dir: Path) -> int:
+    pattern = re.compile(r"assessment_eval_(\d+)\.json$")
+    indices = [
+        int(match.group(1)) for path in trial_dir.glob("assessment_eval_*.json") if (match := pattern.search(path.name))
+    ]
+    return max(indices, default=0) + 1
+
+
+def _write_assessment_summary(trial_dir: Path) -> AssessmentSummary | None:
+    evaluations = _load_raw_evaluations(trial_dir)
+    if not evaluations:
+        return None
+    summary = _aggregate_evaluations(evaluations)
+    output_path = trial_dir / "assessment_summary.json"
+    with open(output_path, "w") as f:
+        json.dump(asdict(summary), f, indent=2)
+    console.print(f"  Written: {output_path}")
+    return summary
+
+
+def _load_raw_evaluations(trial_dir: Path) -> list[EvaluationResult]:
+    pattern = re.compile(r"assessment_eval_(\d+)\.json$")
+    numbered = sorted(
+        (
+            (int(match.group(1)), path)
+            for path in trial_dir.glob("assessment_eval_*.json")
+            if (match := pattern.search(path.name))
+        ),
+        key=lambda pair: pair[0],
+    )
+    return [_evaluation_from_dict(_load_json(path)) for _, path in numbered]
+
+
+def _evaluation_from_dict(data: dict) -> EvaluationResult:
+    dimensions = [DimensionScore(**dim) for dim in data.get("dimensions", [])]
+    return EvaluationResult(
+        task_name=data.get("task_name", ""),
+        trial_name=data.get("trial_name", ""),
+        agent_name=data.get("agent_name", ""),
+        evaluator_model=data.get("evaluator_model", ""),
+        timestamp=data.get("timestamp", ""),
+        dimensions=dimensions,
+        total_score=data.get("total_score", 0),
+        normalized_score=data.get("normalized_score", 0.0),
+        summary=data.get("summary", ""),
+        harbor_reward=data.get("harbor_reward", 0.0),
+        duration_sec=data.get("duration_sec", 0.0),
+        dimensions_fingerprint=data.get("dimensions_fingerprint", ""),
+    )
+
+
+def _aggregate_evaluations(evaluations: list[EvaluationResult]) -> AssessmentSummary:
+    clusters: dict[tuple[str, str], list[EvaluationResult]] = {}
+    for evaluation in evaluations:
+        key = (evaluation.evaluator_model, evaluation.dimensions_fingerprint)
+        clusters.setdefault(key, []).append(evaluation)
+    dominant_key = _dominant_cluster_key(clusters)
+    groups = [
+        _aggregate_one_group(key[0], key[1], members, dominant=key == dominant_key) for key, members in clusters.items()
+    ]
+    return AssessmentSummary(
+        task_name=_first_stable([e.task_name for e in evaluations], "task_name"),
+        trial_name=_first_stable([e.trial_name for e in evaluations], "trial_name"),
+        agent_name=_first_stable([e.agent_name for e in evaluations], "agent_name"),
+        groups=groups,
+    )
+
+
+def _dominant_cluster_key(clusters: dict[tuple[str, str], list[EvaluationResult]]) -> tuple[str, str]:
+    def cluster_key(item: tuple[tuple[str, str], list[EvaluationResult]]) -> tuple[int, str]:
+        _, members = item
+        latest_timestamp = max(e.timestamp for e in members)
+        return len(members), latest_timestamp
+
+    return max(clusters.items(), key=cluster_key)[0]
+
+
+def _aggregate_one_group(
+    evaluator_model: str, dimensions_fingerprint: str, members: list[EvaluationResult], dominant: bool
+) -> EvaluatorGroupSummary:
+    normalized = [e.normalized_score for e in members]
+    return EvaluatorGroupSummary(
+        evaluator_model=evaluator_model,
+        dimensions_fingerprint=dimensions_fingerprint,
+        n=len(members),
+        dominant=dominant,
+        dimensions=_aggregate_dimensions(members),
+        normalized_score_mean=round(statistics.mean(normalized), 4),
+        normalized_score_std=_sample_std(normalized),
+        normalized_score_min=round(min(normalized), 4),
+        normalized_score_max=round(max(normalized), 4),
+        total_score_mean=round(statistics.mean([e.total_score for e in members]), 4),
+        harbor_reward=_first_stable([e.harbor_reward for e in members], "harbor_reward"),
+        duration_sec_mean=round(statistics.mean([e.duration_sec for e in members]), 4),
+    )
+
+
+def _aggregate_dimensions(members: list[EvaluationResult]) -> list[DimensionStats]:
+    ordered_names = [dim.name for dim in members[0].dimensions]
+    stats: list[DimensionStats] = []
+    for name in ordered_names:
+        scores = [float(dim.score) for e in members for dim in e.dimensions if dim.name == name]
+        max_score = next(dim.max_score for dim in members[0].dimensions if dim.name == name)
+        stats.append(
+            DimensionStats(
+                name=name,
+                max_score=max_score,
+                mean=round(statistics.mean(scores), 4),
+                std=_sample_std(scores),
+                min=round(min(scores), 4),
+                max=round(max(scores), 4),
+            )
+        )
+    return stats
+
+
+def _sample_std(values: list[float]) -> float:
+    if len(values) < 2:
+        return 0.0
+    return round(statistics.stdev(values), 4)
+
+
+def _first_stable[T](values: list[T], field_name: str) -> T:
+    distinct = {repr(v) for v in values}
+    if len(distinct) > 1:
+        console.print(
+            f"  [yellow]Warning: divergent '{field_name}' across evaluations "
+            f"({sorted(distinct)}); keeping the first.[/yellow]"
+        )
+    return values[0]
 
 
 # ---------------------------------------------------------------------------
@@ -565,62 +786,92 @@ def _write_evaluation_result(trial_dir: Path, evaluation: EvaluationResult) -> N
 # ---------------------------------------------------------------------------
 
 
-def _upload_to_opik(evaluation: EvaluationResult, project_name: str) -> None:
+def _upload_to_opik(summary: AssessmentSummary, project_name: str) -> None:
     try:
         import opik
     except ImportError:
         console.print("  [yellow]WARN: opik not installed, skipping upload[/yellow]")
         return
 
+    group = _dominant_group(summary)
     client = opik.Opik()
-    trace_id = _find_opik_trace(client, evaluation.trial_name, evaluation.agent_name, project_name)
+    trace_id = _find_opik_trace(client, summary.trial_name, summary.agent_name, project_name)
 
     if not trace_id:
-        console.print(f"  Creating new trace for {evaluation.trial_name}")
+        console.print(f"  Creating new trace for {summary.trial_name}")
         new_trace = client.trace(
-            name=f"{evaluation.trial_name}__assessment-eval",
+            name=f"{summary.trial_name}__assessment-eval",
             project_name=project_name,
-            input={"task_name": evaluation.task_name},
-            output={"summary": evaluation.summary},
+            input={"task_name": summary.task_name},
+            output={"summary": f"mean over n={group.n} ({group.evaluator_model})"},
         )
         trace_id = new_trace.id
 
-    scores = _build_opik_scores(trace_id, evaluation)
+    scores = _build_opik_scores(trace_id, group)
     client.log_traces_feedback_scores(scores, project_name=project_name)  # type: ignore[arg-type]
     client.flush()
     console.print(f"  Uploaded {len(scores)} feedback scores to Opik (trace {trace_id})")
 
 
-def _build_opik_scores(trace_id: str, evaluation: EvaluationResult) -> list[dict]:
-    scores = [
-        {
-            "id": trace_id,
-            "name": f"arch_{dim.name}",
-            "value": float(dim.score) / float(dim.max_score),
-            "reason": dim.reasoning,
-        }
-        for dim in evaluation.dimensions
-    ]
+def _dominant_group(summary: AssessmentSummary) -> EvaluatorGroupSummary:
+    return next((g for g in summary.groups if g.dominant), summary.groups[0])
+
+
+def _build_opik_scores(trace_id: str, group: EvaluatorGroupSummary) -> list[dict[str, object]]:
+    scores: list[dict[str, object]] = []
+    for dim in group.dimensions:
+        scores.append(
+            {
+                "id": trace_id,
+                "name": f"arch_{dim.name}",
+                "value": round(dim.mean / dim.max_score, 4),
+                "reason": f"mean {dim.mean} ± {dim.std} over n={group.n} ({group.evaluator_model})",
+            }
+        )
+        scores.append(
+            {
+                "id": trace_id,
+                "name": f"arch_{dim.name}_std",
+                "value": round(dim.std / dim.max_score, 4),
+                "reason": f"normalized std over n={group.n} ({group.evaluator_model})",
+            }
+        )
     scores.append(
         {
             "id": trace_id,
             "name": "arch_total",
-            "value": evaluation.normalized_score,
-            "reason": evaluation.summary,
+            "value": group.normalized_score_mean,
+            "reason": f"mean normalized over n={group.n} ({group.evaluator_model})",
+        }
+    )
+    scores.append(
+        {
+            "id": trace_id,
+            "name": "arch_total_std",
+            "value": group.normalized_score_std,
+            "reason": f"normalized-score std over n={group.n} ({group.evaluator_model})",
+        }
+    )
+    scores.append(
+        {
+            "id": trace_id,
+            "name": "eval_n",
+            "value": float(group.n),
+            "reason": f"number of {group.evaluator_model} evaluations aggregated",
         }
     )
     scores.append(
         {
             "id": trace_id,
             "name": "reward",
-            "value": evaluation.harbor_reward,
+            "value": group.harbor_reward,
         }
     )
     scores.append(
         {
             "id": trace_id,
             "name": "duration_sec",
-            "value": evaluation.duration_sec,
+            "value": group.duration_sec_mean,
         }
     )
     return scores

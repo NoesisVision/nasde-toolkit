@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from nasde_toolkit.config import EvaluationConfig, load_project_config
 
 
@@ -74,6 +76,7 @@ name = "test"
     assert config.evaluation.skills_dir is None
     assert config.evaluation.append_system_prompt is None
     assert config.evaluation.include_trajectory is False
+    assert config.evaluation.eval_repetitions == 3
 
 
 def test_evaluation_all_fields_from_toml(tmp_path: Path) -> None:
@@ -92,10 +95,12 @@ mcp_config = "./evaluator_mcp.json"
 skills_dir = "./evaluator_skills"
 append_system_prompt = "Focus on SOLID principles."
 include_trajectory = true
+eval_repetitions = 5
 """,
     )
     config = load_project_config(tmp_path)
     assert config.evaluation.model == "claude-sonnet-4-6"
+    assert config.evaluation.eval_repetitions == 5
     assert config.evaluation.dimensions_file == "custom_dims.json"
     assert config.evaluation.max_turns == 50
     assert config.evaluation.allowed_tools == ["Read", "Glob", "Grep", "Bash"]
@@ -103,6 +108,21 @@ include_trajectory = true
     assert config.evaluation.skills_dir == "./evaluator_skills"
     assert config.evaluation.append_system_prompt == "Focus on SOLID principles."
     assert config.evaluation.include_trajectory is True
+
+
+def test_eval_repetitions_rejects_non_positive(tmp_path: Path) -> None:
+    _write_nasde_toml(
+        tmp_path,
+        """
+[project]
+name = "test"
+
+[evaluation]
+eval_repetitions = 0
+""",
+    )
+    with pytest.raises(ValueError, match="eval_repetitions"):
+        load_project_config(tmp_path)
 
 
 def test_evaluation_partial_override(tmp_path: Path) -> None:

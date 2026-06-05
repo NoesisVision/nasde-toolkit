@@ -34,7 +34,7 @@ class GitLabCliBackend:
 
     def find_open_pr_for_branch(self, repo: str, head_branch: str) -> PrRef | None:
         result = self._run(
-            ["mr", "list", "--repo", repo, "--source-branch", head_branch, "--all", "--output", "json"],
+            ["mr", "list", "--repo", repo, "--source-branch", head_branch, "--output", "json"],
             check=True,
         )
         entries = _parse_json_list(result.stdout)

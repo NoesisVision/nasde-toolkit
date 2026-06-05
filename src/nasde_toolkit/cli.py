@@ -559,6 +559,7 @@ def calibrate_publish(
         base_branch=config.calibration.base_branch,
         platform_override=sink.platform,
         throttle_sec=throttle_sec,
+        project_root=config.project_dir,
     )
 
 

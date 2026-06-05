@@ -229,7 +229,7 @@ def test_gitlab_inline_note_falls_back_to_old_line(monkeypatch: pytest.MonkeyPat
     assert comments[0].line == 9
 
 
-def test_gitlab_find_open_pr_includes_all_states(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_gitlab_find_open_pr_matches_open_only(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict = {}
 
     def fake_run(self, args, check):
@@ -239,7 +239,20 @@ def test_gitlab_find_open_pr_includes_all_states(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(GitLabCliBackend, "_run", fake_run)
     pr = GitLabCliBackend().find_open_pr_for_branch("g/r", "calib/x")
     assert pr is not None and pr.number == 3
-    assert "--all" in captured["args"]
+    assert "--all" not in captured["args"]
+
+
+def test_github_find_open_pr_matches_open_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_run(self, args, check):
+        captured["args"] = args
+        return _completed(stdout='[{"number":3,"url":"https://github.com/o/r/pull/3"}]')
+
+    monkeypatch.setattr(GitHubCliBackend, "_run", fake_run)
+    GitHubCliBackend().find_open_pr_for_branch("o/r", "calib/x")
+    assert "open" in captured["args"]
+    assert "all" not in captured["args"]
 
 
 def test_detect_gitlab_label_wins_over_github_substring() -> None:

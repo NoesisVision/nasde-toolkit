@@ -29,7 +29,7 @@ class GitHubCliBackend:
 
     def find_open_pr_for_branch(self, repo: str, head_branch: str) -> PrRef | None:
         result = self._run(
-            ["pr", "list", "--repo", repo, "--head", head_branch, "--state", "all", "--json", "number,url"],
+            ["pr", "list", "--repo", repo, "--head", head_branch, "--state", "open", "--json", "number,url"],
             check=True,
         )
         entries = _parse_json_list(result.stdout)

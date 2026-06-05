@@ -27,6 +27,7 @@ from nasde_toolkit.evaluator import (
     AssessmentSummary,
     EvaluatorGroupSummary,
     _aggregate_evaluations,
+    _load_json,
     _load_raw_evaluations,
 )
 from nasde_toolkit.git_platform_backends import create_git_backend
@@ -82,6 +83,7 @@ def publish_trials(
     base_branch: str = "main",
     platform_override: str = "",
     throttle_sec: float = 2.0,
+    project_root: Path | None = None,
 ) -> PublishSummary:
     """Publish the given job/trial paths as PRs/MRs on the sink repo."""
     backend = _preflight(repo, repo_url, platform_override)
@@ -90,7 +92,7 @@ def publish_trials(
     for index, (_, trial_dir) in enumerate(trials):
         if index > 0:
             time.sleep(throttle_sec)
-        _publish_one_trial(trial_dir, backend, repo, repo_url, base_branch, summary)
+        _publish_one_trial(trial_dir, backend, repo, repo_url, base_branch, project_root, summary)
     _print_publish_summary(summary, repo)
     return summary
 
@@ -134,6 +136,7 @@ def _publish_one_trial(
     repo: str,
     repo_url: str,
     base_branch: str,
+    project_root: Path | None,
     summary: PublishSummary,
 ) -> None:
     label = trial_dir.name
@@ -145,7 +148,7 @@ def _publish_one_trial(
         if existing is not None:
             _record_skip(summary, label, base, feature, existing)
             return
-        created = _open_pr_for_trial(trial_dir, backend, repo, repo_url, base, feature)
+        created = _open_pr_for_trial(trial_dir, backend, repo, repo_url, base, feature, project_root)
         summary.published.append(PublishedTrial(label, base, feature, created.number, created.url, created=True))
         console.print(f"  [green]published: {label} → {created.url}[/green]")
     except Exception as error:
@@ -160,6 +163,7 @@ def _open_pr_for_trial(
     repo_url: str,
     base: str,
     feature: str,
+    project_root: Path | None,
 ) -> PrRef:
     workspace = trial_dir / "artifacts" / "workspace"
     metrics = _build_metrics(trial_dir)
@@ -168,7 +172,8 @@ def _open_pr_for_trial(
     body = _render_pr_body(summary, metrics)
     ensure_base_branch(repo_url, base, workspace)
     patch_text = _capture_patch(workspace)
-    push_feature_branch(repo_url, base, feature, workspace, patch_text, _calibration_files(trial_dir, metrics))
+    files = _calibration_files(trial_dir, metrics, project_root)
+    push_feature_branch(repo_url, base, feature, workspace, patch_text, files)
     return backend.create_pr(repo, head=feature, base=base, title=title, body_markdown=body)
 
 
@@ -199,8 +204,9 @@ def _pull_one_trial_comments(
     return TrialComments(label=trial_dir.name, pr_number=pr.number, pr_url=pr.url, comments=comments)
 
 
-def _calibration_files(trial_dir: Path, metrics: dict) -> dict[str, str]:
+def _calibration_files(trial_dir: Path, metrics: dict, project_root: Path | None) -> dict[str, str]:
     files: dict[str, str] = {}
+    _add_task_context_files(files, trial_dir, project_root)
     for assessment in sorted(trial_dir.glob("assessment_eval_*.json")):
         files[assessment.name] = assessment.read_text(encoding="utf-8")
     summary_path = trial_dir / "assessment_summary.json"
@@ -208,6 +214,37 @@ def _calibration_files(trial_dir: Path, metrics: dict) -> dict[str, str]:
         files["assessment_summary.json"] = summary_path.read_text(encoding="utf-8")
     files["metrics.json"] = json.dumps(metrics, indent=2)
     return files
+
+
+def _add_task_context_files(files: dict[str, str], trial_dir: Path, project_root: Path | None) -> None:
+    task_dir = _resolve_task_dir(trial_dir, project_root)
+    if task_dir is None:
+        return
+    for name in ("instruction.md", "assessment_criteria.md"):
+        source = task_dir / name
+        if source.exists():
+            files[name] = source.read_text(encoding="utf-8")
+    dimensions = task_dir.parent.parent / "assessment_dimensions.json"
+    if dimensions.exists():
+        files["assessment_dimensions.json"] = dimensions.read_text(encoding="utf-8")
+
+
+def _resolve_task_dir(trial_dir: Path, project_root: Path | None) -> Path | None:
+    if project_root is None:
+        return None
+    result = _load_json(trial_dir / "result.json")
+    task_name = str(result.get("task_name", ""))
+    source = str(result.get("source", ""))
+    if not task_name:
+        return None
+    candidates = [
+        project_root / "tasks" / task_name,
+        project_root / "evals" / source / "tasks" / task_name,
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return None
 
 
 def _base_key(trial_dir: Path) -> tuple[str, str]:

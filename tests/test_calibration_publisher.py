@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 
 from nasde_toolkit.calibration_publisher import (
+    _add_task_context_files,
     _base_branch_name,
     _feature_branch_name,
     _render_pr_body,
+    _resolve_task_dir,
     _slug_from_origin,
     _summarize_trial,
 )
@@ -91,6 +93,39 @@ def test_slug_normalizes_ssh_and_https_to_same_key() -> None:
 def test_slug_from_empty_origin_raises() -> None:
     with pytest.raises(RuntimeError, match="no git origin"):
         _slug_from_origin("")
+
+
+def _make_trial_with_task(tmp_path: Path) -> tuple[Path, Path]:
+    project_root = tmp_path / "bench"
+    task_dir = project_root / "tasks" / "my-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "instruction.md").write_text("Refactor the pricing module.", encoding="utf-8")
+    (task_dir / "assessment_criteria.md").write_text("## domain_modeling (0-25)\n...", encoding="utf-8")
+    (project_root / "assessment_dimensions.json").write_text('{"dimensions": []}', encoding="utf-8")
+    trial_dir = project_root / "jobs" / "job1" / "my-task__abc"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "result.json").write_text('{"task_name": "my-task", "source": "bench"}', encoding="utf-8")
+    return project_root, trial_dir
+
+
+def test_resolve_task_dir_finds_tasks_layout(tmp_path: Path) -> None:
+    project_root, trial_dir = _make_trial_with_task(tmp_path)
+    task_dir = _resolve_task_dir(trial_dir, project_root)
+    assert task_dir == project_root / "tasks" / "my-task"
+
+
+def test_resolve_task_dir_none_without_project_root(tmp_path: Path) -> None:
+    _, trial_dir = _make_trial_with_task(tmp_path)
+    assert _resolve_task_dir(trial_dir, None) is None
+
+
+def test_add_task_context_files_includes_instruction_criteria_dimensions(tmp_path: Path) -> None:
+    project_root, trial_dir = _make_trial_with_task(tmp_path)
+    files: dict[str, str] = {}
+    _add_task_context_files(files, trial_dir, project_root)
+    assert files["instruction.md"] == "Refactor the pricing module."
+    assert "domain_modeling" in files["assessment_criteria.md"]
+    assert files["assessment_dimensions.json"] == '{"dimensions": []}'
 
 
 def test_summarize_trial_returns_empty_summary_without_evals(tmp_path: Path) -> None:

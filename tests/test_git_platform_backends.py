@@ -167,3 +167,19 @@ def test_gitlab_fetch_comments_maps_notes_and_skips_system(monkeypatch: pytest.M
     assert comments[1].is_inline is True
     assert comments[1].path == "a.py"
     assert comments[1].line == 3
+
+
+def test_gitlab_create_pr_runs_in_origin_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_run_in_context(self, repo, args):
+        captured["repo"] = repo
+        captured["args"] = args
+        return _completed(stdout="https://gitlab.com/group/repo/-/merge_requests/7")
+
+    monkeypatch.setattr(GitLabCliBackend, "_run_in_repo_context", fake_run_in_context)
+    pr = GitLabCliBackend().create_pr("group/repo", head="calib/x", base="base/y", title="t", body_markdown="b")
+    assert pr.number == 7
+    assert captured["repo"] == "group/repo"
+    assert "mr" in captured["args"] and "create" in captured["args"]
+    assert "--source-branch" in captured["args"] and "calib/x" in captured["args"]

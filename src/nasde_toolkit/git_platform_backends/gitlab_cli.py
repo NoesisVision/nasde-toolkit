@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import tempfile
+from pathlib import Path
 from urllib.parse import quote
 
 from rich.console import Console
@@ -42,10 +44,10 @@ class GitLabCliBackend:
         return PrRef(number=int(first["iid"]), url=first["web_url"])
 
     def create_pr(self, repo: str, head: str, base: str, title: str, body_markdown: str) -> PrRef:
-        result = self._run(
+        result = self._run_in_repo_context(
+            repo,
             ["mr", "create", "--repo", repo, "--source-branch", head, "--target-branch", base,
              "--title", title, "--description", body_markdown, "--yes"],
-            check=True,
         )
         url = _last_url(result.stdout)
         return PrRef(number=_mr_iid_from_url(url), url=url)
@@ -84,6 +86,26 @@ class GitLabCliBackend:
         if check and result.returncode != 0:
             raise RuntimeError(f"glab {' '.join(args)} failed: {result.stderr.strip()}")
         return result
+
+    def _run_in_repo_context(self, repo: str, args: list[str]) -> subprocess.CompletedProcess[str]:
+        context_dir = Path(tempfile.mkdtemp(prefix="nasde_glab_ctx_"))
+        try:
+            self._init_origin_context(context_dir, repo)
+            result = subprocess.run(
+                ["glab", *args], cwd=str(context_dir), capture_output=True, text=True, check=False
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"glab {' '.join(args)} failed: {result.stderr.strip()}")
+            return result
+        finally:
+            shutil.rmtree(context_dir, ignore_errors=True)
+
+    def _init_origin_context(self, context_dir: Path, repo: str) -> None:
+        subprocess.run(["git", "-C", str(context_dir), "init", "-q"], check=True)
+        subprocess.run(
+            ["git", "-C", str(context_dir), "remote", "add", "origin", f"git@gitlab.com:{repo}.git"],
+            check=True,
+        )
 
 
 def _note_comment(raw: dict) -> ReviewComment:

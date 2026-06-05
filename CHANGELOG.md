@@ -10,6 +10,21 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Added
+- **Rubric calibration via PR/MR review (`nasde calibrate`, ADR-010).** Close the
+  loop between the LLM-as-a-Judge and a human reviewer. `nasde calibrate publish`
+  pushes each trial as a Pull/Merge Request to a private sink repo: an orphan base
+  branch `base/<repo>-<sha>` holds the agent's start-state codebase (seeded once
+  per `(repo, commit)`; git deduplicates shared blobs across bases), the feature
+  branch carries the agent's diff applied as a real commit (so the PR diff is
+  exactly the agent's work), and the description renders the dominant evaluator
+  cluster's per-dimension `mean ± std`. `nasde calibrate pull-comments [--json]`
+  fetches the human's review comments (issue-level + inline) back, normalized
+  across platforms. Idempotent (re-runs skip trials whose PR exists) and throttled.
+  Platform (GitHub `gh` / GitLab `glab`) is **auto-detected from the sink repo URL**
+  via pluggable CLI backends behind a `GitPlatformBackend` Protocol; repo creation
+  is out of scope (the sink repo must already exist). Configured via `[calibration]`
+  in `nasde.toml`. Ships the `nasde-benchmark-calibration` authoring skill that
+  orchestrates the publish → review → pull-comments → propose-rubric-edit loop.
 - **Variant task-scoping: `tasks` array in `variant.toml`.** A variant may declare
   `tasks = [...]` to restrict it to specific tasks — use it for a repo-specific
   variant (e.g. a skill tuned to one repo's conventions) so it never runs against

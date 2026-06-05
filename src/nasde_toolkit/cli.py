@@ -489,6 +489,152 @@ def migrate_evals_command(
 
 
 # ---------------------------------------------------------------------------
+# Calibration sub-app (nasde calibrate ...)
+# ---------------------------------------------------------------------------
+
+calibrate_app = typer.Typer(
+    name="calibrate",
+    help="Calibrate assessment rubrics via PR/MR review (GitHub or GitLab).",
+    no_args_is_help=True,
+)
+app.add_typer(calibrate_app, name="calibrate")
+
+
+@calibrate_app.command(name="publish")
+def calibrate_publish(
+    paths: list[Path] = typer.Argument(
+        ...,
+        help="Job and/or trial directories to publish (mixed OK — type is auto-detected).",
+    ),
+    repo: str | None = typer.Option(
+        None,
+        "--repo",
+        help="Sink repo URL or owner/repo slug (default: [calibration] repo in nasde.toml).",
+    ),
+    throttle: float | None = typer.Option(
+        None,
+        "--throttle",
+        help="Seconds to sleep between PR-creating calls (default: [calibration] throttle_sec).",
+    ),
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project.",
+    ),
+) -> None:
+    """Publish trial diffs + assessments as PRs/MRs for human rubric calibration.
+
+    Each trial becomes one PR: an orphan base branch holds the agent's start-state
+    codebase, the feature branch carries the agent's diff (so the PR diff is exactly
+    the agent's work), and the description renders the per-dimension judge scores.
+    Idempotent — re-running skips trials whose PR already exists.
+    """
+    from nasde_toolkit.calibration_publisher import publish_trials
+    from nasde_toolkit.calibration_resolve import resolve_sink
+    from nasde_toolkit.config import load_project_config
+
+    config = load_project_config(project_dir.resolve())
+    sink = _resolve_calibration_sink(config, repo, resolve_sink)
+    throttle_sec = throttle if throttle is not None else config.calibration.throttle_sec
+
+    from nasde_toolkit.banner import print_banner
+
+    print_banner(console)
+    console.print(
+        Panel(
+            f"[bold]Calibrate · Publish[/bold]\nSink: {sink.slug} ({sink.platform})\nInputs: {len(paths)}",
+            title="nasde",
+        )
+    )
+
+    publish_trials(
+        [p.resolve() for p in paths],
+        repo=sink.slug,
+        repo_url=sink.push_url,
+        base_branch=config.calibration.base_branch,
+        platform_override=sink.platform,
+        throttle_sec=throttle_sec,
+    )
+
+
+@calibrate_app.command(name="pull-comments")
+def calibrate_pull_comments(
+    paths: list[Path] = typer.Argument(
+        ...,
+        help="Job and/or trial directories whose PR/MR comments to fetch.",
+    ),
+    repo: str | None = typer.Option(
+        None,
+        "--repo",
+        help="Sink repo URL or owner/repo slug (default: [calibration] repo in nasde.toml).",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit machine-readable JSON (for the calibration orchestrator agent).",
+    ),
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project.",
+    ),
+) -> None:
+    """Fetch human review comments from each trial's PR/MR.
+
+    Returns issue-level and inline comments normalized across platforms, so the
+    calibration orchestrator can diagnose where the judge disagreed with the human.
+    """
+    from dataclasses import asdict
+
+    from nasde_toolkit.calibration_publisher import pull_trial_comments
+    from nasde_toolkit.calibration_resolve import resolve_sink
+    from nasde_toolkit.config import load_project_config
+
+    config = load_project_config(project_dir.resolve())
+    sink = _resolve_calibration_sink(config, repo, resolve_sink)
+
+    collected = pull_trial_comments(
+        [p.resolve() for p in paths],
+        repo=sink.slug,
+        repo_url=sink.push_url,
+        platform_override=sink.platform,
+    )
+
+    if as_json:
+        import json
+
+        console.print_json(json.dumps([asdict(tc) for tc in collected]))
+        return
+
+    _print_pulled_comments(collected)
+
+
+def _resolve_calibration_sink(config: ProjectConfig, repo_flag: str | None, resolver):  # noqa: ANN001
+    from nasde_toolkit.calibration_resolve import SystemExitMessage
+
+    repo_value = repo_flag or config.calibration.repo
+    try:
+        return resolver(repo_value, config.calibration.platform)
+    except SystemExitMessage as error:
+        console.print(f"[red]ERROR: {error}[/red]")
+        raise SystemExit(1) from error
+
+
+def _print_pulled_comments(collected) -> None:  # noqa: ANN001
+    from rich.table import Table
+
+    table = Table(title="Pulled PR/MR comments")
+    table.add_column("Trial", style="bold")
+    table.add_column("PR/MR", justify="right")
+    table.add_column("Comments", justify="right")
+    for trial_comments in collected:
+        table.add_row(trial_comments.label, str(trial_comments.pr_number), str(len(trial_comments.comments)))
+    console.print(table)
+
+
+# ---------------------------------------------------------------------------
 # Harbor pass-through (Typer → Typer)
 # ---------------------------------------------------------------------------
 

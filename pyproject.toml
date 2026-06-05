@@ -70,6 +70,7 @@ version-file = "src/nasde_toolkit/_version.py"
 packages = ["src/nasde_toolkit"]
 
 [tool.hatch.build.targets.wheel.force-include]
+".claude/skills/nasde-benchmark-calibration" = "nasde_toolkit/_bundled_skills/nasde-benchmark-calibration"
 ".claude/skills/nasde-benchmark-creator" = "nasde_toolkit/_bundled_skills/nasde-benchmark-creator"
 ".claude/skills/nasde-benchmark-from-history" = "nasde_toolkit/_bundled_skills/nasde-benchmark-from-history"
 ".claude/skills/nasde-benchmark-from-public-repos" = "nasde_toolkit/_bundled_skills/nasde-benchmark-from-public-repos"

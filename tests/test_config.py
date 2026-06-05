@@ -177,3 +177,42 @@ model = "o3"
     config = load_project_config(tmp_path)
     assert config.evaluation.backend == "codex"
     assert config.evaluation.model == "o3"
+
+
+def test_calibration_defaults_when_section_absent(tmp_path: Path) -> None:
+    _write_nasde_toml(
+        tmp_path,
+        """
+[project]
+name = "test"
+""",
+    )
+    config = load_project_config(tmp_path)
+    assert config.calibration.repo == ""
+    assert config.calibration.repo_template == ""
+    assert config.calibration.platform == ""
+    assert config.calibration.base_branch == "main"
+    assert config.calibration.throttle_sec == 2.0
+
+
+def test_calibration_all_fields_from_toml(tmp_path: Path) -> None:
+    _write_nasde_toml(
+        tmp_path,
+        """
+[project]
+name = "test"
+
+[calibration]
+repo = "NoesisVision/nasde-calibration"
+repo_template = "NoesisVision/calib-{source}"
+platform = "gitlab"
+base_branch = "trunk"
+throttle_sec = 5
+""",
+    )
+    config = load_project_config(tmp_path)
+    assert config.calibration.repo == "NoesisVision/nasde-calibration"
+    assert config.calibration.repo_template == "NoesisVision/calib-{source}"
+    assert config.calibration.platform == "gitlab"
+    assert config.calibration.base_branch == "trunk"
+    assert config.calibration.throttle_sec == 5.0

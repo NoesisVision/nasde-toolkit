@@ -211,6 +211,7 @@ After installation, the skills activate automatically in any Claude Code session
 | **nasde-benchmark-from-history** | Point it at a commit range, a merged PR, or a closed issue from your own repo — it proposes tasks based on work your team already finished, and writes the task files for you to review. |
 | **nasde-benchmark-from-public-repos** | Describe a skill you want to test broadly; it builds a diversity matrix of public repos (languages, sizes, styles) and scaffolds one task per cell. |
 | **nasde-benchmark-runner** | Guides running benchmarks, re-running the reviewer on existing results, verifying the experiment tracker, and troubleshooting failed runs. |
+| **nasde-benchmark-calibration** | Publishes trial diffs + scores as PRs/MRs, pulls your review comments back, and proposes concrete rubric edits — the human-in-the-loop calibration described above. |
 
 You don't *have* to use these — everything they do is just writing files that you could write by hand — but they save a lot of typing.
 
@@ -278,6 +279,10 @@ nasde eval jobs/2026-03-13__14-30-00 --with-opik -C my-benchmark
 
 # [Experimental] Back up the results essence so they don't only live in jobs/
 nasde results-export jobs/2026-03-13__14-30-00 --to ~/Dropbox/nasde-results -C my-benchmark
+
+# Publish a trial as a PR for human rubric calibration, then pull comments back
+nasde calibrate publish jobs/2026-03-13__14-30-00/movie__abc -C my-benchmark
+nasde calibrate pull-comments jobs/2026-03-13__14-30-00/movie__abc -C my-benchmark --json
 ```
 
 Authentication is covered in detail in the [Authentication](#authentication) section — in short, export an API key (`ANTHROPIC_API_KEY` / `CODEX_API_KEY` / `GEMINI_API_KEY`) **or** just use whatever OAuth subscription you're already logged into via `claude` / `codex` / `gemini login`.
@@ -302,6 +307,52 @@ The destination is any path you like — an iCloud or Dropbox folder, an externa
 You can pass several paths at once, mixing whole jobs and individual trials — NASDE figures out which is which. Re-running is safe: it merges (copying any evaluations added since the last export) and never re-touches the immutable trajectory or patch.
 
 > **Experimental / beta.** This command is new; the layout may still change. Feedback welcome.
+
+## Calibrating the rubric (`nasde calibrate`)
+
+The reviewer agent scores trials against a rubric (`assessment_criteria.md` per task,
+`assessment_dimensions.json` benchmark-wide) — but that rubric was itself drafted by an LLM, so its
+thresholds and wording can drift from how *you* would grade the code. Before you trust a benchmark,
+you want to eyeball the actual diffs next to the scores and correct the rubric where they disagree.
+`nasde calibrate` turns that into a loop you run in your normal review tool: GitHub or GitLab.
+
+```bash
+# in nasde.toml
+[calibration]
+repo = "https://github.com/YourOrg/nasde-calibration"   # a private sink repo you already created
+```
+
+```bash
+nasde calibrate publish jobs/2026-03-13__14-30-00/movie__abc -C my-benchmark
+```
+
+Each trial becomes **one Pull/Merge Request** against an orphan base branch that holds the codebase in
+the exact state the agent started from. The PR diff is therefore *exactly the agent's work* — clean to
+read and navigate — and the PR description renders the reviewer's per-dimension scores (`mean ± std`)
+with a link to the full reasoning. You review the diff, and **wherever a score disagrees with your
+judgment you comment inline** ("this should score higher — the model isn't anemic here because…"). Add
+a colleague as a repo collaborator and they can comment too.
+
+```bash
+nasde calibrate pull-comments jobs/2026-03-13__14-30-00/movie__abc -C my-benchmark --json
+```
+
+This pulls your comments back. The `nasde-benchmark-calibration` skill then lines each comment up
+against the judge's score for that dimension, diagnoses *why* the rubric produced the divergent score,
+and proposes a concrete edit to `assessment_criteria.md` for your approval. Re-run the trial, re-publish,
+and confirm the judge now agrees — the measure → diagnose → fix → re-measure loop that makes a rubric
+trustworthy.
+
+A few things worth knowing:
+
+- **The platform is auto-detected from the repo URL** — `github.com` uses the `gh` CLI, GitLab uses
+  `glab`. You need the matching CLI installed and logged in (`gh auth login` / `glab auth login`); NASDE
+  never handles your token. A self-hosted GitLab host that isn't obviously "gitlab" can be forced with
+  `[calibration] platform = "gitlab"`.
+- **Re-running is idempotent** — trials whose PR already exists are skipped, so you can publish more
+  trials into the same sink without duplicates.
+- **The sink repo must already exist** — NASDE pushes branches and opens PRs but does not create
+  repositories. One base branch is seeded per `(repo, commit)` and shared by all that source's trials.
 
 ## Cloud sandbox providers
 
@@ -535,6 +586,9 @@ general-purpose variant that runs everywhere.
 |---------|-------------|
 | `nasde run` | Run benchmark: Harbor trial + assessment evaluation (default) |
 | `nasde eval <JOB_DIR>` | Re-run assessment evaluation on an existing job |
+| `nasde results-export <PATHS> --to <DIR>` | Copy trial artifact essence (scores, metrics, patch, trajectory) to a plain dir |
+| `nasde calibrate publish <PATHS>` | Publish trial diffs + assessments as PRs/MRs for human rubric review |
+| `nasde calibrate pull-comments <PATHS>` | Pull review comments back from the PRs/MRs (use `--json` for the orchestrator) |
 | `nasde init [DIR]` | Scaffold a new evaluation project |
 | `nasde install-skills` | Install bundled Claude Code authoring skills into `~/.claude/skills/` (or `./.claude/skills/` with `--scope project`) |
 

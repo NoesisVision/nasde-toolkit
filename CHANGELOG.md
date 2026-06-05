@@ -17,9 +17,14 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   per `(repo, commit)`; git deduplicates shared blobs across bases), the feature
   branch carries the agent's diff applied as a real commit (so the PR diff is
   exactly the agent's work), and the description renders the dominant evaluator
-  cluster's per-dimension `mean ± std`. `nasde calibrate pull-comments [--json]`
-  fetches the human's review comments (issue-level + inline) back, normalized
-  across platforms. Idempotent (re-runs skip trials whose PR exists) and throttled.
+  cluster's per-dimension `mean ± std`. A `.calibration/` directory on the branch
+  ships the reviewer's context — the task's `instruction.md`, the
+  `assessment_criteria.md` + `assessment_dimensions.json` the judge scored against,
+  every `assessment_eval_<N>.json`, and `metrics.json` — so a reviewer can judge
+  whether a score is fair without leaving the PR. `nasde calibrate pull-comments
+  [--json]` fetches the human's review comments (issue-level + inline) back,
+  normalized across platforms. Idempotent on **open** PRs/MRs (a closed calibration
+  round can be re-published as a fresh round) and throttled.
   Platform (GitHub `gh` / GitLab `glab`) is **auto-detected from the sink repo URL**
   via pluggable CLI backends behind a `GitPlatformBackend` Protocol; repo creation
   is out of scope (the sink repo must already exist). Configured via `[calibration]`

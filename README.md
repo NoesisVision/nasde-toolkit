@@ -329,9 +329,13 @@ nasde calibrate publish jobs/2026-03-13__14-30-00/movie__abc -C my-benchmark
 Each trial becomes **one Pull/Merge Request** against an orphan base branch that holds the codebase in
 the exact state the agent started from. The PR diff is therefore *exactly the agent's work* — clean to
 read and navigate — and the PR description renders the reviewer's per-dimension scores (`mean ± std`)
-with a link to the full reasoning. You review the diff, and **wherever a score disagrees with your
-judgment you comment inline** ("this should score higher — the model isn't anemic here because…"). Add
-a colleague as a repo collaborator and they can comment too.
+with a link to the full reasoning. Alongside the diff, a `.calibration/` directory carries the context
+a reviewer needs to judge fairly: the task's `instruction.md` (what the agent was asked to do), the
+`assessment_criteria.md` and `assessment_dimensions.json` the judge scored against, every
+`assessment_eval_<N>.json` (the per-dimension reasoning behind each repetition), and `metrics.json`.
+You review the diff, and **wherever a score disagrees with your judgment you comment inline** ("this
+should score higher — the model isn't anemic here because…"). Add a colleague as a repo collaborator
+and they can comment too.
 
 ```bash
 nasde calibrate pull-comments jobs/2026-03-13__14-30-00/movie__abc -C my-benchmark --json
@@ -349,8 +353,9 @@ A few things worth knowing:
   `glab`. You need the matching CLI installed and logged in (`gh auth login` / `glab auth login`); NASDE
   never handles your token. A self-hosted GitLab host that isn't obviously "gitlab" can be forced with
   `[calibration] platform = "gitlab"`.
-- **Re-running is idempotent** — trials whose PR already exists are skipped, so you can publish more
-  trials into the same sink without duplicates.
+- **Re-running is idempotent** — a trial whose **open** PR/MR already exists is skipped, so you can
+  publish more trials into the same sink without duplicates. Once you close a calibration round, the
+  same trials can be re-published into a fresh round (a closed PR no longer blocks).
 - **The sink repo must already exist** — NASDE pushes branches and opens PRs but does not create
   repositories. One base branch is seeded per `(repo, commit)` and shared by all that source's trials.
 

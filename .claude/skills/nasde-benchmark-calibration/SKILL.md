@@ -61,11 +61,15 @@ Each trial becomes one PR/MR:
 - The **feature branch** `calib/<repo>-<sha>/<trial>` carries the agent's diff applied as a real
   commit, so the PR diff is *exactly* the agent's work — clean to review.
 - The **description** renders the dominant evaluator cluster's per-dimension `mean ± std`, the
-  normalized score, and a "How to calibrate" note. Full per-dimension reasoning lives in
-  `.calibration/assessment_eval_*.json` on the branch.
+  normalized score, and a "How to calibrate" note.
+- A **`.calibration/` directory** ships the review context: the task's `instruction.md` (what the
+  agent was asked to do), the `assessment_criteria.md` + `assessment_dimensions.json` the judge scored
+  against, every `assessment_eval_<N>.json` (full per-dimension reasoning), and `metrics.json`. This
+  lets the reviewer judge whether a score is fair without leaving the PR.
 
-Re-running is idempotent — trials whose PR already exists are skipped. Give the user the PR/MR URLs
-and ask them to review the diffs and comment inline where a score disagrees with their judgment.
+Re-running is idempotent — a trial whose **open** PR/MR already exists is skipped. Closing a
+calibration round lets the same trials be re-published into a fresh round. Give the user the PR/MR
+URLs and ask them to review the diffs and comment inline where a score disagrees with their judgment.
 If a second person should review, the user adds them as a collaborator on the sink repo.
 
 ### 3. Pull the comments back

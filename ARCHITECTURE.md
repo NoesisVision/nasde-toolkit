@@ -370,12 +370,16 @@ Two layers are deliberately separated (`git_platform_backends/`):
 - **GIT** (`git_ops.py`) — `git push` / `ls-remote` via subprocess, platform-agnostic, not behind a
   Protocol. Seeds the orphan base branch (`git archive HEAD` from the trial workspace) once per
   `(repo, commit)`, and pushes each trial's feature branch (base + the agent's `changes.patch` applied
-  as a real commit + assessment files under `.calibration/`).
+  as a real commit + a `.calibration/` directory). `.calibration/` bundles the reviewer's context:
+  the task's `instruction.md` + `assessment_criteria.md` + `assessment_dimensions.json` (so the
+  reviewer sees what was asked and the rubric the judge used), plus `assessment_eval_<N>.json`,
+  `assessment_summary.json`, and `metrics.json`.
 - **PLATFORM** (`GitPlatformBackend` Protocol, `github_cli.py` / `gitlab_cli.py`) — `repo_exists` /
   `find_open_pr_for_branch` / `create_pr` / `fetch_pr_comments` via the platform CLI (`gh` / `glab`),
   which holds the user's auth. The backend is auto-detected from the sink repo URL host
   (`detect.py`); `calibration_publisher.py` orchestrates publish/pull and renders the PR body from the
-  dominant `AssessmentSummary` cluster. Repo creation is out of scope — the sink repo must exist.
+  dominant `AssessmentSummary` cluster. Idempotency is open-only (a closed round can be re-published).
+  Repo creation is out of scope — the sink repo must exist.
 
 ## Trial result structure
 

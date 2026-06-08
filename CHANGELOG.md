@@ -10,6 +10,20 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Added
+- **Token & cost efficiency metrics ([ADR-011](docs/adr/011-token-cost-metrics.md)).** Every trial now carries token usage,
+  USD cost, and two efficiency metrics, derived from the agent's `agent/trajectory.json`
+  `final_metrics` and a versioned price catalog (`pricing.toml`). `token_efficiency`
+  is `normalized_score` per 1M tokens (price-independent); `cost_efficiency` is
+  `normalized_score` per USD. **Cost is computed "as if every run were the first"** —
+  the full prompt volume (cache included) at the full input rate, no cache discount,
+  with Codex reasoning tokens folded into output — so cost is deterministic and
+  independent of run order / cache TTL. A single extractor (`token_metrics.py`) feeds
+  both write paths: `assessment_summary.json` (run) and `metrics.json` (export). The
+  `nasde run` summary prints a per-`(agent, model)` table (trials, score, tokens,
+  $cost, q/$) plus the job path and an export hint. Unpriced models keep token metrics
+  with `cost_usd = null` + a warning; missing/legacy trajectories leave economics null —
+  never a crash. Prices live in a bundled, versioned `pricing.toml` (each model stamped
+  with `as_of` + `source`); confirm rates before quoting dollar figures.
 - **Rubric calibration via PR/MR review (`nasde calibrate`, [ADR-010](docs/adr/010-git-platform-integration.md)).** Close the
   loop between the LLM-as-a-Judge and a human reviewer. `nasde calibrate publish`
   pushes each trial as a Pull/Merge Request to a private sink repo: an orphan base

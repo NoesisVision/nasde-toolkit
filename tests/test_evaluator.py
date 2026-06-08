@@ -244,6 +244,51 @@ def test_write_assessment_summary_has_no_reasoning(tmp_path: Path) -> None:
     assert parsed["groups"][0]["n"] == 2
 
 
+def _seed_trajectory(trial_dir: Path) -> None:
+    (trial_dir / "config.json").write_text(
+        json.dumps({"agent": {"name": "demo-variant", "model_name": "claude-sonnet-4-6"}})
+    )
+    agent_dir = trial_dir / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "final_metrics": {
+                    "total_prompt_tokens": 1_000_000,
+                    "total_completion_tokens": 50_000,
+                    "total_cached_tokens": 800_000,
+                    "extra": {"reasoning_output_tokens": 10_000},
+                }
+            }
+        )
+    )
+
+
+def test_assessment_summary_includes_economics(tmp_path: Path) -> None:
+    _seed_trajectory(tmp_path)
+    _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
+    _write_evaluation_result(tmp_path, _make_evaluation(0.7, dim_score=7))
+
+    summary = _write_assessment_summary(tmp_path)
+    assert summary is not None
+    assert summary.model_name == "claude-sonnet-4-6"
+    assert summary.token_usage["total_tokens"] == 1_060_000
+    # sonnet $3/$15: 1M*3 + 0.06M*15 = 3.9
+    assert summary.cost_usd == pytest.approx(3.9)
+    assert summary.cost_efficiency is not None
+    assert summary.pricing_as_of == "2026-06-08"
+
+
+def test_assessment_summary_economics_null_without_trajectory(tmp_path: Path) -> None:
+    _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
+
+    summary = _write_assessment_summary(tmp_path)
+    assert summary is not None
+    assert summary.token_usage is None
+    assert summary.cost_usd is None
+    assert summary.cost_efficiency is None
+
+
 def test_eval_repetitions_writes_n_files(tmp_path: Path) -> None:
     scores = iter([0.6, 0.7, 0.62])
     config = EvaluationConfig(eval_repetitions=3)

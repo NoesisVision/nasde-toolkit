@@ -23,6 +23,8 @@ from nasde_toolkit.evaluator import (
     _resolve_agent_name,
     _resolve_task_name,
 )
+from nasde_toolkit.pricing import load_pricing
+from nasde_toolkit.token_metrics import build_trial_economics
 
 console = Console()
 
@@ -148,18 +150,34 @@ def _write_metrics(trial_dir: Path, out_dir: Path) -> None:
 
 def _build_metrics(trial_dir: Path) -> dict:
     result = _load_json(trial_dir / "result.json")
+    model = _resolve_model_name(trial_dir)
+    economics = build_trial_economics(trial_dir, model, load_pricing(), _resolve_normalized_score(trial_dir))
     return {
         "trial_name": result.get("trial_name", trial_dir.name),
         "task_name": _resolve_task_name(result),
         "agent_name": _resolve_agent_name(trial_dir),
-        "model_name": _resolve_model_name(trial_dir),
+        "model_name": model,
         "source": result.get("source", ""),
         "started_at": result.get("started_at", ""),
         "finished_at": result.get("finished_at", ""),
         "duration_sec": _compute_duration_sec(result),
         "harbor_reward": _resolve_harbor_reward(result),
+        "token_usage": economics["token_usage"],
+        "cost_usd": economics["cost_usd"],
+        "token_efficiency": economics["token_efficiency"],
+        "cost_efficiency": economics["cost_efficiency"],
+        "pricing_as_of": economics["pricing_as_of"],
         "exception_info": result.get("exception_info"),
     }
+
+
+def _resolve_normalized_score(trial_dir: Path) -> float | None:
+    summary_path = trial_dir / "assessment_summary.json"
+    if not summary_path.exists():
+        return None
+    groups = _load_json(summary_path).get("groups", [])
+    dominant = next((g for g in groups if g.get("dominant")), groups[0] if groups else None)
+    return dominant.get("normalized_score_mean") if dominant else None
 
 
 def _resolve_harbor_reward(result: dict) -> float:

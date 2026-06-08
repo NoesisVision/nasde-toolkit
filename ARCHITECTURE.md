@@ -211,6 +211,10 @@ When `skills_dir` is set, the `ClaudeSubprocessBackend` stages a temp-dir worksp
 
 When `mcp_config` is set, its path is passed through to the backend CLI (`--mcp-config` for Claude). MCP tool names follow the `mcp__<server>__<tool>` convention and must be included in `allowed_tools` if that field is overridden.
 
+### Token & cost economics ([ADR-011](docs/adr/011-token-cost-metrics.md))
+
+Independently of the LLM judge, each trial's **token usage and cost** are read from the agent's `agent/trajectory.json` `final_metrics` (which Harbor writes for both Claude and Codex). A single extractor (`token_metrics.py`) computes `input = total_prompt_tokens` (full, cache included), `output = total_completion_tokens + reasoning_output_tokens`, and a USD cost at the **full catalog rate with no cache discount** ("as if every run were the first" — deterministic, order-independent). It derives `token_efficiency` (score per 1M tokens) and `cost_efficiency` (score per USD), using the dominant evaluator cluster's `normalized_score_mean`. The same extractor feeds both the run path (`evaluator.py` → `assessment_summary.json`) and the export path (`results_exporter.py` → `metrics.json`), so they cannot diverge. Prices come from a bundled, versioned `pricing.toml`; an unpriced model leaves cost null (token metrics still computed). `nasde run` prints a per-`(agent, model)` cost table after assessment completes.
+
 ---
 
 ## Custom agent classes

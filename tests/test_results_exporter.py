@@ -56,10 +56,24 @@ def _make_trial(trial_dir: Path, *, with_repo: bool = True) -> None:
     )
     (trial_dir / "assessment_eval_1.json").write_text(json.dumps({"normalized_score": 0.6}))
     (trial_dir / "assessment_eval_2.json").write_text(json.dumps({"normalized_score": 0.7}))
-    (trial_dir / "assessment_summary.json").write_text(json.dumps({"groups": [{"n": 2}]}))
+    (trial_dir / "assessment_summary.json").write_text(
+        json.dumps({"groups": [{"n": 2, "dominant": True, "normalized_score_mean": 0.65}]})
+    )
     agent_dir = trial_dir / "agent"
     agent_dir.mkdir()
-    (agent_dir / "trajectory.json").write_text(json.dumps({"steps": []}))
+    (agent_dir / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "steps": [],
+                "final_metrics": {
+                    "total_prompt_tokens": 1_000_000,
+                    "total_completion_tokens": 50_000,
+                    "total_cached_tokens": 800_000,
+                    "extra": {"reasoning_output_tokens": 10_000},
+                },
+            }
+        )
+    )
     verifier_dir = trial_dir / "verifier"
     verifier_dir.mkdir()
     (verifier_dir / "test-stdout.txt").write_text("tests passed\n")
@@ -141,6 +155,36 @@ def test_export_flat_layout(job_dir: Path, tmp_path: Path) -> None:
     assert metrics["model_name"] == "claude-sonnet-4-6"
     assert metrics["duration_sec"] == 600.0
     assert metrics["harbor_reward"] == 1.0
+
+
+def test_export_includes_token_cost_economics(job_dir: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+    metrics = json.loads((dest / "2026-06-03__demo-job__demo-task__aaa111" / "metrics.json").read_text())
+
+    usage = metrics["token_usage"]
+    assert usage["input_tokens"] == 1_000_000
+    assert usage["output_tokens"] == 60_000  # completion 50k + reasoning 10k
+    assert usage["total_tokens"] == 1_060_000
+    # claude-sonnet-4-6: 1M*$3 + 0.06M*$15 = 3.0 + 0.9 = 3.9
+    assert metrics["cost_usd"] == pytest.approx(3.9)
+    assert metrics["cost_efficiency"] == pytest.approx(0.65 / 3.9, rel=1e-3)
+    assert metrics["pricing_as_of"] == "2026-06-08"
+
+
+def test_export_unpriced_model_leaves_cost_null(job_dir: Path, tmp_path: Path) -> None:
+    trial = job_dir / "demo-task__aaa111"
+    config = json.loads((trial / "config.json").read_text())
+    config["agent"]["model_name"] = "some-unpriced-model"
+    (trial / "config.json").write_text(json.dumps(config))
+
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+    metrics = json.loads((dest / "2026-06-03__demo-job__demo-task__aaa111" / "metrics.json").read_text())
+
+    assert metrics["token_usage"]["total_tokens"] == 1_060_000  # tokens always computed
+    assert metrics["cost_usd"] is None  # but cost left unset
+    assert metrics["cost_efficiency"] is None
 
 
 def test_idempotent_skip(job_dir: Path, tmp_path: Path) -> None:

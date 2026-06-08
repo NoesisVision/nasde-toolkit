@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import statistics
 import sys
 import tempfile
 from collections.abc import Callable
@@ -31,6 +32,7 @@ from nasde_toolkit.plugin_registration import (
     register_plugin_skills,
     stage_referenced_skills,
 )
+from nasde_toolkit.token_metrics import dominant_normalized_score
 
 if TYPE_CHECKING:
     from harbor.models.job.result import JobResult
@@ -107,7 +109,7 @@ async def run_benchmark(
             project_name=config.reporting.project_name or config.name,
             project_dir=config.project_dir,
         )
-        _print_job_summary(result)
+        _print_job_summary(result, _find_latest_job(config.project_dir))
         console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
@@ -867,6 +869,7 @@ async def _run_job_with_streaming_eval(
         )
         assessment_tasks.append(task)
 
+    result = None
     try:
         result = await _run_job(
             merged_config,
@@ -875,12 +878,12 @@ async def _run_job_with_streaming_eval(
             project_dir=config.project_dir,
             on_trial_ended=_on_trial_complete,
         )
-        _print_job_summary(result)
-        console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
     finally:
         if assessment_tasks:
             console.print(f"[dim]Waiting for {len(assessment_tasks)} assessment evaluation(s)...[/dim]")
             await asyncio.gather(*assessment_tasks, return_exceptions=True)
+    _print_job_summary(result, _find_latest_job(config.project_dir))
+    console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
 async def _run_job(
@@ -919,27 +922,154 @@ async def _run_job(
         os.chdir(saved_cwd)
 
 
-def _print_job_summary(result: JobResult) -> None:
+def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
     console.print()
     console.print("[bold]Job completed[/bold]")
     console.print(f"  Trials: {result.stats.n_completed_trials}")
     console.print(f"  Errors: {result.stats.n_errored_trials}")
 
+    rows = _collect_economics_rows(job_dir) if job_dir is not None else []
+    if rows and job_dir is not None:
+        _print_economics_table(rows)
+        _print_label_legend(rows)
+        _print_location_hints(job_dir)
+    elif result.stats.evals:
+        _print_eval_counts_table(result)
+    console.print()
+
+
+def _print_economics_table(rows: list[dict]) -> None:
+    table = Table(title="Results by agent/model (per-trial averages)")
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Agent / Model", style="cyan")
+    table.add_column("Trials", justify="right")
+    table.add_column("Score", justify="right")
+    table.add_column("Tokens", justify="right")
+    table.add_column("$ Cost", justify="right")
+    table.add_column("score/$", justify="right")
+    table.add_column("score/MTok", justify="right")
+    for index, row in enumerate(rows, start=1):
+        table.add_row(
+            f"[{index}]",
+            row["short_label"],
+            str(row["trials"]),
+            _fmt_score(row["score"], row["score_std"], row["trials"]),
+            _fmt_tokens(row["tokens"]),
+            _fmt(row["cost"], "${:.2f}"),
+            _fmt(row["cost_efficiency"], "{:.3f}"),
+            _fmt(row["token_efficiency"], "{:.3f}"),
+        )
+    console.print(table)
+
+
+def _print_label_legend(rows: list[dict]) -> None:
+    if all(row["short_label"] == row["full_label"] for row in rows):
+        return
+    console.print("[dim]Legend:[/dim]")
+    for index, row in enumerate(rows, start=1):
+        console.print(f"[dim]  [{index}] {row['full_label']}[/dim]")
+
+
+def _print_location_hints(job_dir: Path) -> None:
+    console.print(
+        "[dim]Score = mean ±std across trials (agent noise). Per-trial judge-noise std + eval n in metrics.json.[/dim]"
+    )
+    console.print(f"[dim]→ Job: {job_dir}[/dim]")
+    console.print(f"[dim]→ Export: uv run nasde results-export {job_dir} --to <dir>[/dim]")
+
+
+def _print_eval_counts_table(result: JobResult) -> None:
     table = Table(title="Results by agent/dataset")
     table.add_column("Agent / Dataset", style="cyan")
     table.add_column("Trials", justify="right")
     table.add_column("Errors", justify="right")
-
     for eval_key, stats in result.stats.evals.items():
-        table.add_row(
-            eval_key,
-            str(stats.n_trials),
-            str(stats.n_errors),
-        )
+        table.add_row(eval_key, str(stats.n_trials), str(stats.n_errors))
+    console.print(table)
 
-    if result.stats.evals:
-        console.print(table)
-    console.print()
+
+def _collect_economics_rows(job_dir: Path) -> list[dict]:
+    from nasde_toolkit.evaluator import _collect_trial_dirs
+
+    groups: dict[tuple[str, str], dict] = {}
+    for trial_dir in _collect_trial_dirs(job_dir):
+        summary_path = trial_dir / "assessment_summary.json"
+        if not summary_path.exists():
+            continue
+        summary = json.loads(summary_path.read_text())
+        _accumulate_economics(groups, summary)
+    return [_finalize_economics_row(label, agg) for label, agg in sorted(groups.items())]
+
+
+def _accumulate_economics(groups: dict[tuple[str, str], dict], summary: dict) -> None:
+    key = (summary.get("agent_name", ""), summary.get("model_name", ""))
+    agg = groups.setdefault(key, {"trials": 0, "scores": [], "tokens": [], "costs": []})
+    agg["trials"] += 1
+    score = dominant_normalized_score(summary.get("groups", []))
+    if score is not None:
+        agg["scores"].append(score)
+    usage = summary.get("token_usage")
+    if usage:
+        agg["tokens"].append(usage.get("total_tokens", 0))
+    if summary.get("cost_usd") is not None:
+        agg["costs"].append(summary["cost_usd"])
+
+
+def _finalize_economics_row(label: tuple[str, str], agg: dict) -> dict:
+    agent, model = label
+    mean_score = _mean(agg["scores"])
+    mean_tokens = _mean(agg["tokens"])
+    mean_cost = _mean(agg["costs"])
+    cost_efficiency = mean_score / mean_cost if mean_score is not None and mean_cost else None
+    token_efficiency = mean_score / (mean_tokens / 1_000_000) if mean_score is not None and mean_tokens else None
+    return {
+        "full_label": f"{agent} / {model}" if model else agent,
+        "short_label": _short_label(agent, model),
+        "trials": agg["trials"],
+        "score": mean_score,
+        "score_std": _sample_std(agg["scores"]),
+        "tokens": mean_tokens,
+        "cost": mean_cost,
+        "cost_efficiency": cost_efficiency,
+        "token_efficiency": token_efficiency,
+    }
+
+
+def _short_label(agent: str, model: str) -> str:
+    short_agent = agent.removeprefix("claude-").removeprefix("codex-").removeprefix("gemini-")
+    short_agent = short_agent.replace("ntcoding-tactical-ddd-", "").replace("ntcoding-tactical-ddd", "tactical-ddd")
+    short_model = model.removeprefix("claude-").removeprefix("google/")
+    return f"{short_agent} / {short_model}" if short_model else short_agent
+
+
+def _mean(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def _sample_std(values: list[float]) -> float | None:
+    return statistics.stdev(values) if len(values) >= 2 else None
+
+
+def _fmt_score(mean: float | None, std: float | None, n: int) -> str:
+    if mean is None:
+        return "—"
+    if n < 2 or std is None:
+        return f"{mean:.2f} (n=1)" if n == 1 else f"{mean:.2f}"
+    return f"{mean:.2f} ±{std:.2f}"
+
+
+def _fmt(value: float | None, spec: str) -> str:
+    return spec.format(value) if value is not None else "—"
+
+
+def _fmt_tokens(total: float | None) -> str:
+    if not total:
+        return "—"
+    if total >= 1_000_000:
+        return f"{total / 1_000_000:.1f}M"
+    if total >= 1_000:
+        return f"{total / 1_000:.0f}k"
+    return str(int(total))
 
 
 # ---------------------------------------------------------------------------

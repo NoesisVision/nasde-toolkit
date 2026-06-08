@@ -23,6 +23,8 @@ from nasde_toolkit.evaluator import (
     _resolve_agent_name,
     _resolve_task_name,
 )
+from nasde_toolkit.pricing import load_pricing
+from nasde_toolkit.token_metrics import build_trial_economics
 
 console = Console()
 
@@ -148,17 +150,46 @@ def _write_metrics(trial_dir: Path, out_dir: Path) -> None:
 
 def _build_metrics(trial_dir: Path) -> dict:
     result = _load_json(trial_dir / "result.json")
+    model = _resolve_model_name(trial_dir)
+    score_stats = _resolve_score_stats(trial_dir)
+    economics = build_trial_economics(trial_dir, model, load_pricing(), score_stats["score"])
     return {
         "trial_name": result.get("trial_name", trial_dir.name),
         "task_name": _resolve_task_name(result),
         "agent_name": _resolve_agent_name(trial_dir),
-        "model_name": _resolve_model_name(trial_dir),
+        "model_name": model,
         "source": result.get("source", ""),
         "started_at": result.get("started_at", ""),
         "finished_at": result.get("finished_at", ""),
         "duration_sec": _compute_duration_sec(result),
         "harbor_reward": _resolve_harbor_reward(result),
+        "score": score_stats["score"],
+        "score_eval_std": score_stats["score_eval_std"],
+        "score_eval_n": score_stats["score_eval_n"],
+        "single_eval": score_stats["single_eval"],
+        "token_usage": economics["token_usage"],
+        "cost_usd": economics["cost_usd"],
+        "token_efficiency": economics["token_efficiency"],
+        "cost_efficiency": economics["cost_efficiency"],
+        "pricing_as_of": economics["pricing_as_of"],
         "exception_info": result.get("exception_info"),
+    }
+
+
+def _resolve_score_stats(trial_dir: Path) -> dict:
+    summary_path = trial_dir / "assessment_summary.json"
+    if not summary_path.exists():
+        return {"score": None, "score_eval_std": None, "score_eval_n": None, "single_eval": None}
+    groups = _load_json(summary_path).get("groups", [])
+    dominant = next((g for g in groups if g.get("dominant")), groups[0] if groups else None)
+    if dominant is None:
+        return {"score": None, "score_eval_std": None, "score_eval_n": None, "single_eval": None}
+    eval_n = dominant.get("n")
+    return {
+        "score": dominant.get("normalized_score_mean"),
+        "score_eval_std": dominant.get("normalized_score_std"),
+        "score_eval_n": eval_n,
+        "single_eval": eval_n == 1 if eval_n is not None else None,
     }
 
 

@@ -1,0 +1,39 @@
+# Model pricing for token-cost metrics (per 1M tokens, full catalog rate).
+#
+# Cost is computed "as if every run were the first": the full prompt-token volume
+# (cache included) is billed at the full input rate, with NO cache discount. This
+# makes cost deterministic and independent of run order / cache TTL — the prompt
+# token count is fixed for a task, while the cache hit rate is not.
+#
+# cached_input_per_1m is recorded for reference only; it is NOT used in the cost
+# formula. reasoning output tokens are folded into output (see token_metrics.py).
+#
+# Verified 2026-06-08 — CONFIRM before publishing any cost figures.
+
+[models."gpt-5.5"]
+input_per_1m = 5.0
+output_per_1m = 30.0
+cached_input_per_1m = 0.50
+as_of = "2026-06-08"
+source = "https://developers.openai.com/api/docs/pricing"
+
+[models."gpt-5.4"]
+input_per_1m = 2.50
+output_per_1m = 15.0
+cached_input_per_1m = 0.25
+as_of = "2026-06-08"
+source = "https://developers.openai.com/api/docs/pricing"
+
+[models."claude-opus-4-8"]
+input_per_1m = 5.0
+output_per_1m = 15.0
+cached_input_per_1m = 0.50
+as_of = "2026-06-08"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"
+
+[models."claude-sonnet-4-6"]
+input_per_1m = 3.0
+output_per_1m = 15.0
+cached_input_per_1m = 0.30
+as_of = "2026-06-08"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"

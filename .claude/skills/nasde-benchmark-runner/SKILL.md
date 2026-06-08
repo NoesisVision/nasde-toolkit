@@ -106,6 +106,26 @@ cmd.exe is **not supported directly** — `.ps1` requires PowerShell, `.sh` requ
 
 If a user is in cmd.exe, point them to one of these two — don't try to extract the token manually.
 
+### Important: chain auth into the run command
+
+Exported env vars (`CLAUDE_CODE_OAUTH_TOKEN`, etc.) **do not persist across separate
+shell invocations** — every command in an automated runner (and every separate terminal
+call) is a fresh shell, so a lone `source ...` in one step is gone by the next. When
+running non-interactively, **chain the `source` script(s) and the `nasde` call in a single
+command** with `&&`:
+
+```bash
+# bash/zsh — both tokens chained into one invocation
+source $SKILL_SCRIPTS/export_codex_oauth_token.sh && source $SKILL_SCRIPTS/export_oauth_token.sh && \
+  nasde run --variant codex-vanilla --tasks my-task -C path/to/benchmark
+```
+
+Chain exactly the scripts the run needs: the agent's token (claude/codex/gemini) **and**
+the evaluator's token — the evaluator uses `[evaluation] backend` from `nasde.toml`, which
+defaults to `claude`, so a codex/gemini run with the default evaluator still needs
+`export_oauth_token.sh` too. In an interactive terminal session a one-time `source` in the
+same session is fine; the chaining rule matters for scripts, CI, and tool-driven runs.
+
 ## Running benchmarks
 
 All commands assume `-C` points to the benchmark project directory.

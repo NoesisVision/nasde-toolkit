@@ -83,17 +83,32 @@ nasde --help
 
 ### 3. End-to-end benchmark run
 
-Run a single task from the existing benchmark with full eval and Opik tracing:
+**Auth — CHAIN the export scripts INTO the run command.** OAuth env vars do NOT
+persist between separate shell invocations, so a lone `source ...` in one command
+is lost by the next. Always `&&`-chain the needed `source` scripts with the `nasde`
+call in a single command. Never ask the user to authenticate — do it yourself.
+
+Which auth each task needs (check before running, don't ask):
+- **Agent** claude → `scripts/export_oauth_token.sh` (`CLAUDE_CODE_OAUTH_TOKEN`);
+  codex → `scripts/export_codex_oauth_token.sh`; gemini → `scripts/export_gemini_oauth_token.sh`.
+- **Evaluator** (every run without `--without-eval`, and `nasde eval`) uses the
+  `[evaluation] backend` from `nasde.toml` — **default `claude` → needs Claude OAuth
+  even when the agent is codex/gemini.** So a codex-agent run with the default
+  evaluator needs BOTH Codex OAuth (agent) and Claude OAuth (eval).
+- `--with-opik` → Opik config (see step 4 / `.env`).
 
 ```bash
-source scripts/export_oauth_token.sh
-nasde run --variant baseline --tasks ddd-threshold-discount \
+# codex agent + default (claude) evaluator → BOTH OAuth tokens, chained:
+source scripts/export_codex_oauth_token.sh && source scripts/export_oauth_token.sh && \
+  nasde run --variant codex-vanilla --tasks ddd-threshold-discount \
   -C examples/ddd-architectural-challenges --with-opik
 ```
 
 Expected output:
 - Harbor trial completes with reward 1.0
 - Assessment evaluation produces scores for all configured dimensions
+- Token & cost economics appear in the per-(agent, model) summary table and in
+  `assessment_summary.json` (see ADR-011)
 - Opik trace is created with feedback scores uploaded
 
 ### 4. Opik REST API verification

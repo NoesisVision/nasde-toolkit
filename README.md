@@ -297,7 +297,7 @@ nasde results-export jobs/2026-03-13__14-30-00 --to ~/Dropbox/nasde-results -C m
 
 The destination is any path you like — an iCloud or Dropbox folder, an external drive, or a git repo you commit yourself. NASDE just writes files there; it never talks to a cloud provider, so there's nothing to authenticate. Each trial becomes one flat folder `<job>__<trial>/` containing:
 
-- `metrics.json` — self-contained summary: timing, model, variant, task, reward
+- `metrics.json` — self-contained summary: timing, model, variant, task, reward, **token usage + USD cost + efficiency** (see [Token & cost efficiency](#token--cost-efficiency) below)
 - `assessment_eval_*.json` — the reviewer's per-dimension scores and reasoning (one file per repetition)
 - `assessment_summary.json` — per-dimension mean/std/range across repetitions (the representative result)
 - `trajectory.json` — the agent's full tool-call trace, for post-hoc efficiency analysis
@@ -307,6 +307,31 @@ The destination is any path you like — an iCloud or Dropbox folder, an externa
 You can pass several paths at once, mixing whole jobs and individual trials — NASDE figures out which is which. Re-running is safe: it merges (copying any evaluations added since the last export) and never re-touches the immutable trajectory or patch.
 
 > **Experimental / beta.** This command is new; the layout may still change. Feedback welcome.
+
+## Token & cost efficiency
+
+A passing test tells you the agent *can* do the task. It doesn't tell you what that capability **costs**. NASDE records, for every trial, how many tokens the agent burned and what that would cost in dollars — then turns it into two comparable numbers:
+
+- **token efficiency** — quality per million tokens (`normalized_score ÷ (total_tokens / 1M)`). Price-independent; a pure measure of how much the model "thinks" to reach a given quality.
+- **cost efficiency** — quality per dollar (`normalized_score ÷ cost_usd`). The number that matters when you're choosing a model for a budget.
+
+These appear in three places: the `nasde run` summary prints a per-`(agent, model)` table (trials, score, tokens, $cost, `score/$`, `score/MTok`); `assessment_summary.json` carries them per trial; and `results-export` copies them into `metrics.json`.
+
+**A mean is never reported bare.** The summary table shows `Score` as `mean ±std` across trials — the standard deviation between repeated runs (agent noise: the agent writes different code each time). A single trial reads `mean (n=1)`, an explicit single-run flag rather than a fake `±0.00`, and the `Trials` column is the sample size. The other noise source — the judge scoring the *same* code differently — is per-trial, so it lives in `metrics.json` (`score_eval_std`, `score_eval_n`, `single_eval`). Keeping the two apart is the point: is a gap bigger than the run-to-run wobble, or just noise? (Bootstrap/Bayesian significance testing is a separate, offline step — this surfaces the spread and `n` that make a mean honest.)
+
+**How cost is computed — "as if every run were the first."** The full input volume (prompt tokens, cache included) is billed at the full catalog rate, with *no* cache discount, and the model's reasoning tokens are counted as output. This is deliberate: the prompt-token count is fixed for a task, but the cache hit rate drifts with run order and timing — so billing the full volume keeps cost **deterministic and comparable across runs**, not a function of how warm your cache happened to be.
+
+**Pricing is yours to keep current.** Rates live in a small, versioned `pricing.toml` bundled with NASDE, each model stamped with the date and source it came from. A model that isn't in the catalog still gets token metrics — only its `cost_usd` is left blank (with a warning), never a wrong number. To add or update a model, edit `pricing.toml`:
+
+```toml
+[models."your-model-id"]
+input_per_1m = 3.0
+output_per_1m = 15.0
+as_of = "2026-06-08"
+source = "https://…"
+```
+
+> **Confirm rates before quoting costs.** The bundled catalog is a convenience, not a billing authority — re-check against the provider's current rate card before publishing any dollar figure.
 
 ## Calibrating the rubric (`nasde calibrate`)
 

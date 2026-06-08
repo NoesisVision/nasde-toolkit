@@ -20,6 +20,8 @@ from rich.console import Console
 
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator_backends import create_backend
+from nasde_toolkit.pricing import load_pricing
+from nasde_toolkit.token_metrics import build_trial_economics
 
 console = Console()
 
@@ -94,12 +96,24 @@ class EvaluatorGroupSummary:
 
 @dataclass
 class AssessmentSummary:
-    """Representative result of a trial: per-evaluator-cluster mean aggregates."""
+    """Representative result of a trial: per-evaluator-cluster mean aggregates.
+
+    Token/cost economics live here (per-trial, one agent run) rather than in
+    EvaluatorGroupSummary, which averages over repeated judge evaluations.
+    model_name is the agent's model — the grouping key for cross-model analysis,
+    since agent_name (the variant name) does not distinguish models.
+    """
 
     task_name: str
     trial_name: str
     agent_name: str
     groups: list[EvaluatorGroupSummary] = field(default_factory=list)
+    model_name: str = ""
+    token_usage: dict | None = None
+    cost_usd: float | None = None
+    token_efficiency: float | None = None
+    cost_efficiency: float | None = None
+    pricing_as_of: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -662,11 +676,39 @@ def _write_assessment_summary(trial_dir: Path) -> AssessmentSummary | None:
     if not evaluations:
         return None
     summary = _aggregate_evaluations(evaluations)
+    _enrich_with_economics(summary, trial_dir)
     output_path = trial_dir / "assessment_summary.json"
     with open(output_path, "w") as f:
         json.dump(asdict(summary), f, indent=2)
     console.print(f"  Written: {output_path}")
     return summary
+
+
+def _enrich_with_economics(summary: AssessmentSummary, trial_dir: Path) -> None:
+    model = _resolve_model_name(trial_dir)
+    normalized_score = _dominant_normalized_score(summary)
+    economics = build_trial_economics(trial_dir, model, load_pricing(), normalized_score)
+    summary.model_name = economics["model_name"]
+    summary.token_usage = economics["token_usage"]
+    summary.cost_usd = economics["cost_usd"]
+    summary.token_efficiency = economics["token_efficiency"]
+    summary.cost_efficiency = economics["cost_efficiency"]
+    summary.pricing_as_of = economics["pricing_as_of"]
+
+
+def _dominant_normalized_score(summary: AssessmentSummary) -> float | None:
+    if not summary.groups:
+        return None
+    return _dominant_group(summary).normalized_score_mean
+
+
+def _resolve_model_name(trial_dir: Path) -> str:
+    config_path = trial_dir / "config.json"
+    if config_path.exists():
+        config = _load_json(config_path)
+        model: str = config.get("agent", {}).get("model_name", "")
+        return model
+    return ""
 
 
 def _load_raw_evaluations(trial_dir: Path) -> list[EvaluationResult]:

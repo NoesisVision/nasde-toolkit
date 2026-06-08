@@ -64,7 +64,7 @@ The script exports `CLAUDE_CODE_OAUTH_TOKEN`. This is required for both Claude v
 | Windows PowerShell | `codex login` once, then `. <SKILL_SCRIPTS>\export_codex_oauth_token.ps1` | `$env:CODEX_API_KEY = 'sk-proj-...'` |
 | Windows WSL (Ubuntu) | `codex login` once, then `source <SKILL_SCRIPTS>/export_codex_oauth_token.sh` | `export CODEX_API_KEY=sk-proj-...` |
 
-The OAuth scripts only **validate** `~/.codex/auth.json` (or `%USERPROFILE%\.codex\auth.json`) — Harbor injects the file into the sandbox automatically. API key always takes priority over OAuth when both are present.
+The OAuth scripts only **validate** `~/.codex/auth.json` (or `%USERPROFILE%\.codex\auth.json`) — `nasde` then opts Harbor into uploading it into the sandbox (it sets `CODEX_FORCE_AUTH_JSON=1` when no API key is present but the file exists; harbor 0.13's Codex agent otherwise defaults to `OPENAI_API_KEY` and would write an empty key). API key always takes priority over OAuth when both are present.
 
 #### Gemini CLI
 

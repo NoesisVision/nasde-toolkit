@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from textwrap import dedent
 from unittest.mock import patch
@@ -349,17 +350,47 @@ def test_ensure_auth_codex_with_openai_api_key() -> None:
         _ensure_auth(codex_path)
 
 
-def test_ensure_auth_codex_with_oauth_file(tmp_path: Path) -> None:
+def test_ensure_auth_codex_with_oauth_file_forces_auth_json(tmp_path: Path) -> None:
     codex_path = "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"
     auth_file = tmp_path / ".codex" / "auth.json"
     auth_file.parent.mkdir(parents=True)
-    auth_file.write_text('{"token": "test"}')
+    auth_file.write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "t"}}')
 
     with (
         patch.dict("os.environ", {}, clear=True),
         patch("pathlib.Path.home", return_value=tmp_path),
     ):
         _ensure_auth(codex_path)
+        assert os.environ["CODEX_FORCE_AUTH_JSON"] == "1"
+
+
+def test_ensure_auth_codex_oauth_does_not_override_explicit_auth_json_path(tmp_path: Path) -> None:
+    codex_path = "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"
+    auth_file = tmp_path / ".codex" / "auth.json"
+    auth_file.parent.mkdir(parents=True)
+    auth_file.write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "t"}}')
+
+    with (
+        patch.dict("os.environ", {"CODEX_AUTH_JSON_PATH": "/custom/auth.json"}, clear=True),
+        patch("pathlib.Path.home", return_value=tmp_path),
+    ):
+        _ensure_auth(codex_path)
+        assert "CODEX_FORCE_AUTH_JSON" not in os.environ
+        assert os.environ["CODEX_AUTH_JSON_PATH"] == "/custom/auth.json"
+
+
+def test_ensure_auth_codex_with_api_key_does_not_force_auth_json(tmp_path: Path) -> None:
+    codex_path = "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"
+    auth_file = tmp_path / ".codex" / "auth.json"
+    auth_file.parent.mkdir(parents=True)
+    auth_file.write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "t"}}')
+
+    with (
+        patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test"}, clear=True),
+        patch("pathlib.Path.home", return_value=tmp_path),
+    ):
+        _ensure_auth(codex_path)
+        assert "CODEX_FORCE_AUTH_JSON" not in os.environ
 
 
 def test_ensure_auth_codex_missing_raises() -> None:

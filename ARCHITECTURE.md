@@ -346,10 +346,10 @@ The runner builds a **merged config** by combining:
 
 ## Rubric calibration (`nasde calibrate`, ADR-010)
 
-The reviewer's rubric (`assessment_criteria.md`, `assessment_dimensions.json`) is itself
-LLM-generated and may diverge from human judgment. Calibration closes the loop: publish trial diffs +
-scores as Pull/Merge Requests, let a human comment on the diff, pull those comments back, and tune the
-rubric — then re-measure.
+An LLM judge is an imperfect grader: how it reads the rubric
+(`assessment_criteria.md`, `assessment_dimensions.json`) can diverge from human judgment. Calibration
+closes the loop: publish trial diffs + scores as Pull/Merge Requests, let a human comment on the diff,
+pull those comments back, and tune the rubric — then re-measure.
 
 ```mermaid
 flowchart LR

@@ -6,16 +6,16 @@ description: |
   - Review trial diffs alongside the LLM-as-a-Judge scores in a PR/MR
   - Investigate why judge scores feel off, too harsh, too lenient, or misaligned with how a human would grade the code
   - Pull review comments back from PRs/MRs and turn them into concrete rubric edits
-  Even if the user doesn't say "calibrate" — if they're worried the auto-generated rubric diverges from human judgment, or want to align scores with a real developer's opinion before freezing a benchmark, this skill applies.
+  Even if the user doesn't say "calibrate" — if they're worried the LLM judge's scores diverge from human judgment, or want to align scores with a real developer's opinion before freezing a benchmark, this skill applies.
 ---
 
 # NASDE Benchmark Calibration
 
 Close the loop between the LLM-as-a-Judge and a human reviewer. The judge scores trials against
-`assessment_criteria.md` (per task) and `assessment_dimensions.json` (benchmark-wide) — but those
-rubrics were themselves LLM-generated and may diverge from how a human grades the code. This skill
-publishes trial diffs + scores as Pull/Merge Requests for human review, pulls the comments back, and
-proposes concrete rubric edits.
+`assessment_criteria.md` (per task) and `assessment_dimensions.json` (benchmark-wide) — but an LLM
+judge is an imperfect grader, and how it reads the rubric may diverge from how a human grades the code.
+This skill publishes trial diffs + scores as Pull/Merge Requests for human review, pulls the comments
+back, and proposes concrete rubric edits.
 
 This is the third skill in the benchmark lifecycle: `nasde-benchmark-creator` writes the rubric,
 `nasde-benchmark-runner` runs trials and scores them, and **this skill calibrates the rubric** against

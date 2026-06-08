@@ -311,10 +311,11 @@ You can pass several paths at once, mixing whole jobs and individual trials — 
 ## Calibrating the rubric (`nasde calibrate`)
 
 The reviewer agent scores trials against a rubric (`assessment_criteria.md` per task,
-`assessment_dimensions.json` benchmark-wide) — but that rubric was itself drafted by an LLM, so its
-thresholds and wording can drift from how *you* would grade the code. Before you trust a benchmark,
-you want to eyeball the actual diffs next to the scores and correct the rubric where they disagree.
-`nasde calibrate` turns that into a loop you run in your normal review tool: GitHub or GitLab.
+`assessment_dimensions.json` benchmark-wide) — but an LLM judge is an imperfect grader, and the way it
+reads your rubric can drift from how *you* would grade the code. Before you trust a benchmark, you want
+to eyeball the actual diffs next to the scores and tighten the rubric wherever the judge and your own
+judgment disagree. `nasde calibrate` turns that into a loop you run in your normal review tool: GitHub
+or GitLab.
 
 ```bash
 # in nasde.toml

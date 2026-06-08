@@ -53,6 +53,14 @@ def extract_token_usage(trajectory: dict) -> TokenUsage | None:
     )
 
 
+def dominant_normalized_score(groups: list[dict]) -> float | None:
+    """Pick the dominant evaluator cluster's mean score from a summary's groups dict."""
+    if not groups:
+        return None
+    dominant = next((g for g in groups if g.get("dominant")), groups[0])
+    return dominant.get("normalized_score_mean")
+
+
 def read_trajectory(trial_dir: Path) -> dict | None:
     """Read a trajectory from a run trial dir (agent/) or an export dir (flat)."""
     for candidate in (trial_dir / "agent" / "trajectory.json", trial_dir / "trajectory.json"):

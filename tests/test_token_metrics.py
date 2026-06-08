@@ -11,6 +11,7 @@ from nasde_toolkit.pricing import load_pricing
 from nasde_toolkit.token_metrics import (
     build_trial_economics,
     compute_efficiencies,
+    dominant_normalized_score,
     extract_token_usage,
     read_trajectory,
 )
@@ -68,6 +69,23 @@ def test_compute_efficiencies_guards_zero_and_none() -> None:
     assert compute_efficiencies(0.8, 0, 4.0)[0] is None
     assert compute_efficiencies(0.8, 1_000_000, 0)[1] is None
     assert compute_efficiencies(0.8, 1_000_000, None)[1] is None
+
+
+def test_dominant_normalized_score_picks_dominant() -> None:
+    groups = [
+        {"dominant": False, "normalized_score_mean": 0.3},
+        {"dominant": True, "normalized_score_mean": 0.8},
+    ]
+    assert dominant_normalized_score(groups) == 0.8
+
+
+def test_dominant_normalized_score_falls_back_to_first() -> None:
+    groups = [{"normalized_score_mean": 0.5}, {"normalized_score_mean": 0.9}]
+    assert dominant_normalized_score(groups) == 0.5  # no dominant flag → first
+
+
+def test_dominant_normalized_score_empty_is_none() -> None:
+    assert dominant_normalized_score([]) is None
 
 
 def test_read_trajectory_run_layout(tmp_path: Path) -> None:

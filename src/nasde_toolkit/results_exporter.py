@@ -24,7 +24,7 @@ from nasde_toolkit.evaluator import (
     _resolve_task_name,
 )
 from nasde_toolkit.pricing import load_pricing
-from nasde_toolkit.token_metrics import build_trial_economics
+from nasde_toolkit.token_metrics import build_trial_economics, dominant_normalized_score
 
 console = Console()
 
@@ -175,9 +175,7 @@ def _resolve_normalized_score(trial_dir: Path) -> float | None:
     summary_path = trial_dir / "assessment_summary.json"
     if not summary_path.exists():
         return None
-    groups = _load_json(summary_path).get("groups", [])
-    dominant = next((g for g in groups if g.get("dominant")), groups[0] if groups else None)
-    return dominant.get("normalized_score_mean") if dominant else None
+    return dominant_normalized_score(_load_json(summary_path).get("groups", []))
 
 
 def _resolve_harbor_reward(result: dict) -> float:

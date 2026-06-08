@@ -31,6 +31,7 @@ from nasde_toolkit.plugin_registration import (
     register_plugin_skills,
     stage_referenced_skills,
 )
+from nasde_toolkit.token_metrics import dominant_normalized_score
 
 if TYPE_CHECKING:
     from harbor.models.job.result import JobResult
@@ -1000,7 +1001,7 @@ def _accumulate_economics(groups: dict[tuple[str, str], dict], summary: dict) ->
     key = (summary.get("agent_name", ""), summary.get("model_name", ""))
     agg = groups.setdefault(key, {"trials": 0, "scores": [], "tokens": [], "costs": []})
     agg["trials"] += 1
-    score = _dominant_score(summary)
+    score = dominant_normalized_score(summary.get("groups", []))
     if score is not None:
         agg["scores"].append(score)
     usage = summary.get("token_usage")
@@ -1034,12 +1035,6 @@ def _short_label(agent: str, model: str) -> str:
     short_agent = short_agent.replace("ntcoding-tactical-ddd-", "").replace("ntcoding-tactical-ddd", "tactical-ddd")
     short_model = model.removeprefix("claude-").removeprefix("google/")
     return f"{short_agent} / {short_model}" if short_model else short_agent
-
-
-def _dominant_score(summary: dict) -> float | None:
-    groups = summary.get("groups", [])
-    dominant = next((g for g in groups if g.get("dominant")), groups[0] if groups else None)
-    return dominant.get("normalized_score_mean") if dominant else None
 
 
 def _mean(values: list[float]) -> float | None:

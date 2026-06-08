@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass
+from functools import lru_cache
 from importlib.resources import as_file, files
 from pathlib import Path
 
@@ -29,8 +30,24 @@ class ModelPrice:
 
 
 def load_pricing(path: str | Path | None = None) -> dict[str, ModelPrice]:
-    """Load the model pricing catalog, defaulting to the bundled pricing.toml."""
+    """Load the model pricing catalog, defaulting to the bundled pricing.toml.
+
+    The bundled catalog (``path=None``) is read and parsed once per process and
+    cached, since it is invariant — callers (one per trial) must treat the
+    returned mapping as read-only.
+    """
+    if path is None:
+        return _load_bundled_pricing()
     raw = _read_pricing_toml(path)
+    return _pricing_from_raw(raw)
+
+
+@lru_cache(maxsize=1)
+def _load_bundled_pricing() -> dict[str, ModelPrice]:
+    return _pricing_from_raw(_read_pricing_toml(None))
+
+
+def _pricing_from_raw(raw: dict) -> dict[str, ModelPrice]:
     return {name: _model_price_from_dict(entry) for name, entry in raw.get("models", {}).items()}
 
 

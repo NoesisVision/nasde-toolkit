@@ -929,6 +929,7 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
     rows = _collect_economics_rows(job_dir) if job_dir is not None else []
     if rows and job_dir is not None:
         _print_economics_table(rows)
+        _print_label_legend(rows)
         _print_location_hints(job_dir)
     elif result.stats.evals:
         _print_eval_counts_table(result)
@@ -936,23 +937,35 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
 
 
 def _print_economics_table(rows: list[dict]) -> None:
-    table = Table(title="Results by agent/model")
+    table = Table(title="Results by agent/model (per-trial averages)")
+    table.add_column("#", justify="right", style="dim")
     table.add_column("Agent / Model", style="cyan")
     table.add_column("Trials", justify="right")
     table.add_column("Score", justify="right")
     table.add_column("Tokens", justify="right")
     table.add_column("$ Cost", justify="right")
-    table.add_column("q/$", justify="right")
-    for row in rows:
+    table.add_column("score/$", justify="right")
+    table.add_column("score/MTok", justify="right")
+    for index, row in enumerate(rows, start=1):
         table.add_row(
-            row["label"],
+            f"[{index}]",
+            row["short_label"],
             str(row["trials"]),
             _fmt(row["score"], "{:.2f}"),
             _fmt_tokens(row["tokens"]),
             _fmt(row["cost"], "${:.2f}"),
             _fmt(row["cost_efficiency"], "{:.3f}"),
+            _fmt(row["token_efficiency"], "{:.3f}"),
         )
     console.print(table)
+
+
+def _print_label_legend(rows: list[dict]) -> None:
+    if all(row["short_label"] == row["full_label"] for row in rows):
+        return
+    console.print("[dim]Legend:[/dim]")
+    for index, row in enumerate(rows, start=1):
+        console.print(f"[dim]  [{index}] {row['full_label']}[/dim]")
 
 
 def _print_location_hints(job_dir: Path) -> None:
@@ -985,31 +998,42 @@ def _collect_economics_rows(job_dir: Path) -> list[dict]:
 
 def _accumulate_economics(groups: dict[tuple[str, str], dict], summary: dict) -> None:
     key = (summary.get("agent_name", ""), summary.get("model_name", ""))
-    agg = groups.setdefault(key, {"trials": 0, "scores": [], "tokens": 0, "costs": []})
+    agg = groups.setdefault(key, {"trials": 0, "scores": [], "tokens": [], "costs": []})
     agg["trials"] += 1
     score = _dominant_score(summary)
     if score is not None:
         agg["scores"].append(score)
     usage = summary.get("token_usage")
     if usage:
-        agg["tokens"] += usage.get("total_tokens", 0)
+        agg["tokens"].append(usage.get("total_tokens", 0))
     if summary.get("cost_usd") is not None:
         agg["costs"].append(summary["cost_usd"])
 
 
 def _finalize_economics_row(label: tuple[str, str], agg: dict) -> dict:
     agent, model = label
-    score = sum(agg["scores"]) / len(agg["scores"]) if agg["scores"] else None
-    cost = sum(agg["costs"]) if agg["costs"] else None
-    cost_efficiency = score / (cost / agg["trials"]) if score is not None and cost else None
+    mean_score = _mean(agg["scores"])
+    mean_tokens = _mean(agg["tokens"])
+    mean_cost = _mean(agg["costs"])
+    cost_efficiency = mean_score / mean_cost if mean_score is not None and mean_cost else None
+    token_efficiency = mean_score / (mean_tokens / 1_000_000) if mean_score is not None and mean_tokens else None
     return {
-        "label": f"{agent} / {model}" if model else agent,
+        "full_label": f"{agent} / {model}" if model else agent,
+        "short_label": _short_label(agent, model),
         "trials": agg["trials"],
-        "score": score,
-        "tokens": agg["tokens"] or None,
-        "cost": cost,
+        "score": mean_score,
+        "tokens": mean_tokens,
+        "cost": mean_cost,
         "cost_efficiency": cost_efficiency,
+        "token_efficiency": token_efficiency,
     }
+
+
+def _short_label(agent: str, model: str) -> str:
+    short_agent = agent.removeprefix("claude-").removeprefix("codex-").removeprefix("gemini-")
+    short_agent = short_agent.replace("ntcoding-tactical-ddd-", "").replace("ntcoding-tactical-ddd", "tactical-ddd")
+    short_model = model.removeprefix("claude-").removeprefix("google/")
+    return f"{short_agent} / {short_model}" if short_model else short_agent
 
 
 def _dominant_score(summary: dict) -> float | None:
@@ -1018,18 +1042,22 @@ def _dominant_score(summary: dict) -> float | None:
     return dominant.get("normalized_score_mean") if dominant else None
 
 
+def _mean(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
 def _fmt(value: float | None, spec: str) -> str:
     return spec.format(value) if value is not None else "—"
 
 
-def _fmt_tokens(total: int | None) -> str:
+def _fmt_tokens(total: float | None) -> str:
     if not total:
         return "—"
     if total >= 1_000_000:
         return f"{total / 1_000_000:.1f}M"
     if total >= 1_000:
         return f"{total / 1_000:.0f}k"
-    return str(total)
+    return str(int(total))
 
 
 # ---------------------------------------------------------------------------

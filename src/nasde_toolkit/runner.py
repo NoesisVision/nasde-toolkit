@@ -240,7 +240,7 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
 def _force_codex_oauth_auth_json() -> None:
     if os.environ.get("CODEX_AUTH_JSON_PATH") or os.environ.get("CODEX_FORCE_AUTH_JSON"):
         return
-    os.environ["CODEX_FORCE_AUTH_JSON"] = "1"
+    os.environ["CODEX_FORCE_AUTH_JSON"] = "true"
 
 
 def _validate_opik_env() -> None:

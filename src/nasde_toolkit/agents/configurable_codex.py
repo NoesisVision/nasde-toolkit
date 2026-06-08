@@ -8,7 +8,7 @@ Auth note (harbor 0.13): the Codex agent now **defaults to OPENAI_API_KEY** and
 only uploads a ChatGPT OAuth ``auth.json`` when ``CODEX_AUTH_JSON_PATH`` or
 ``CODEX_FORCE_AUTH_JSON`` is set. Without an API key it would otherwise write an
 empty key into the sandbox (``Incorrect API key provided: ''``). The runner's
-``_ensure_auth`` opts into OAuth by setting ``CODEX_FORCE_AUTH_JSON=1`` when no
+``_ensure_auth`` opts into OAuth by setting ``CODEX_FORCE_AUTH_JSON=true`` when no
 API key is present but ``~/.codex/auth.json`` exists, so subscription auth works
 out of the box. ``OPENAI_API_KEY``/``CODEX_API_KEY`` always take priority.
 

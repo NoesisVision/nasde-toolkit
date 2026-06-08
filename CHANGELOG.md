@@ -83,7 +83,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   every Codex run with `Incorrect API key provided: ''` on
   `wss://api.openai.com/v1/responses`. `_ensure_auth` now opts into OAuth
   automatically: when no `OPENAI_API_KEY`/`CODEX_API_KEY` is set but
-  `~/.codex/auth.json` exists, it sets `CODEX_FORCE_AUTH_JSON=1` (respecting a
+  `~/.codex/auth.json` exists, it sets `CODEX_FORCE_AUTH_JSON=true` (respecting a
   user-set `CODEX_AUTH_JSON_PATH`/`CODEX_FORCE_AUTH_JSON`). Subscription auth for
   Codex agents works out of the box again. ([#61])
 - **Bump `starlette` 1.0.0 → 1.1.0** (PYSEC-2026-161; transitive via

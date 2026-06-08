@@ -361,7 +361,21 @@ def test_ensure_auth_codex_with_oauth_file_forces_auth_json(tmp_path: Path) -> N
         patch("pathlib.Path.home", return_value=tmp_path),
     ):
         _ensure_auth(codex_path)
-        assert os.environ["CODEX_FORCE_AUTH_JSON"] == "1"
+        assert os.environ["CODEX_FORCE_AUTH_JSON"] == "true"
+
+
+def test_ensure_auth_codex_oauth_does_not_override_existing_force_flag(tmp_path: Path) -> None:
+    codex_path = "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"
+    auth_file = tmp_path / ".codex" / "auth.json"
+    auth_file.parent.mkdir(parents=True)
+    auth_file.write_text('{"auth_mode": "chatgpt", "tokens": {"access_token": "t"}}')
+
+    with (
+        patch.dict("os.environ", {"CODEX_FORCE_AUTH_JSON": "0"}, clear=True),
+        patch("pathlib.Path.home", return_value=tmp_path),
+    ):
+        _ensure_auth(codex_path)
+        assert os.environ["CODEX_FORCE_AUTH_JSON"] == "0"
 
 
 def test_ensure_auth_codex_oauth_does_not_override_explicit_auth_json_path(tmp_path: Path) -> None:

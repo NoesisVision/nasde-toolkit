@@ -21,11 +21,7 @@ def test_load_bundled_pricing_has_matrix_models() -> None:
 def test_load_custom_pricing_file(tmp_path: Path) -> None:
     custom = tmp_path / "pricing.toml"
     custom.write_text(
-        '[models."my-model"]\n'
-        "input_per_1m = 1.0\n"
-        "output_per_1m = 2.0\n"
-        'as_of = "2026-01-01"\n'
-        'source = "test"\n'
+        '[models."my-model"]\ninput_per_1m = 1.0\noutput_per_1m = 2.0\nas_of = "2026-01-01"\nsource = "test"\n'
     )
     pricing = load_pricing(custom)
     assert set(pricing) == {"my-model"}

@@ -927,7 +927,7 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
     console.print(f"  Errors: {result.stats.n_errored_trials}")
 
     rows = _collect_economics_rows(job_dir) if job_dir is not None else []
-    if rows:
+    if rows and job_dir is not None:
         _print_economics_table(rows)
         _print_location_hints(job_dir)
     elif result.stats.evals:

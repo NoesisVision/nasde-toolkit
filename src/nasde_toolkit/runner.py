@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import statistics
 import sys
 import tempfile
 from collections.abc import Callable
@@ -952,7 +953,7 @@ def _print_economics_table(rows: list[dict]) -> None:
             f"[{index}]",
             row["short_label"],
             str(row["trials"]),
-            _fmt(row["score"], "{:.2f}"),
+            _fmt_score(row["score"], row["score_std"], row["trials"]),
             _fmt_tokens(row["tokens"]),
             _fmt(row["cost"], "${:.2f}"),
             _fmt(row["cost_efficiency"], "{:.3f}"),
@@ -970,6 +971,9 @@ def _print_label_legend(rows: list[dict]) -> None:
 
 
 def _print_location_hints(job_dir: Path) -> None:
+    console.print(
+        "[dim]Score = mean ±std across trials (agent noise). Per-trial judge-noise std + eval n in metrics.json.[/dim]"
+    )
     console.print(f"[dim]→ Job: {job_dir}[/dim]")
     console.print(f"[dim]→ Export: uv run nasde results-export {job_dir} --to <dir>[/dim]")
 
@@ -1023,6 +1027,7 @@ def _finalize_economics_row(label: tuple[str, str], agg: dict) -> dict:
         "short_label": _short_label(agent, model),
         "trials": agg["trials"],
         "score": mean_score,
+        "score_std": _sample_std(agg["scores"]),
         "tokens": mean_tokens,
         "cost": mean_cost,
         "cost_efficiency": cost_efficiency,
@@ -1039,6 +1044,18 @@ def _short_label(agent: str, model: str) -> str:
 
 def _mean(values: list[float]) -> float | None:
     return sum(values) / len(values) if values else None
+
+
+def _sample_std(values: list[float]) -> float | None:
+    return statistics.stdev(values) if len(values) >= 2 else None
+
+
+def _fmt_score(mean: float | None, std: float | None, n: int) -> str:
+    if mean is None:
+        return "—"
+    if n < 2 or std is None:
+        return f"{mean:.2f} (n=1)" if n == 1 else f"{mean:.2f}"
+    return f"{mean:.2f} ±{std:.2f}"
 
 
 def _fmt(value: float | None, spec: str) -> str:

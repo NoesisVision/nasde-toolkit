@@ -23,7 +23,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   $cost, q/$) plus the job path and an export hint. Unpriced models keep token metrics
   with `cost_usd = null` + a warning; missing/legacy trajectories leave economics null —
   never a crash. Prices live in a bundled, versioned `pricing.toml` (each model stamped
-  with `as_of` + `source`); confirm rates before quoting dollar figures.
+  with `as_of` + `source`); confirm rates before quoting dollar figures. The summary
+  never reports a mean bare: the `nasde run` table shows `Score` as `mean ±std` across
+  trials (agent noise, sample n−1; single trial reads `mean (n=1)`), and `metrics.json`
+  carries the per-trial judge-noise stats (`score`, `score_eval_std`, `score_eval_n`,
+  `single_eval`). Two noise sources kept separate — between-trial (table) vs between-eval
+  (metrics). Bootstrap/Bayesian significance stays an offline step.
 - **Rubric calibration via PR/MR review (`nasde calibrate`, [ADR-010](docs/adr/010-git-platform-integration.md)).** Close the
   loop between the LLM-as-a-Judge and a human reviewer. `nasde calibrate publish`
   pushes each trial as a Pull/Merge Request to a private sink repo: an orphan base

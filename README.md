@@ -315,7 +315,9 @@ A passing test tells you the agent *can* do the task. It doesn't tell you what t
 - **token efficiency** — quality per million tokens (`normalized_score ÷ (total_tokens / 1M)`). Price-independent; a pure measure of how much the model "thinks" to reach a given quality.
 - **cost efficiency** — quality per dollar (`normalized_score ÷ cost_usd`). The number that matters when you're choosing a model for a budget.
 
-These appear in three places: the `nasde run` summary prints a per-`(agent, model)` table (trials, score, tokens, $cost, q/$); `assessment_summary.json` carries them per trial; and `results-export` copies them into `metrics.json`.
+These appear in three places: the `nasde run` summary prints a per-`(agent, model)` table (trials, score, tokens, $cost, `score/$`, `score/MTok`); `assessment_summary.json` carries them per trial; and `results-export` copies them into `metrics.json`.
+
+**A mean is never reported bare.** The summary table shows `Score` as `mean ±std` across trials — the standard deviation between repeated runs (agent noise: the agent writes different code each time). A single trial reads `mean (n=1)`, an explicit single-run flag rather than a fake `±0.00`, and the `Trials` column is the sample size. The other noise source — the judge scoring the *same* code differently — is per-trial, so it lives in `metrics.json` (`score_eval_std`, `score_eval_n`, `single_eval`). Keeping the two apart is the point: is a gap bigger than the run-to-run wobble, or just noise? (Bootstrap/Bayesian significance testing is a separate, offline step — this surfaces the spread and `n` that make a mean honest.)
 
 **How cost is computed — "as if every run were the first."** The full input volume (prompt tokens, cache included) is billed at the full catalog rate, with *no* cache discount, and the model's reasoning tokens are counted as output. This is deliberate: the prompt-token count is fixed for a task, but the cache hit rate drifts with run order and timing — so billing the full volume keeps cost **deterministic and comparable across runs**, not a function of how warm your cache happened to be.
 

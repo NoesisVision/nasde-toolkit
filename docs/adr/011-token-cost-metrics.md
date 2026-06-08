@@ -40,6 +40,27 @@ Supporting decisions:
 - **Cost figures are only as good as the catalog.** `pricing.toml` must be kept current; each entry's `as_of`/`source` makes the provenance auditable. Numbers used in public posts must be re-confirmed against the live rate cards.
 - **Determinism over realism-of-discount.** Cost intentionally does not model the cache discount a real bill would show; it answers "what did this run cost at full rate", which is the comparable, order-independent quantity. A future variant could add a discounted view using the recorded `cached_input_per_1m` without changing the default.
 
+## Statistical rigor in the summary (a mean is never reported bare)
+
+A single mean hides whether a gap is real or noise. Following the project's benchmarking
+methodology (repeat runs, repeat scoring, never trust a lone number), every reported mean is
+shown with its spread, and the **two noise sources are kept separate**:
+
+- **Agent noise** — variation between trials (the agent writes different code each run). The
+  `nasde run` table shows `Score` as `mean ±std` over trials, where `std` is the sample
+  standard deviation (n−1) across per-trial scores. A single trial reads `mean (n=1)` — an
+  explicit single-run flag, not a fake `±0.00`. The `Trials` column is the sample size.
+- **Evaluator noise** — variation between repeated judge evaluations of the *same* trial.
+  This is per-trial, so it lives in `metrics.json`: `score`, `score_eval_std` (the dominant
+  cluster's std over `eval_repetitions`), `score_eval_n`, and a `single_eval` flag (true when
+  the trial was scored only once). A well-behaved judge keeps this in the ~0.01–0.03 band.
+
+Detailed stats stay in `metrics.json`; the console table carries only the `±std` next to the
+mean and points the reader to `metrics.json` for the rest. Bootstrap / Bayesian
+significance testing (does a between-config gap cross zero?) is **out of scope here** — it
+remains an offline analysis step; this ADR only surfaces the spread and sample size that
+make a mean honest.
+
 ## References
 
 - ADR-008 — independent per-dimension scales (source of `normalized_score`).

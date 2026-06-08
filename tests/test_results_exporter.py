@@ -57,7 +57,9 @@ def _make_trial(trial_dir: Path, *, with_repo: bool = True) -> None:
     (trial_dir / "assessment_eval_1.json").write_text(json.dumps({"normalized_score": 0.6}))
     (trial_dir / "assessment_eval_2.json").write_text(json.dumps({"normalized_score": 0.7}))
     (trial_dir / "assessment_summary.json").write_text(
-        json.dumps({"groups": [{"n": 2, "dominant": True, "normalized_score_mean": 0.65}]})
+        json.dumps(
+            {"groups": [{"n": 2, "dominant": True, "normalized_score_mean": 0.65, "normalized_score_std": 0.05}]}
+        )
     )
     agent_dir = trial_dir / "agent"
     agent_dir.mkdir()
@@ -170,6 +172,11 @@ def test_export_includes_token_cost_economics(job_dir: Path, tmp_path: Path) -> 
     assert metrics["cost_usd"] == pytest.approx(3.9)
     assert metrics["cost_efficiency"] == pytest.approx(0.65 / 3.9, rel=1e-3)
     assert metrics["pricing_as_of"] == "2026-06-08"
+    # statistical rigor: judge-noise std + eval n + single-eval flag
+    assert metrics["score"] == pytest.approx(0.65)
+    assert metrics["score_eval_std"] == pytest.approx(0.05)
+    assert metrics["score_eval_n"] == 2
+    assert metrics["single_eval"] is False
 
 
 def test_export_unpriced_model_leaves_cost_null(job_dir: Path, tmp_path: Path) -> None:

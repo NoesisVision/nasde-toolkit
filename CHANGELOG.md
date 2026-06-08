@@ -76,6 +76,16 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   max_turns` in `nasde.toml`. ([#54])
 
 ### Fixed
+- **Codex ChatGPT OAuth in the sandbox (harbor 0.13 regression).** Harbor 0.13's
+  Codex agent changed auth to *default to `OPENAI_API_KEY`*, uploading the OAuth
+  `~/.codex/auth.json` only when `CODEX_AUTH_JSON_PATH` or `CODEX_FORCE_AUTH_JSON`
+  is set. Without an API key it wrote an **empty** key into the sandbox, failing
+  every Codex run with `Incorrect API key provided: ''` on
+  `wss://api.openai.com/v1/responses`. `_ensure_auth` now opts into OAuth
+  automatically: when no `OPENAI_API_KEY`/`CODEX_API_KEY` is set but
+  `~/.codex/auth.json` exists, it sets `CODEX_FORCE_AUTH_JSON=true` (respecting a
+  user-set `CODEX_AUTH_JSON_PATH`/`CODEX_FORCE_AUTH_JSON`). Subscription auth for
+  Codex agents works out of the box again. ([#61])
 - **Bump `starlette` 1.0.0 → 1.1.0** (PYSEC-2026-161; transitive via
   harbor/fastapi/mcp). ([#54])
 
@@ -463,4 +473,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#54]: https://github.com/NoesisVision/nasde-toolkit/pull/54
 [#56]: https://github.com/NoesisVision/nasde-toolkit/pull/56
 [#59]: https://github.com/NoesisVision/nasde-toolkit/pull/59
+[#61]: https://github.com/NoesisVision/nasde-toolkit/pull/61
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

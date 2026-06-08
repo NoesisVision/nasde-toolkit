@@ -22,7 +22,7 @@ build_commands = [
 
 [evaluation]
 backend = "codex"
-model = "gpt-5.3-codex"
+model = "gpt-5.4"
 dimensions_file = "assessment_dimensions.json"
 include_trajectory = true
 

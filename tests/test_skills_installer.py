@@ -26,6 +26,7 @@ def test_install_bundled_skills_copies_all_nasde_benchmark_skills(tmp_path: Path
 
     installed = sorted(p.name for p in target.iterdir() if p.is_dir())
     assert installed == [
+        "nasde-benchmark-calibration",
         "nasde-benchmark-creator",
         "nasde-benchmark-from-history",
         "nasde-benchmark-from-public-repos",

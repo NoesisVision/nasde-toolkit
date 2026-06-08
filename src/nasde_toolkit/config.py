@@ -74,6 +74,24 @@ class ReportingConfig:
 
 
 @dataclass
+class CalibrationConfig:
+    """Rubric-calibration sink settings (ADR-010).
+
+    The calibration sink is a git repository where trial diffs and assessments
+    are published as Pull/Merge Requests for human review. The platform
+    (GitHub/GitLab) is auto-detected from the repo URL host; ``platform`` is an
+    optional override for self-hosted or otherwise ambiguous hosts. Repository
+    creation is out of scope — the sink repo must already exist.
+    """
+
+    repo: str = ""
+    repo_template: str = ""
+    platform: str = ""
+    base_branch: str = "main"
+    throttle_sec: float = 2.0
+
+
+@dataclass
 class TaskConfig:
     """Configuration for a single benchmark task.
 
@@ -101,6 +119,7 @@ class ProjectConfig:
     docker: DockerConfig = field(default_factory=DockerConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
+    calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
     tasks: list[TaskConfig] = field(default_factory=list)
 
 
@@ -135,6 +154,7 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
     docker_raw = raw.get("docker", {})
     eval_raw = raw.get("evaluation", {})
     reporting_raw = raw.get("reporting", {})
+    calibration_raw = raw.get("calibration", {})
 
     return ProjectConfig(
         name=project.get("name", "unnamed"),
@@ -161,6 +181,13 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
         reporting=ReportingConfig(
             platform=reporting_raw.get("platform", "opik"),
             project_name=reporting_raw.get("project_name", project.get("name", "")),
+        ),
+        calibration=CalibrationConfig(
+            repo=calibration_raw.get("repo", ""),
+            repo_template=calibration_raw.get("repo_template", ""),
+            platform=calibration_raw.get("platform", ""),
+            base_branch=calibration_raw.get("base_branch", "main"),
+            throttle_sec=float(calibration_raw.get("throttle_sec", 2.0)),
         ),
     )
 

@@ -183,3 +183,36 @@ def test_results_export_command_forwards_paths_and_dest(mock_export: object, tmp
     passed_paths, passed_dest = mock_export.call_args.args  # type: ignore[attr-defined]
     assert passed_paths == [job_dir.resolve()]
     assert passed_dest == dest.resolve()
+
+
+def test_calibrate_help_lists_publish_and_pull_comments() -> None:
+    result = runner.invoke(app, ["calibrate", "--help"])
+    assert result.exit_code == 0, result.output
+    assert "publish" in result.output
+    assert "pull-comments" in result.output
+
+
+def test_calibrate_publish_fails_without_repo(tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n')
+    job_dir = tmp_path / "jobs" / "job1"
+    job_dir.mkdir(parents=True)
+
+    result = runner.invoke(app, ["calibrate", "publish", str(job_dir), "-C", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "repo" in result.output.lower()
+
+
+@patch("nasde_toolkit.calibration_publisher.publish_trials")
+def test_calibrate_publish_forwards_resolved_sink(mock_publish: object, tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text(
+        '[project]\nname = "test"\n[calibration]\nrepo = "https://github.com/NoesisVision/nasde-calibration"\n'
+    )
+    job_dir = tmp_path / "jobs" / "job1"
+    job_dir.mkdir(parents=True)
+
+    result = runner.invoke(app, ["calibrate", "publish", str(job_dir), "-C", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    kwargs = mock_publish.call_args.kwargs  # type: ignore[attr-defined]
+    assert kwargs["repo"] == "NoesisVision/nasde-calibration"
+    assert kwargs["repo_url"] == "git@github.com:NoesisVision/nasde-calibration.git"
+    assert kwargs["platform_override"] == "github"

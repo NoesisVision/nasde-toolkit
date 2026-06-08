@@ -344,6 +344,43 @@ The runner builds a **merged config** by combining:
 
 ---
 
+## Rubric calibration (`nasde calibrate`, ADR-010)
+
+An LLM judge is an imperfect grader: how it reads the rubric
+(`assessment_criteria.md`, `assessment_dimensions.json`) can diverge from human judgment. Calibration
+closes the loop: publish trial diffs + scores as Pull/Merge Requests, let a human comment on the diff,
+pull those comments back, and tune the rubric — then re-measure.
+
+```mermaid
+flowchart LR
+    TRIAL["trial artifacts<br/>(workspace .git + assessment_eval_*.json)"]
+    PUB["nasde calibrate publish"]
+    SINK["sink repo (private)<br/>base/&lt;repo&gt;-&lt;sha&gt; (orphan, start state)<br/>calib/&lt;repo&gt;-&lt;sha&gt;/&lt;trial&gt; → PR"]
+    HUMAN["human reviews diff<br/>comments inline"]
+    PULL["nasde calibrate pull-comments"]
+    SKILL["nasde-benchmark-calibration skill<br/>diagnose divergence → propose rubric edit"]
+    RUBRIC["assessment_criteria.md"]
+
+    TRIAL --> PUB --> SINK --> HUMAN --> PULL --> SKILL --> RUBRIC
+    RUBRIC -.re-eval & re-publish.-> PUB
+```
+
+Two layers are deliberately separated (`git_platform_backends/`):
+
+- **GIT** (`git_ops.py`) — `git push` / `ls-remote` via subprocess, platform-agnostic, not behind a
+  Protocol. Seeds the orphan base branch (`git archive HEAD` from the trial workspace) once per
+  `(repo, commit)`, and pushes each trial's feature branch (base + the agent's `changes.patch` applied
+  as a real commit + a `.calibration/` directory). `.calibration/` bundles the reviewer's context:
+  the task's `instruction.md` + `assessment_criteria.md` + `assessment_dimensions.json` (so the
+  reviewer sees what was asked and the rubric the judge used), plus `assessment_eval_<N>.json`,
+  `assessment_summary.json`, and `metrics.json`.
+- **PLATFORM** (`GitPlatformBackend` Protocol, `github_cli.py` / `gitlab_cli.py`) — `repo_exists` /
+  `find_open_pr_for_branch` / `create_pr` / `fetch_pr_comments` via the platform CLI (`gh` / `glab`),
+  which holds the user's auth. The backend is auto-detected from the sink repo URL host
+  (`detect.py`); `calibration_publisher.py` orchestrates publish/pull and renders the PR body from the
+  dominant `AssessmentSummary` cluster. Idempotency is open-only (a closed round can be re-published).
+  Repo creation is out of scope — the sink repo must exist.
+
 ## Trial result structure
 
 ```

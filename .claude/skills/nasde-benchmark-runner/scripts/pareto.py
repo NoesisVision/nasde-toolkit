@@ -99,7 +99,8 @@ class ModelGroup:
     def label(self) -> str:
         effort = f", effort={self.effort}" if self.effort else ""
         variant = f"{self.agent} / " if self.agent and self.agent != self.name else ""
-        return f"{variant}{self.name} (n={self.n}{effort})"
+        spread = f"±{self.score_std:.2f}" if self.n >= 2 else " (n=1)"
+        return f"{variant}{self.name}  q={self.score:.2f}{spread}{effort}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -301,41 +302,18 @@ def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> M
 
 
 def _build_figure(groups: list[ModelGroup], title: str, token_axis: str):
-    figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(14, 5.6))
+    figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(15, 6))
     _draw_panel(axis_cost, groups, "cost_usd", "Cost (USD per trial)", "Quality vs Cost", log_x=False)
     token_attr = "output_tokens_millions" if token_axis == "output" else "total_tokens_millions"
     token_label = f"{token_axis.capitalize()} tokens (millions per trial, log scale)"
     _draw_panel(axis_tokens, groups, token_attr, token_label, "Quality vs Tokens (price-independent)", log_x=True)
-    _add_shape_legend(figure, groups)
     figure.suptitle(
         f"{title}\nColor = provider · shape = variant · line links variants of one model · "
         "shaded = most attractive region, arrow toward 'better'",
         fontsize=10,
     )
-    figure.tight_layout(rect=[0, 0, 1, 0.89])
+    figure.tight_layout(rect=[0, 0, 1, 0.9])
     return figure
-
-
-def _add_shape_legend(figure, groups: list[ModelGroup]) -> None:
-    from matplotlib.lines import Line2D
-
-    kinds = {_variant_kind(group.agent) for group in groups}
-    marker_for = {"vanilla": VANILLA_MARKER, "skill": SKILL_MARKER, "guided": OTHER_MARKER}
-    name_for = {"vanilla": "vanilla", "skill": "+skill", "guided": "guided"}
-    handles = [
-        Line2D(
-            [],
-            [],
-            marker=marker_for.get(kind, OTHER_MARKER),
-            color="#555555",
-            linestyle="none",
-            markersize=9,
-            label=name_for.get(kind, kind),
-        )
-        for kind in sorted(kinds)
-    ]
-    if len(handles) > 1:
-        figure.legend(handles=handles, loc="upper right", fontsize=8, title="variant", framealpha=0.95)
 
 
 def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title: str, log_x: bool) -> None:
@@ -347,7 +325,7 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
     scores = [group.score for group in plottable]
     _shade_attractive_quadrant(axis, xs, scores, log_x)
     _connect_same_model(axis, plottable, x_attr)
-    for group in plottable:
+    for group in sorted(plottable, key=lambda g: g.score, reverse=True):
         axis.scatter(
             getattr(group, x_attr),
             group.score,
@@ -357,14 +335,7 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
             linewidth=1.4,
             marker=_variant_marker(group.agent),
             zorder=3,
-        )
-        axis.annotate(
-            group.label,
-            (getattr(group, x_attr), group.score),
-            xytext=(7, 4),
-            textcoords="offset points",
-            fontsize=8,
-            zorder=4,
+            label=group.label,
         )
     if log_x:
         axis.set_xscale("log")
@@ -372,6 +343,7 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
     axis.set_ylabel("Quality (normalized rubric score)")
     axis.set_title(title, fontweight="bold")
     axis.grid(True, alpha=0.25, which="both")
+    axis.legend(loc="best", fontsize=7.5, framealpha=0.95)
 
 
 def _connect_same_model(axis, groups: list[ModelGroup], x_attr: str) -> None:

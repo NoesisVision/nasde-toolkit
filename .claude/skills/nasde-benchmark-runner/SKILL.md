@@ -350,7 +350,7 @@ The raw numbers come straight from `nasde results-export` (see below). For each 
 - `cost_usd` — in `metrics.json`. `null` for an unpriced/legacy-trajectory model — such a point is dropped from the cost panel but still appears on the token panel.
 - `reasoning_effort`, `model_name`, `agent_name`, `task_name` — stamped on the artifacts; the first three define the group, `task_name` enforces the one-task scope.
 
-Export first, then compare:
+Export first, then compare — **the export step is required, not optional**: it is the single place that computes per-trial cost and token economics (from `agent/trajectory.json` + the price catalog; ADR-011) and flattens the nested `jobs/<job>/<trial>/` tree into one dir per trial. A raw `jobs/` dir has no `metrics.json` and is two levels deep, so the generator reads only exported dirs (or explicit `--point`s) — never raw `jobs/`.
 
 ```bash
 nasde results-export path/to/benchmark/jobs/<timestamp> --to /tmp/myexport -C path/to/benchmark

@@ -23,6 +23,11 @@ dimensions_fingerprint, and the SAME reasoning_effort. Pass --task to keep an
 export dir that spans many tasks honest; never let points from tasks of
 different difficulty share one chart.
 
+Input is a `nasde results-export` dir (one flat subdir per trial), NOT a raw
+`jobs/` tree: the export step is what computes per-trial cost/token economics and
+flattens the nested job/trial layout, so a raw `jobs/` dir has no `metrics.json`
+and is read past. Run `nasde results-export` first, or pass explicit `--point`s.
+
 Usage
 -----
 From a `nasde results-export` dir (one subdir per trial), scoped to one task:

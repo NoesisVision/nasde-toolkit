@@ -59,6 +59,7 @@ async def run_benchmark(
     config: ProjectConfig,
     variant: str,
     model: str | None = None,
+    effort: str | None = None,
     timeout_sec: int | None = None,
     tasks_filter: list[str] | None = None,
     with_opik: bool = False,
@@ -80,12 +81,14 @@ async def run_benchmark(
     _ensure_auth(_read_agent_import_path(harbor_config_path))
 
     resolved_model = _resolve_model(model, variant_dir, config)
+    resolved_effort = _resolve_effort(effort, variant_dir, load_variant_agent_type(variant_dir))
 
     merged_config = _build_merged_config(
         config=config,
         variant_config_path=harbor_config_path,
         variant_name=variant,
         model=resolved_model,
+        reasoning_effort=resolved_effort,
         timeout_sec=timeout_sec,
         tasks_filter=tasks_filter,
         harbor_env=harbor_env,
@@ -208,6 +211,33 @@ def _resolve_model(
         "or pass --model on the command line.[/red]"
     )
     raise SystemExit(1)
+
+
+def _resolve_effort(
+    cli_effort: str | None,
+    variant_dir: Path,
+    agent_type: str,
+) -> str | None:
+    """Resolve the reasoning-effort override from CLI flag or variant.toml.
+
+    Priority: --effort flag > variant.toml ``reasoning_effort`` > unset. Unset
+    (None) means no override is passed to Harbor, which then applies its own
+    per-family default — a deliberately valid state, so effort is optional.
+    Any value is validated against the agent family's scale (the scales are
+    unequal: e.g. ``xhigh``/``max`` exist for Claude but not Codex), and an
+    out-of-scale value aborts with a clear error.
+    """
+    effort = cli_effort or load_variant_config(variant_dir).get("reasoning_effort")
+    if not effort:
+        return None
+    valid = _EFFORT_SCALES[agent_type]
+    if effort not in valid:
+        console.print(
+            f"[red]ERROR: reasoning effort {effort!r} is not valid for agent "
+            f"'{agent_type}'. Valid values: {', '.join(valid)}.[/red]"
+        )
+        raise SystemExit(1)
+    return effort
 
 
 def _ensure_auth(agent_import_path: str | None = None) -> None:
@@ -361,6 +391,12 @@ def _collect_gemini_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> 
 
 
 _VALID_AGENT_TYPES = {"claude", "codex", "gemini"}
+
+_EFFORT_SCALES = {
+    "claude": ("low", "medium", "high", "xhigh", "max"),
+    "codex": ("low", "medium", "high"),
+    "gemini": ("minimal", "low", "medium", "high"),
+}
 
 
 def load_variant_config(variant_dir: Path) -> dict:
@@ -631,6 +667,7 @@ def _build_merged_config(
     model: str,
     timeout_sec: int | None,
     tasks_filter: list[str] | None,
+    reasoning_effort: str | None = None,
     harbor_env: str | None = None,
     n_attempts: int = 1,
     job_suffix: str | None = None,
@@ -644,6 +681,8 @@ def _build_merged_config(
         agent.setdefault("model_name", model)
         if timeout_sec is not None:
             agent.setdefault("override_timeout_sec", timeout_sec)
+        if reasoning_effort is not None:
+            agent.setdefault("kwargs", {})["reasoning_effort"] = reasoning_effort
 
     registry = _build_registry(config, tasks_filter)
     registry_path = _write_temp_json(registry, prefix="nasde-registry-")
@@ -977,25 +1016,23 @@ def _warn_missing_economics(job_dir: Path) -> None:
 
 
 def _print_economics_table(rows: list[dict]) -> None:
-    table = Table(title="Results by agent/model (per-trial averages)")
+    table = Table(title="Results by agent/model/effort (per-trial averages)")
     table.add_column("#", justify="right", style="dim")
     table.add_column("Agent / Model", style="cyan")
+    table.add_column("Effort", justify="left")
     table.add_column("Trials", justify="right")
     table.add_column("Score", justify="right")
     table.add_column("Tokens", justify="right")
     table.add_column("$ Cost", justify="right")
-    table.add_column("score/$", justify="right")
-    table.add_column("score/MTok", justify="right")
     for index, row in enumerate(rows, start=1):
         table.add_row(
             f"[{index}]",
             row["short_label"],
+            row["reasoning_effort"] or "—",
             str(row["trials"]),
             _fmt_score(row["score"], row["score_std"], row["trials"]),
-            _fmt_tokens(row["tokens"]),
-            _fmt(row["cost"], "${:.2f}"),
-            _fmt(row["cost_efficiency"], "{:.3f}"),
-            _fmt(row["token_efficiency"], "{:.3f}"),
+            _fmt_tokens(row["tokens"], row["tokens_std"]),
+            _fmt_cost(row["cost"], row["cost_std"]),
         )
     console.print(table)
 
@@ -1029,7 +1066,7 @@ def _print_eval_counts_table(result: JobResult) -> None:
 def _collect_economics_rows(job_dir: Path) -> list[dict]:
     from nasde_toolkit.evaluator import _collect_trial_dirs
 
-    groups: dict[tuple[str, str], dict] = {}
+    groups: dict[tuple[str, str, str], dict] = {}
     for trial_dir in _collect_trial_dirs(job_dir):
         summary_path = trial_dir / "assessment_summary.json"
         if not summary_path.exists():
@@ -1039,8 +1076,8 @@ def _collect_economics_rows(job_dir: Path) -> list[dict]:
     return [_finalize_economics_row(label, agg) for label, agg in sorted(groups.items())]
 
 
-def _accumulate_economics(groups: dict[tuple[str, str], dict], summary: dict) -> None:
-    key = (summary.get("agent_name", ""), summary.get("model_name", ""))
+def _accumulate_economics(groups: dict[tuple[str, str, str], dict], summary: dict) -> None:
+    key = (summary.get("agent_name", ""), summary.get("model_name", ""), summary.get("reasoning_effort", ""))
     agg = groups.setdefault(key, {"trials": 0, "scores": [], "tokens": [], "costs": []})
     agg["trials"] += 1
     score = dominant_normalized_score(summary.get("groups", []))
@@ -1053,23 +1090,19 @@ def _accumulate_economics(groups: dict[tuple[str, str], dict], summary: dict) ->
         agg["costs"].append(summary["cost_usd"])
 
 
-def _finalize_economics_row(label: tuple[str, str], agg: dict) -> dict:
-    agent, model = label
-    mean_score = _mean(agg["scores"])
-    mean_tokens = _mean(agg["tokens"])
-    mean_cost = _mean(agg["costs"])
-    cost_efficiency = mean_score / mean_cost if mean_score is not None and mean_cost else None
-    token_efficiency = mean_score / (mean_tokens / 1_000_000) if mean_score is not None and mean_tokens else None
+def _finalize_economics_row(label: tuple[str, str, str], agg: dict) -> dict:
+    agent, model, effort = label
     return {
         "full_label": f"{agent} / {model}" if model else agent,
         "short_label": _short_label(agent, model),
+        "reasoning_effort": effort,
         "trials": agg["trials"],
-        "score": mean_score,
+        "score": _mean(agg["scores"]),
         "score_std": _sample_std(agg["scores"]),
-        "tokens": mean_tokens,
-        "cost": mean_cost,
-        "cost_efficiency": cost_efficiency,
-        "token_efficiency": token_efficiency,
+        "tokens": _mean(agg["tokens"]),
+        "tokens_std": _sample_std(agg["tokens"]),
+        "cost": _mean(agg["costs"]),
+        "cost_std": _sample_std(agg["costs"]),
     }
 
 
@@ -1096,15 +1129,26 @@ def _fmt_score(mean: float | None, std: float | None, n: int) -> str:
     return f"{mean:.2f} ±{std:.2f}"
 
 
-def _fmt(value: float | None, spec: str) -> str:
-    return spec.format(value) if value is not None else "—"
-
-
-def _fmt_tokens(total: float | None) -> str:
-    if not total:
+def _fmt_cost(mean: float | None, std: float | None) -> str:
+    if mean is None:
         return "—"
-    if total >= 1_000_000:
-        return f"{total / 1_000_000:.1f}M"
-    if total >= 1_000:
-        return f"{total / 1_000:.0f}k"
-    return str(int(total))
+    if std is None:
+        return f"${mean:.2f}"
+    return f"${mean:.2f} ±{std:.2f}"
+
+
+def _fmt_tokens(mean: float | None, std: float | None = None) -> str:
+    if not mean:
+        return "—"
+    formatted = _scale_tokens(mean)
+    if std is None:
+        return formatted
+    return f"{formatted} ±{_scale_tokens(std)}"
+
+
+def _scale_tokens(value: float) -> str:
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if value >= 1_000:
+        return f"{value / 1_000:.0f}k"
+    return str(int(value))

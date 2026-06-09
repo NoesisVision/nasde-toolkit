@@ -310,6 +310,88 @@ cat jobs/<timestamp>/<trial-id>/assessment_eval.json | python3 -m json.tool
 nasde harbor view path/to/benchmark/jobs/<timestamp>
 ```
 
+## Comparing models — Pareto front (PRIMARY method)
+
+When the user asks "which model/agent is best?" or "which is most efficient?", the answer is a **Pareto front**, not a single ranked number. This is the primary, documented comparison method for nasde results. Two reasons it is primary:
+
+1. **Quality and cost are two axes, and you keep both.** A model is *dominated* iff some other model is **no-worse in quality AND no-worse on the cost (or token) axis AND strictly better on at least one**. The **front** is the non-dominated set — the real options worth choosing between. Everything off the front is strictly worse on both axes and should never be picked.
+2. **The front is invariant to where you put the score zero.** That is exactly why nasde deliberately does **not** compute a scalar "token efficiency" or "cost efficiency" (`score / denominator`). See "Why no scalar efficiency" below.
+
+### The two fronts — report BOTH
+
+Always draw and report both panels:
+
+- **Quality × cost ($)** — *price-dependent*. Uses `cost_usd`, which moves with the price catalog (`pricing.toml`).
+- **Quality × tokens (1M)** — *price-independent*. Uses `token_usage.total_tokens`. Pure model behaviour, stable across price changes.
+
+When both fronts agree on which models are on the front, the conclusion is stronger. When they disagree (e.g. a model is token-efficient but expensive due to a high per-token price), say so explicitly — that disagreement is itself the finding.
+
+### Hard scoping rules — do NOT violate
+
+Compare points **only** within:
+
+- **ONE task.** Never aggregate across tasks of different difficulty into a single number. This is the **paired-difference principle**: report per-task deltas against a shared baseline, never a cross-task mean. An easy task and a hard task averaged together is a meaningless number.
+- **The same `dimensions_fingerprint`.** A changed rubric (added/removed dimension, changed `max_score`, changed `description`) is a different benchmark and its scores are not comparable.
+- **The same `reasoning_effort`.** Effort is part of the comparison axis. The toolkit groups economics by `(agent_name, model_name, reasoning_effort)`. A trial's artifacts carry a `reasoning_effort` stamp (a string; empty `""` means "not overridden — the Harbor family default"). `gpt-5.3-codex` at `high` and at `low` are two different points, not one.
+
+If the points you are about to plot span more than one task, fingerprint, or effort, **split them into separate charts** — one Pareto chart per `(task, fingerprint, effort)` cell.
+
+### Sample size — n=1 is a signal, not a conclusion
+
+- **n=1** (a single trial) has **no variance** — it is a *preliminary signal*, never a conclusion. Label it as such.
+- **n≥2** gives the inter-trial std that the toolkit now reports (per model group). You need n≥2 before claiming a model "beats" another; a 0.02 score gap with no std is noise.
+
+### Source of truth
+
+The raw numbers come straight from `nasde results-export` (see below). For each trial:
+
+- `score` — `normalized_score_mean` in `assessment_summary.json` (or `normalized_score` / `score`).
+- `token_usage.total_tokens` — in `metrics.json` (and mirrored on the summary).
+- `cost_usd` — in `metrics.json`. `null` for an unpriced/legacy-trajectory model — such a point is dropped from the cost panel but still appears on the token panel.
+- `reasoning_effort` and `model_name` — stamped on the artifacts; they define the group.
+
+Export first, then compare:
+
+```bash
+nasde results-export path/to/benchmark/jobs/<timestamp> --to /tmp/myexport -C path/to/benchmark
+```
+
+### Generating the chart
+
+The skill ships a reference generator at `<SKILL_SCRIPTS>/pareto.py` (matplotlib + stdlib only — install matplotlib into whatever Python you run it with, e.g. `uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py ...`). It reads an export dir directly, or accepts explicit data points, draws both fronts, and prints the front membership.
+
+```bash
+# From an export dir (one subdir per trial). Title MUST state the scope.
+uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
+  --export-dir /tmp/myexport \
+  --title "weather-discount — fp=abc123def456 — effort=default" \
+  --out /tmp/pareto.png
+
+# Or explicit points: name,effort,score,cost_usd,total_tokens (cost may be empty for unpriced).
+uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
+  --point "claude-sonnet-4-6,,0.803,8.55,2720000" \
+  --point "claude-opus-4-8,,0.920,26.30,5120000" \
+  --out /tmp/pareto.png
+```
+
+Points sharing `(name, effort)` are averaged into one group and their per-axis std is reported (n≥2). The script marks front members green ● and dominated points red ✗.
+
+### Chart rule — full model version strings, always
+
+- **Never** use bare family names ("sonnet", "opus", "gpt") in labels or legends. **Always** the full version string: `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.3-codex`, `google/gemini-3-flash-preview`.
+- **The reasoning effort must be visible** on the chart/legend too (the generator prints `effort=<value>` per point; `default` when the stamp is empty).
+
+### Why no scalar "efficiency"
+
+It is tempting to collapse the picture into one number — `efficiency = score / cost` or `score / tokens` — and rank by it. nasde deliberately does **not**, for two reasons:
+
+1. **It is lossy.** It crushes a 2D trade-off (quality vs cost) into one scalar, hiding *which* axis a model wins on. A buyer choosing between "cheap and decent" and "expensive and excellent" needs both numbers, not their ratio.
+2. **It has an arbitrary zero.** `score` is a normalized rubric score whose zero is "empty rubric" — an unreachable, arbitrary reference point. Because the ratio divides by a denominator from that arbitrary zero, the *ranking is not invariant to a baseline shift*: the same trials can produce a different "winner" depending only on where you place the score zero. A Pareto front does not move when you shift the score axis, so it is the honest comparison. (This is a locked design decision — do not reintroduce a scalar efficiency.)
+
+### Optional secondary helper — baseline-relative Δscore
+
+For a *single task*, it is fine to report each variant's **Δscore against the vanilla baseline on that same task** (`score_variant − score_vanilla`). That is a paired difference against a shared reference and is legitimate. What is **not** legitimate is a scalar `score/$` measured from zero — that is the arbitrary-zero ratio above. Keep Δscore as a supporting view; the Pareto front stays primary.
+
 ## Opik verification
 
 After every run with `--with-opik`, verify results via REST API. This is mandatory — Opik has known issues with long-running trials where data may not arrive completely.

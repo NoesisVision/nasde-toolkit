@@ -10,7 +10,6 @@ import pytest
 from nasde_toolkit.pricing import load_pricing
 from nasde_toolkit.token_metrics import (
     build_trial_economics,
-    compute_efficiencies,
     dominant_normalized_score,
     extract_token_usage,
     read_trajectory,
@@ -58,19 +57,6 @@ def test_extract_legacy_without_final_metrics_is_none() -> None:
     assert extract_token_usage({"final_metrics": {"total_steps": 5}}) is None
 
 
-def test_compute_efficiencies_token_eff_is_per_million() -> None:
-    token_eff, cost_eff = compute_efficiencies(0.8, 2_000_000, 4.0)
-    assert token_eff == pytest.approx(0.4)  # 0.8 per 2M tokens = 0.4 per 1M
-    assert cost_eff == pytest.approx(0.2)  # 0.8 / $4
-
-
-def test_compute_efficiencies_guards_zero_and_none() -> None:
-    assert compute_efficiencies(None, 1_000_000, 4.0) == (None, None)
-    assert compute_efficiencies(0.8, 0, 4.0)[0] is None
-    assert compute_efficiencies(0.8, 1_000_000, 0)[1] is None
-    assert compute_efficiencies(0.8, 1_000_000, None)[1] is None
-
-
 def test_dominant_normalized_score_picks_dominant() -> None:
     groups = [
         {"dominant": False, "normalized_score_mean": 0.3},
@@ -106,30 +92,34 @@ def test_read_trajectory_missing_is_none(tmp_path: Path) -> None:
 def test_build_trial_economics_priced_model(tmp_path: Path) -> None:
     (tmp_path / "agent").mkdir()
     (tmp_path / "agent" / "trajectory.json").write_text(json.dumps(CODEX_TRAJ))
-    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing(), normalized_score=0.78)
+    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing())
 
     assert econ["model_name"] == "gpt-5.4"
     assert econ["token_usage"]["total_tokens"] == 2_854_816
     # gpt-5.4 = $2.50 in / $15 out: 2.817494M*2.5 + 0.037322M*15
     assert econ["cost_usd"] == pytest.approx(2_817_494 / 1e6 * 2.5 + 37_322 / 1e6 * 15)
-    assert econ["cost_efficiency"] is not None
     assert econ["pricing_as_of"] == "2026-06-08"
 
 
 def test_build_trial_economics_no_trajectory_is_empty(tmp_path: Path) -> None:
-    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing(), normalized_score=0.78)
+    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing())
     assert econ["token_usage"] is None
     assert econ["cost_usd"] is None
-    assert econ["cost_efficiency"] is None
     assert econ["pricing_as_of"] is None
 
 
 def test_build_trial_economics_unpriced_model_keeps_tokens(tmp_path: Path) -> None:
     (tmp_path / "agent").mkdir()
     (tmp_path / "agent" / "trajectory.json").write_text(json.dumps(CODEX_TRAJ))
-    econ = build_trial_economics(tmp_path, "unpriced", load_pricing(), normalized_score=0.78)
+    econ = build_trial_economics(tmp_path, "unpriced", load_pricing())
 
     assert econ["token_usage"]["total_tokens"] == 2_854_816  # tokens still computed
     assert econ["cost_usd"] is None
-    assert econ["token_efficiency"] is not None  # token efficiency does not need price
-    assert econ["cost_efficiency"] is None
+
+
+def test_build_trial_economics_has_no_scalar_efficiency_keys(tmp_path: Path) -> None:
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent" / "trajectory.json").write_text(json.dumps(CODEX_TRAJ))
+    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing())
+    assert "token_efficiency" not in econ  # removed: arbitrary zero → use Pareto front
+    assert "cost_efficiency" not in econ

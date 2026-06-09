@@ -182,6 +182,12 @@ def run(
         "--model",
         help="Model override.",
     ),
+    effort: str | None = typer.Option(
+        None,
+        "--effort",
+        help="Reasoning-effort override (claude: low/medium/high/xhigh/max; codex: low/medium/high; "
+        "gemini: minimal/low/medium/high). Default: variant.toml reasoning_effort, else Harbor family default.",
+    ),
     timeout: int | None = typer.Option(
         None,
         "--timeout",
@@ -247,6 +253,7 @@ def run(
     tasks_filter = [t.strip() for t in tasks.split(",")] if tasks else None
     resolved_harbor_env = harbor_env or config.default_harbor_env
     resolved_model = model
+    resolved_effort = effort
     resolved_timeout = timeout
 
     if all_variants:
@@ -269,6 +276,7 @@ def run(
                 config=config,
                 variants=variants_list,
                 model=resolved_model,
+                effort=resolved_effort,
                 timeout_sec=resolved_timeout,
                 tasks_filter=tasks_filter,
                 with_opik=with_opik,
@@ -304,6 +312,9 @@ def run(
             )
             raise typer.Exit(1)
 
+        from nasde_toolkit.runner import _resolve_effort
+
+        display_effort = _resolve_effort(resolved_effort, variant_dir, agent_type)
         _print_run_header(
             variant=resolved_variant,
             model=display_model,
@@ -314,6 +325,7 @@ def run(
             harbor_env=resolved_harbor_env,
             attempts=attempts,
             agent_type=agent_type,
+            effort=display_effort,
         )
 
         asyncio.run(
@@ -321,6 +333,7 @@ def run(
                 config=config,
                 variant=resolved_variant,
                 model=resolved_model,
+                effort=resolved_effort,
                 timeout_sec=resolved_timeout,
                 tasks_filter=scoped_tasks,
                 with_opik=with_opik,
@@ -683,6 +696,7 @@ def _print_run_header(
     harbor_env: str | None = None,
     attempts: int = 1,
     agent_type: str = "claude",
+    effort: str | None = None,
 ) -> None:
     from nasde_toolkit.banner import print_banner
 
@@ -695,12 +709,14 @@ def _print_run_header(
     timeout_str = f"{timeout}s (override)" if timeout is not None else "per task.toml"
     agent_labels = {"codex": "Codex (OpenAI)", "gemini": "Gemini CLI (Google)"}
     agent_label = agent_labels.get(agent_type, "Claude Code")
+    effort_str = effort or "family default"
     console.print(
         Panel(
             f"[bold]Benchmark Runner[/bold]\n"
             f"Agent: {agent_label}\n"
             f"Variant: {variant}\n"
             f"Model: {model}\n"
+            f"Effort: {effort_str}\n"
             f"Timeout: {timeout_str}\n"
             f"Tasks: {tasks_str}\n"
             f"Attempts: {attempts_str}\n"
@@ -764,6 +780,7 @@ async def _run_all_variants(
     with_eval: bool,
     harbor_env: str | None,
     n_attempts: int,
+    effort: str | None = None,
     job_suffix: str | None = None,
     max_concurrent_eval: int = 10,
 ) -> None:
@@ -789,6 +806,7 @@ async def _run_all_variants(
                 config=config,
                 variant=variant_name,
                 model=model,
+                effort=effort,
                 timeout_sec=timeout_sec,
                 tasks_filter=scoped_tasks,
                 with_opik=with_opik,

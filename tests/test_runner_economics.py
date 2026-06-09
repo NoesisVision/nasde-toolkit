@@ -17,7 +17,16 @@ from nasde_toolkit.runner import (
 )
 
 
-def _write_trial(job: Path, name: str, agent: str, model: str, score: float, tokens: int, cost: float) -> None:
+def _write_trial(
+    job: Path,
+    name: str,
+    agent: str,
+    model: str,
+    score: float,
+    tokens: int,
+    cost: float,
+    effort: str = "",
+) -> None:
     trial = job / name
     trial.mkdir(parents=True)
     trial.joinpath("result.json").write_text(json.dumps({"trial_name": name}))
@@ -28,6 +37,7 @@ def _write_trial(job: Path, name: str, agent: str, model: str, score: float, tok
                 "trial_name": name,
                 "agent_name": agent,
                 "model_name": model,
+                "reasoning_effort": effort,
                 "groups": [{"dominant": True, "normalized_score_mean": score}],
                 "token_usage": {"total_tokens": tokens},
                 "cost_usd": cost,
@@ -85,11 +95,27 @@ def test_economics_row_averages_per_trial(tmp_path: Path) -> None:
     assert row["score"] == pytest.approx(0.7)  # mean of 0.6, 0.8
     assert row["tokens"] == pytest.approx(2_000_000)  # mean tokens, NOT sum
     assert row["cost"] == pytest.approx(4.0)  # mean cost, NOT sum
-    # efficiencies from the means
-    assert row["cost_efficiency"] == pytest.approx(0.7 / 4.0)
-    assert row["token_efficiency"] == pytest.approx(0.7 / 2.0)  # 0.7 per 2M tokens
     assert row["short_label"] == "vanilla / sonnet-4-6"
     assert row["full_label"] == "claude-vanilla / claude-sonnet-4-6"
+    assert "cost_efficiency" not in row  # removed: arbitrary zero → use Pareto front
+    assert "token_efficiency" not in row
+
+
+def test_economics_row_raw_metric_std_needs_two_trials(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.8, 3_000_000, 6.0)
+    row = _collect_economics_rows(job)[0]
+    assert row["tokens_std"] == pytest.approx(_sample_std([1_000_000, 3_000_000]))
+    assert row["cost_std"] == pytest.approx(_sample_std([2.0, 6.0]))
+
+
+def test_economics_row_single_trial_has_no_raw_metric_std(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
+    row = _collect_economics_rows(job)[0]
+    assert row["tokens_std"] is None  # n=1 → no spread
+    assert row["cost_std"] is None
 
 
 def test_economics_groups_split_by_model(tmp_path: Path) -> None:
@@ -100,6 +126,16 @@ def test_economics_groups_split_by_model(tmp_path: Path) -> None:
     rows = _collect_economics_rows(job)
     assert len(rows) == 2  # same agent_name, different model_name → two rows
     assert {r["full_label"] for r in rows} == {"codex-vanilla / gpt-5.4", "codex-vanilla / gpt-5.5"}
+
+
+def test_economics_groups_split_by_effort(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.7, 1_000_000, 2.0, effort="high")
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.9, 1_000_000, 2.0, effort="xhigh")
+
+    rows = _collect_economics_rows(job)
+    assert len(rows) == 2  # same agent+model, different effort → two rows, never averaged
+    assert {r["reasoning_effort"] for r in rows} == {"high", "xhigh"}
 
 
 def test_job_dir_from_config_resolves_own_job(tmp_path: Path) -> None:

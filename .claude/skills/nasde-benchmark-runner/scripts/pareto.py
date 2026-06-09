@@ -14,9 +14,15 @@ safer at small n, where a hard "dominated" label on a point with no variance
 over-claims. With more distinct skills than marker shapes the palette cycles —
 flagged with a warning, never a silent shape collision.
 
-Two axes answer different questions, so two panels are drawn:
-  - quality vs cost ($)     — price-dependent (moves with the price catalog)
-  - quality vs tokens       — price-independent (pure model behaviour)
+Two axes answer different questions, so the figure has:
+  - ONE quality-vs-cost ($) panel, ALL providers together — price-dependent, but
+    USD is a common unit, so cross-provider comparison here is fair.
+  - ONE quality-vs-tokens panel PER PROVIDER — price-independent, but token
+    counts are in each model's NATIVE tokenizer (Anthropic vs OpenAI vs Google
+    count tokens differently), so they are only comparable *within* one provider.
+    2 providers → 3 panels, 3 → 4, etc. (A future option is to re-tokenize every
+    model's output with one tokenizer, the Artificial Analysis approach, to get a
+    single cross-provider token axis — not done here.)
 Token axis defaults to OUTPUT tokens on a log scale (the Artificial Analysis
 convention); pass --token-axis total for total tokens.
 
@@ -299,30 +305,53 @@ def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> M
 
 
 def _build_figure(groups: list[ModelGroup], title: str, token_axis: str):
-    figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(16, 6.5))
     marker_map = _skill_marker_map(groups)
-    _draw_panel(
-        axis_cost, groups, "cost_usd", "Cost (USD per trial)", "Quality vs Cost", log_x=False, marker_map=marker_map
-    )
     token_attr = "output_tokens_millions" if token_axis == "output" else "total_tokens_millions"
-    token_label = f"{token_axis.capitalize()} tokens (millions per trial, log scale)"
+    providers = _providers_in_order(groups)
+    n_panels = 1 + len(providers)
+    figure, axes = plt.subplots(1, n_panels, figsize=(7 * n_panels + 2, 6.5), squeeze=False)
+    row = axes[0]
+
     _draw_panel(
-        axis_tokens,
+        row[0],
         groups,
-        token_attr,
-        token_label,
-        "Quality vs Tokens (price-independent)",
-        log_x=True,
+        "cost_usd",
+        "Cost (USD per trial)",
+        "Quality vs Cost (all providers)",
+        log_x=False,
         marker_map=marker_map,
     )
-    _add_encoding_legend(figure, groups, marker_map)
+    for index, provider in enumerate(providers, start=1):
+        provider_groups = [g for g in groups if _provider_label(g.name) == provider]
+        _draw_panel(
+            row[index],
+            provider_groups,
+            token_attr,
+            f"{token_axis.capitalize()} tokens (millions per trial, log scale)",
+            f"Quality vs Tokens — {provider}",
+            log_x=True,
+            marker_map=marker_map,
+        )
+
+    legend_edge = 1 - 1.6 / (7 * n_panels + 2)
+    _add_encoding_legend(figure, groups, marker_map, legend_edge + 0.005)
     figure.suptitle(
         f"{title}\nColor = provider · shape = variant · line links variants of one model · "
-        "shaded green = most attractive region (high quality, low cost/tokens)",
-        fontsize=10,
+        "shaded green = most attractive region. Tokens are each model's NATIVE tokenizer — "
+        "one token panel per provider (never compare token counts across providers; use the cost panel).",
+        fontsize=9.5,
     )
-    figure.tight_layout(rect=[0, 0, 0.86, 0.9])
+    figure.tight_layout(rect=[0, 0, legend_edge, 0.9])
     return figure
+
+
+def _providers_in_order(groups: list[ModelGroup]) -> list[str]:
+    seen: list[str] = []
+    for group in groups:
+        provider = _provider_label(group.name)
+        if provider not in seen:
+            seen.append(provider)
+    return seen
 
 
 def _draw_panel(
@@ -385,7 +414,7 @@ def _lowest_point_per_model(groups: list[ModelGroup]) -> list[ModelGroup]:
     return list(lowest.values())
 
 
-def _add_encoding_legend(figure, groups: list[ModelGroup], marker_map: dict[str, str]) -> None:
+def _add_encoding_legend(figure, groups: list[ModelGroup], marker_map: dict[str, str], legend_x: float) -> None:
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
 
@@ -410,7 +439,7 @@ def _add_encoding_legend(figure, groups: list[ModelGroup], marker_map: dict[str,
         handles=color_handles,
         title="Provider (color)",
         loc="upper left",
-        bbox_to_anchor=(0.87, 0.88),
+        bbox_to_anchor=(legend_x, 0.88),
         fontsize=9,
         title_fontsize=9,
         framealpha=0.95,
@@ -420,7 +449,7 @@ def _add_encoding_legend(figure, groups: list[ModelGroup], marker_map: dict[str,
         handles=shape_handles,
         title="Variant (shape)",
         loc="upper left",
-        bbox_to_anchor=(0.87, 0.62),
+        bbox_to_anchor=(legend_x, 0.62),
         fontsize=8.5,
         title_fontsize=9,
         framealpha=0.95,

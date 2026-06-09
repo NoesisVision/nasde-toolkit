@@ -317,14 +317,14 @@ When the user asks "which model/agent is best?" or "which is most efficient?", t
 1. **Quality and cost are two axes, and you keep both.** Collapsing them into one number throws away information. *Pareto dominance* is the concept you reason **with** (point A is dominated if some B is no-worse on both axes and strictly better on one), but it is **not** a tag stamped on the chart — at small n a hard "dominated / never pick" label on a point with no variance over-claims. State dominance in prose when it is clear from the data; let the chart stay raw.
 2. **Position is invariant to where you put the score zero.** That is exactly why nasde deliberately does **not** compute a scalar "token efficiency" or "cost efficiency" (`score / denominator`). See "Why no scalar efficiency" below.
 
-### Two panels — report BOTH
+### The panels — one shared cost panel + one token panel per provider
 
-Always draw and report both panels:
+- **Quality × cost ($)** — *price-dependent*, but **one panel for all providers**: USD is a common unit, so cross-provider comparison on cost is fair. Uses `cost_usd` (from `pricing.toml`).
+- **Quality × tokens** — *price-independent*, but **one panel per provider**. Token counts are in each model's **native tokenizer** — Anthropic, OpenAI, and Google count tokens differently (verified: the same task is ~5.0M prompt tokens for Claude vs ~3.3M for a GPT model), so a "tokens" axis that mixes providers compares different units. The generator therefore splits the token view by provider (2 providers → 3 panels, 3 → 4). Compare token counts only *within* a provider (e.g. sonnet vs opus, or vanilla vs +skill on the same provider).
 
-- **Quality × cost ($)** — *price-dependent*. Uses `cost_usd`, which moves with the price catalog (`pricing.toml`).
-- **Quality × tokens** — *price-independent*. Uses `token_usage` (output tokens by default on a log axis, the Artificial Analysis convention; total tokens optional). Pure model behaviour, stable across price changes.
+When the cost panel and the per-provider token panels tell the same story, the conclusion is stronger. A model can look token-light yet cost more (high per-token price) — that disagreement is itself a finding.
 
-When both panels tell the same story, the conclusion is stronger. When they disagree (e.g. a model is token-light but expensive due to a high per-token price), say so explicitly — that disagreement is itself the finding.
+**Future option (not implemented):** re-tokenize every model's output with a single tokenizer (the Artificial Analysis approach — they re-encode all output with OpenAI's `o200k_base`) to get one cross-provider token axis. Our cost axis is already a fair common unit, so this is a nice-to-have, not a blocker; it would need the raw output text (the trajectory only stores counts) plus a tokenizer dependency.
 
 ### Hard scoping rules — do NOT violate
 

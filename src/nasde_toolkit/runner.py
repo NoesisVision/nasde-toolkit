@@ -325,8 +325,6 @@ def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
     if gemini_md.exists():
         sandbox_files["/app/GEMINI.md"] = str(gemini_md)
     _collect_claude_skills(variant_dir, sandbox_files)
-    _collect_codex_skills(variant_dir, sandbox_files)
-    _collect_gemini_skills(variant_dir, sandbox_files)
     claude_config = variant_dir / "claude_config.json"
     if claude_config.exists():
         sandbox_files["/logs/agent/sessions/.claude.json"] = str(claude_config)
@@ -352,32 +350,72 @@ def _collect_claude_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> 
             stage_skill_dir(skill_dir, sandbox_files)
 
 
-def _collect_codex_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
-    agents_skills_dir = variant_dir / "agents_skills"
-    if not agents_skills_dir.is_dir():
-        return
-    for skill_dir in sorted(agents_skills_dir.iterdir()):
-        if not skill_dir.is_dir():
-            continue
-        for file_path in skill_dir.rglob("*"):
-            if file_path.is_file():
-                relative = file_path.relative_to(agents_skills_dir).as_posix()
-                target = f"/app/.agents/skills/{relative}"
-                sandbox_files[target] = str(file_path)
+_AGENT_SKILLS_SUBDIR = {"codex": "agents_skills", "gemini": "gemini_skills"}
 
 
-def _collect_gemini_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> None:
-    gemini_skills_dir = variant_dir / "gemini_skills"
-    if not gemini_skills_dir.is_dir():
-        return
-    for skill_dir in sorted(gemini_skills_dir.iterdir()):
-        if not skill_dir.is_dir():
+def _collect_native_skill_dirs(variant_dir: Path, agent_type: str) -> list[str]:
+    """Return host skill-dir paths to hand to Harbor's native skill injection.
+
+    Codex and Gemini auto-discover skills only from a HOME-scoped location
+    (``$HOME/.agents/skills`` for Codex, ``~/.gemini/skills`` for Gemini), never
+    from a ``.agents/skills`` / ``.gemini/skills`` dir sitting in the agent's
+    ``/app`` cwd. Uploading skill files there via ``sandbox_files`` (the old
+    path) put them where the CLI never scans, so they were never registered as
+    native skills — the agent only found them by reading the file by hand.
+
+    Harbor's blessed mechanism is ``config.agent.skills`` (a list of host skill
+    dirs). At trial time Harbor uploads each into the container's ``skills_dir``,
+    passes ``skills_dir`` to the agent ctor, and the agent's
+    ``_build_register_skills_command`` copies them into the correct native
+    location *inside* ``run()`` — the only point with the right timing. We feed
+    that list instead of writing into the cwd. Each ``<subdir>/<name>/`` skill
+    dir (one with a ``SKILL.md``) is returned as its own entry.
+
+    Claude is intentionally not routed here: its ``variants/<v>/skills/`` →
+    ``sandbox_files`` path already lands in a directory Claude Code discovers
+    from cwd, is tested, and also carries ``[nasde.plugin]`` / ``[[skill]]``
+    entries through ``_collect_sandbox_files``.
+    """
+    subdir = _AGENT_SKILLS_SUBDIR.get(agent_type)
+    if subdir is None:
+        return []
+    skills_root = variant_dir / subdir
+    if not skills_root.is_dir():
+        return []
+    skill_dirs: list[str] = []
+    for skill_dir in sorted(skills_root.iterdir()):
+        skill_md = skill_dir / "SKILL.md"
+        if not (skill_dir.is_dir() and skill_md.exists()):
             continue
-        for file_path in skill_dir.rglob("*"):
-            if file_path.is_file():
-                relative = file_path.relative_to(gemini_skills_dir).as_posix()
-                target = f"/app/.gemini/skills/{relative}"
-                sandbox_files[target] = str(file_path)
+        _warn_if_skill_frontmatter_malformed(skill_md, agent_type)
+        skill_dirs.append(str(skill_dir.resolve()))
+    return skill_dirs
+
+
+def _warn_if_skill_frontmatter_malformed(skill_md: Path, agent_type: str) -> None:
+    """Warn when a SKILL.md does not open with a ``---`` YAML frontmatter line.
+
+    Codex's skill loader is strict: it rejects a skill whose ``SKILL.md`` does
+    not *start* with ``---`` (``missing YAML frontmatter delimited by ---``),
+    silently leaving the skill unregistered. A leading provenance comment
+    (``<!-- Source: ... -->``) before the frontmatter is the usual culprit —
+    move it below the closing ``---``. We warn rather than fail so an
+    intentionally frontmatter-less file is still allowed.
+    """
+    try:
+        text = skill_md.read_text()
+    except OSError:
+        return
+    lines = text.lstrip("﻿").splitlines()
+    first_line = lines[0].strip() if lines else ""
+    if first_line == "---":
+        return
+    console.print(
+        f"[yellow]WARNING ({agent_type}): {skill_md} does not start with a '---' YAML "
+        "frontmatter line. Codex/Gemini may refuse to register the skill "
+        "('missing YAML frontmatter delimited by ---'). Move any leading comment "
+        "below the closing '---'.[/yellow]"
+    )
 
 
 _VALID_AGENT_TYPES = {"claude", "codex", "gemini"}
@@ -513,15 +551,18 @@ def _generate_harbor_config(variant_dir: Path, variant: str) -> None:
     agent_type = load_variant_agent_type(variant_dir)
     import_path = _agent_import_path(agent_type)
 
+    native_skills = _collect_native_skill_dirs(variant_dir, agent_type)
     config = {
         "agents": [
             {
                 "import_path": import_path,
                 "name": variant,
+                "skills": native_skills,
                 "kwargs": {
                     "sandbox_files": sandbox_files,
                 },
                 "_nasde_derived_keys": [],
+                "_nasde_derived_skills": sorted(native_skills),
             }
         ]
     }
@@ -559,14 +600,16 @@ def _refresh_sandbox_files(
     duplication doesn't become silent footgun.
     """
     config = json.loads(harbor_config_path.read_text())
+    agent_type = load_variant_agent_type(variant_dir)
     for agent in config.get("agents", []):
-        _refresh_agent_sandbox_files(agent, variant_dir, extra)
+        _refresh_agent_sandbox_files(agent, variant_dir, agent_type, extra)
     harbor_config_path.write_text(json.dumps(config, indent=2))
 
 
 def _refresh_agent_sandbox_files(
     agent: dict,
     variant_dir: Path,
+    agent_type: str,
     extra: dict[str, str],
 ) -> None:
     kwargs = agent.setdefault("kwargs", {})
@@ -585,6 +628,25 @@ def _refresh_agent_sandbox_files(
 
     kwargs["sandbox_files"] = {**extra, **authored, **handwritten}
     agent["_nasde_derived_keys"] = sorted(extra.keys())
+    _refresh_agent_skills(agent, variant_dir, agent_type)
+
+
+def _refresh_agent_skills(agent: dict, variant_dir: Path, agent_type: str) -> None:
+    """Rebuild the agent's ``skills`` list, preserving hand-authored entries.
+
+    nasde owns the entries derived from the variant's ``agents_skills/`` /
+    ``gemini_skills/`` subdirs (tracked via ``_nasde_derived_skills``). A
+    removed skill dir disappears from the list on the next run, exactly like a
+    removed ``[[skill]]`` drops from ``sandbox_files``. Any other entry was put
+    in ``harbor_config.json`` by hand and is kept untouched, so an author who
+    wires Harbor-native ``skills`` themselves is never clobbered.
+    """
+    derived = _collect_native_skill_dirs(variant_dir, agent_type)
+    prev_derived = set(agent.get("_nasde_derived_skills", []) or [])
+    current = agent.get("skills", []) or []
+    handwritten = [s for s in current if s not in prev_derived and s not in derived]
+    agent["skills"] = derived + handwritten
+    agent["_nasde_derived_skills"] = sorted(derived)
 
 
 def _warn_sandbox_collisions(

@@ -1,12 +1,17 @@
 """Configurable Gemini CLI agent for Harbor evaluations.
 
 Harbor's built-in GeminiCli agent handles CLI installation, command construction,
-trajectory parsing, and MCP server configuration natively.  However, it has no
-mechanism to inject arbitrary files (e.g. GEMINI.md, skills) into the sandbox
-before the agent starts.
+trajectory parsing, MCP server configuration, and skill injection natively. The
+last is important: Gemini CLI auto-discovers skills only from ``~/.gemini/skills``
+(HOME-scoped), so nasde routes skills through Harbor's ``config.agent.skills``
+list — Harbor uploads them to ``skills_dir`` and the agent copies them into
+``~/.gemini/skills`` at the right time inside ``run()``. What GeminiCli lacks is a
+mechanism to inject arbitrary files (e.g. GEMINI.md) into the sandbox before the
+agent starts.
 
 ConfigurableGemini fills that gap: it accepts a sandbox_files mapping via
 AgentConfig.kwargs and uploads each file into the container during setup().
+Skills are NOT carried via sandbox_files — they go through the native list above.
 
 Additionally, when the user has authenticated via ``gemini login`` (Google
 account), ConfigurableGemini auto-detects ``~/.gemini/oauth_creds.json`` and
@@ -128,8 +133,7 @@ class ConfigurableGemini(GeminiCli):
 
         Order matters:
         1. DNS fix — cloud sandboxes may not resolve Google APIs
-        2. Upload sandbox files — skills must be in place before Harbor
-           discovers them during setup
+        2. Upload sandbox files (e.g. GEMINI.md) before Harbor's setup runs
         3. super().setup() — Harbor installs Gemini CLI and writes a
            minimal ~/.gemini/settings.json (with experimental.skills)
         4. OAuth injection — AFTER super().setup() because Harbor's install
@@ -170,25 +174,9 @@ class ConfigurableGemini(GeminiCli):
                 raise FileNotFoundError(
                     f"sandbox_files: source '{source_path}' (resolved to '{resolved}') does not exist"
                 )
-            upload_targets = _expand_skill_targets(target_path)
-            for upload_path in upload_targets:
-                parent_dir = str(Path(upload_path).parent)
-                await environment.exec(command=f"mkdir -p {parent_dir}")
-                await environment.upload_file(
-                    source_path=resolved,
-                    target_path=upload_path,
-                )
-
-
-def _expand_skill_targets(target_path: str) -> list[str]:
-    """Expand a skill target path to include both /app/ and ~/.gemini/ locations.
-
-    Gemini CLI discovers skills in both workspace (.gemini/skills/) and user
-    (~/.gemini/skills/) directories.  This ensures skills are available in both.
-    """
-    app_skills_prefix = "/app/.gemini/skills/"
-    if target_path.startswith(app_skills_prefix):
-        relative = target_path[len(app_skills_prefix) :]
-        home_path = f"/root/.gemini/skills/{relative}"
-        return [target_path, home_path]
-    return [target_path]
+            parent_dir = str(Path(target_path).parent)
+            await environment.exec(command=f"mkdir -p {parent_dir}")
+            await environment.upload_file(
+                source_path=resolved,
+                target_path=target_path,
+            )

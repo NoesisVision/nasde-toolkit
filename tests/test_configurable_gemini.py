@@ -11,7 +11,6 @@ import pytest
 
 from nasde_toolkit.agents.configurable_gemini import (
     ConfigurableGemini,
-    _expand_skill_targets,
     _read_gemini_oauth_creds,
 )
 
@@ -73,23 +72,6 @@ def test_upload_raises_on_missing_source() -> None:
         pytest.raises(FileNotFoundError, match="does not exist"),
     ):
         asyncio.run(agent.setup(env))
-
-
-# ---------------------------------------------------------------------------
-# Skill target expansion
-# ---------------------------------------------------------------------------
-
-
-def test_expand_skill_targets_gemini_skills_path() -> None:
-    targets = _expand_skill_targets("/app/.gemini/skills/tactical-ddd/SKILL.md")
-    assert len(targets) == 2
-    assert "/app/.gemini/skills/tactical-ddd/SKILL.md" in targets
-    assert "/root/.gemini/skills/tactical-ddd/SKILL.md" in targets
-
-
-def test_expand_skill_targets_non_skill_path() -> None:
-    targets = _expand_skill_targets("/app/GEMINI.md")
-    assert targets == ["/app/GEMINI.md"]
 
 
 # ---------------------------------------------------------------------------

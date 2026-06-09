@@ -678,18 +678,18 @@ my-benchmark/
     codex-with-skills/         # Codex variant with skills
       variant.toml
       AGENTS.md
-      agents_skills/           # Codex skills (injected to /app/.agents/skills/)
+      agents_skills/           # Codex skills (native injection -> $HOME/.agents/skills/)
         my-skill/
-          SKILL.md             # Requires YAML frontmatter (name + description)
+          SKILL.md             # Must START with --- YAML frontmatter (name + description)
     gemini-baseline/           # Gemini CLI variant
       variant.toml             # agent = "gemini", model = "google/gemini-3-flash-preview"
       GEMINI.md                # Gemini instructions (injected to /app/GEMINI.md)
     gemini-with-skills/        # Gemini CLI variant with skills
       variant.toml
       GEMINI.md
-      gemini_skills/           # Gemini skills (injected to /app/.gemini/skills/)
+      gemini_skills/           # Gemini skills (native injection -> ~/.gemini/skills/)
         my-skill/
-          SKILL.md
+          SKILL.md             # Must START with --- YAML frontmatter (name + description)
   evaluator_skills/            # Optional: skills for the evaluator agent
     code-review/
       SKILL.md

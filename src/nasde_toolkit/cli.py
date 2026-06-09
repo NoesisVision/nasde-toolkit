@@ -186,7 +186,8 @@ def run(
         None,
         "--effort",
         help="Reasoning-effort override, passed straight to the agent (the agent validates it). "
-        "Typical levels — claude: low/medium/high/xhigh/max; codex: low/medium/high; gemini: minimal/low/medium/high. "
+        "Typical levels — claude: low/medium/high/xhigh/max; codex: none/minimal/low/medium/high/xhigh; "
+        "gemini: minimal/low/medium/high. "
         "Default: variant.toml reasoning_effort, else Harbor family default.",
     ),
     timeout: int | None = typer.Option(

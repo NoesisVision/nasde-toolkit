@@ -1010,7 +1010,7 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
 def _warn_missing_economics(job_dir: Path) -> None:
     console.print(
         f"[yellow]WARN: no assessment_summary.json found under {job_dir} — "
-        "cost/efficiency table skipped. Did assessment evaluation complete? "
+        "cost table skipped. Did assessment evaluation complete? "
         f"Re-run with [bold]nasde eval {job_dir}[/bold].[/yellow]"
     )
 

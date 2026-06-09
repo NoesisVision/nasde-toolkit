@@ -9,7 +9,9 @@ import pytest
 
 from nasde_toolkit.runner import (
     _collect_economics_rows,
+    _fmt_cost,
     _fmt_score,
+    _fmt_tokens,
     _job_dir_from_config,
     _print_job_summary,
     _sample_std,
@@ -63,6 +65,18 @@ def test_fmt_score_shows_spread_and_single_run_flag() -> None:
     assert _fmt_score(0.64, 0.08, 5) == "0.64 ±0.08"
     assert _fmt_score(0.64, None, 1) == "0.64 (n=1)"  # single run flagged
     assert _fmt_score(None, None, 0) == "—"
+
+
+def test_fmt_cost_shows_spread_only_with_std() -> None:
+    assert _fmt_cost(4.0, None) == "$4.00"  # n=1 → bare value
+    assert _fmt_cost(4.0, 2.0) == "$4.00 ±2.00"  # n≥2 → spread
+    assert _fmt_cost(None, None) == "—"
+
+
+def test_fmt_tokens_scales_and_shows_spread() -> None:
+    assert _fmt_tokens(2_000_000, None) == "2.0M"  # n=1 → bare value
+    assert _fmt_tokens(2_000_000, 500_000) == "2.0M ±500k"  # n≥2 → spread
+    assert _fmt_tokens(None, None) == "—"
 
 
 def test_economics_row_includes_score_std(tmp_path: Path) -> None:

@@ -5,8 +5,8 @@ Plots one point per `(agent_name, model_name, reasoning_effort)` configuration �
 raw position only. Color encodes the provider; marker shape encodes the variant
 (circle = vanilla, a distinct shape per skill, assigned stably and shared across
 providers); a thin line links the variants of one model so the "shift from
-adding a skill" is visible at a glance; each point is labelled with its short
-model name. It does NOT paint a verdict on each point: no "Pareto front" line, no
+adding a skill" is visible at a glance; each model is labelled once, at its
+lowest-score point. It does NOT paint a verdict on each point: no "Pareto front" line, no
 green/red "dominated" tags. The convention this follows (cf. Artificial Analysis
 intelligence-vs-tokens charts) is to show the data honestly, mark the attractive
 region with a shaded quadrant, and let the reader draw conclusions. That is also
@@ -54,7 +54,7 @@ import argparse
 import json
 import statistics
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -99,7 +99,6 @@ class ModelGroup:
     cost_std: float | None = None
     output_tokens_std: float = 0.0
     total_tokens_std: float = 0.0
-    members: list[TrialPoint] = field(default_factory=list)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -251,7 +250,7 @@ def _extract_task_name(metrics: dict, summary: dict) -> str:
 
 
 def _parse_point(spec: str) -> TrialPoint:
-    parts = [field.strip() for field in spec.split(",")]
+    parts = [part.strip() for part in spec.split(",")]
     if len(parts) != 5:
         raise SystemExit(
             f"--point needs 5 comma-separated fields (name,effort,score,cost_usd,output_tokens); got: {spec!r}"
@@ -296,7 +295,6 @@ def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> M
         cost_std=statistics.stdev(costs) if len(costs) >= 2 else None,
         output_tokens_std=statistics.stdev(output) if len(output) >= 2 else 0.0,
         total_tokens_std=statistics.stdev(total) if len(total) >= 2 else 0.0,
-        members=members,
     )
 
 
@@ -449,15 +447,19 @@ def _connect_same_model(axis, groups: list[ModelGroup], x_attr: str) -> None:
 
 
 def _shade_attractive_quadrant(axis, xs: list[float], scores: list[float], log_x: bool) -> None:
-    x_min, x_max = min(xs), max(xs)
+    positive_xs = [x for x in xs if x > 0] if log_x else xs
+    x_min, x_max = min(positive_xs or xs), max(positive_xs or xs)
     y_min, y_max = min(scores), max(scores)
-    x_pad = (x_max / x_min) ** 0.12 if log_x and x_min > 0 else 1.0
-    x_lo = x_min / x_pad if log_x else x_min - 0.1 * (x_max - x_min or 1)
-    x_hi = x_max * x_pad if log_x else x_max + 0.1 * (x_max - x_min or 1)
+    if log_x:
+        ratio = (x_max / x_min) if x_min > 0 else 1.0
+        x_pad = ratio**0.12 if ratio > 1 else 1.3
+        x_lo, x_hi, x_mid = x_min / x_pad, x_max * x_pad, (x_min * x_max) ** 0.5
+    else:
+        span = x_max - x_min or abs(x_max) or 1
+        x_lo, x_hi, x_mid = x_min - 0.1 * span, x_max + 0.1 * span, (x_min + x_max) / 2
     y_pad = 0.1 * (y_max - y_min or 0.1)
     axis.set_xlim(x_lo, x_hi)
     axis.set_ylim(y_min - y_pad, y_max + y_pad)
-    x_mid = (x_min * x_max) ** 0.5 if log_x else (x_min + x_max) / 2
     axis.axvspan(x_lo, x_mid, ymin=0.5, ymax=1.0, color=QUADRANT_COLOR, alpha=0.45, zorder=0)
 
 
@@ -528,14 +530,22 @@ def _skill_marker_map(groups: list[ModelGroup]) -> dict[str, str]:
 def _print_groups(groups: list[ModelGroup], token_axis: str) -> None:
     print("Groups (averaged within (agent, model, reasoning_effort)):")
     for group in sorted(groups, key=lambda g: g.score, reverse=True):
-        cost = "n/a" if group.cost_usd is None else f"${group.cost_usd:.2f}"
         tok = group.output_tokens_millions if token_axis == "output" else group.total_tokens_millions
+        tok_std = group.output_tokens_std if token_axis == "output" else group.total_tokens_std
         note = "  [n=1 preliminary signal, no variance]" if group.n < 2 else ""
         print(
             f"  {_group_id(group):<46} effort={group.effort or 'default':<8} "
             f"n={group.n}  score={group.score:.3f}±{group.score_std:.3f}  "
-            f"{token_axis}_tok={tok:.2f}M  cost={cost}{note}"
+            f"{token_axis}_tok={tok:.2f}±{tok_std:.2f}M  cost={_fmt_cost(group)}{note}"
         )
+
+
+def _fmt_cost(group: ModelGroup) -> str:
+    if group.cost_usd is None:
+        return "n/a"
+    if group.cost_std is None:
+        return f"${group.cost_usd:.2f}"
+    return f"${group.cost_usd:.2f}±{group.cost_std:.2f}"
 
 
 def _group_id(group: ModelGroup) -> str:

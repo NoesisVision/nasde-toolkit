@@ -365,20 +365,26 @@ def _draw_panel(
 
 
 def _label_points(axis, groups: list[ModelGroup], x_attr: str, log_x: bool) -> None:
-    ordered = sorted(groups, key=lambda g: g.score, reverse=True)
-    for index, group in enumerate(ordered):
-        x = getattr(group, x_attr)
-        offset_y = 9 if index % 2 == 0 else -15
+    for group in _lowest_point_per_model(groups):
         axis.annotate(
             _short_model(group.name),
-            (x, group.score),
-            xytext=(0, offset_y),
+            (getattr(group, x_attr), group.score),
+            xytext=(0, -16),
             textcoords="offset points",
             ha="center",
             fontsize=8,
             fontweight="medium",
             zorder=5,
         )
+
+
+def _lowest_point_per_model(groups: list[ModelGroup]) -> list[ModelGroup]:
+    lowest: dict[str, ModelGroup] = {}
+    for group in groups:
+        current = lowest.get(group.name)
+        if current is None or group.score < current.score:
+            lowest[group.name] = group
+    return list(lowest.values())
 
 
 def _add_encoding_legend(figure, groups: list[ModelGroup], marker_map: dict[str, str]) -> None:

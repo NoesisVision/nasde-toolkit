@@ -2,15 +2,17 @@
 """Quality-vs-cost / quality-vs-tokens scatter for nasde benchmark results.
 
 Plots one point per `(agent_name, model_name, reasoning_effort)` configuration —
-raw position only. Color encodes the provider, marker shape encodes the variant
-(circle = vanilla, square = a skill variant, triangle = other), and a thin line
-links the variants of one model so the "shift from adding a skill" is visible at
-a glance. It does NOT paint a verdict on each point: no "Pareto front" line, no
-green/red "dominated" tags. The convention this follows (cf. Artificial
-Analysis intelligence-vs-tokens charts) is to show the data honestly, mark the
-*direction* of "better" with a shaded attractive quadrant and an arrow, and let
-the reader draw conclusions. That is also safer at small n, where a hard
-"dominated" label on a point with no variance over-claims.
+raw position only. Color encodes the provider; marker shape encodes the variant
+(circle = vanilla, a distinct shape per skill, assigned stably and shared across
+providers); a thin line links the variants of one model so the "shift from
+adding a skill" is visible at a glance; each point is labelled with its short
+model name. It does NOT paint a verdict on each point: no "Pareto front" line, no
+green/red "dominated" tags. The convention this follows (cf. Artificial Analysis
+intelligence-vs-tokens charts) is to show the data honestly, mark the attractive
+region with a shaded quadrant, and let the reader draw conclusions. That is also
+safer at small n, where a hard "dominated" label on a point with no variance
+over-claims. With more distinct skills than marker shapes the palette cycles —
+flagged with a warning, never a silent shape collision.
 
 Two axes answer different questions, so two panels are drawn:
   - quality vs cost ($)     — price-dependent (moves with the price catalog)
@@ -68,8 +70,8 @@ PROVIDER_COLORS = {
 }
 
 VANILLA_MARKER = "o"
-SKILL_MARKER = "s"
-OTHER_MARKER = "^"
+PROVIDER_PREFIXES = ("claude-", "codex-", "gemini-", "gpt-")
+SKILL_MARKERS = ("s", "^", "D", "v", "P", "X", "*", "<", ">", "h")
 
 
 @dataclass
@@ -300,11 +302,22 @@ def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> M
 
 def _build_figure(groups: list[ModelGroup], title: str, token_axis: str):
     figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(16, 6.5))
-    _draw_panel(axis_cost, groups, "cost_usd", "Cost (USD per trial)", "Quality vs Cost", log_x=False)
+    marker_map = _skill_marker_map(groups)
+    _draw_panel(
+        axis_cost, groups, "cost_usd", "Cost (USD per trial)", "Quality vs Cost", log_x=False, marker_map=marker_map
+    )
     token_attr = "output_tokens_millions" if token_axis == "output" else "total_tokens_millions"
     token_label = f"{token_axis.capitalize()} tokens (millions per trial, log scale)"
-    _draw_panel(axis_tokens, groups, token_attr, token_label, "Quality vs Tokens (price-independent)", log_x=True)
-    _add_encoding_legend(figure, groups)
+    _draw_panel(
+        axis_tokens,
+        groups,
+        token_attr,
+        token_label,
+        "Quality vs Tokens (price-independent)",
+        log_x=True,
+        marker_map=marker_map,
+    )
+    _add_encoding_legend(figure, groups, marker_map)
     figure.suptitle(
         f"{title}\nColor = provider · shape = variant · line links variants of one model · "
         "shaded green = most attractive region (high quality, low cost/tokens)",
@@ -314,7 +327,15 @@ def _build_figure(groups: list[ModelGroup], title: str, token_axis: str):
     return figure
 
 
-def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title: str, log_x: bool) -> None:
+def _draw_panel(
+    axis,
+    groups: list[ModelGroup],
+    x_attr: str,
+    x_label: str,
+    title: str,
+    log_x: bool,
+    marker_map: dict[str, str],
+) -> None:
     plottable = [group for group in groups if getattr(group, x_attr) is not None]
     if not plottable:
         axis.set_title(f"{title}\n(no priced data)", fontweight="bold")
@@ -331,7 +352,7 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
             color=_provider_color(group.name),
             edgecolor="white",
             linewidth=1.4,
-            marker=_variant_marker(group.agent),
+            marker=marker_map.get(_skill_name(group.agent), VANILLA_MARKER),
             zorder=3,
         )
     _label_points(axis, plottable, x_attr, log_x)
@@ -360,29 +381,45 @@ def _label_points(axis, groups: list[ModelGroup], x_attr: str, log_x: bool) -> N
         )
 
 
-def _add_encoding_legend(figure, groups: list[ModelGroup]) -> None:
+def _add_encoding_legend(figure, groups: list[ModelGroup], marker_map: dict[str, str]) -> None:
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
 
     providers = {_provider_label(group.name): _provider_color(group.name) for group in groups}
-    variant_kinds = {_variant_kind(group.agent) for group in groups}
-    variant_name = {"vanilla": "vanilla", "skill": "+skill", "guided": "guided"}
-    variant_marker = {"vanilla": VANILLA_MARKER, "skill": SKILL_MARKER, "guided": OTHER_MARKER}
+    present_skills = {_skill_name(group.agent) for group in groups}
+    shape_order = [""] + sorted(s for s in present_skills if s)
 
     color_handles = [Patch(facecolor=color, edgecolor="white", label=name) for name, color in sorted(providers.items())]
     shape_handles = [
-        Line2D([], [], marker=variant_marker.get(k, OTHER_MARKER), color="#555", linestyle="none", markersize=10,
-               label=variant_name.get(k, k))
-        for k in sorted(variant_kinds)
+        Line2D(
+            [],
+            [],
+            marker=marker_map.get(skill, VANILLA_MARKER),
+            color="#555",
+            linestyle="none",
+            markersize=10,
+            label=skill or "vanilla",
+        )
+        for skill in shape_order
     ]
     legend_color = figure.legend(
-        handles=color_handles, title="Provider (color)", loc="upper left",
-        bbox_to_anchor=(0.87, 0.88), fontsize=9, title_fontsize=9, framealpha=0.95,
+        handles=color_handles,
+        title="Provider (color)",
+        loc="upper left",
+        bbox_to_anchor=(0.87, 0.88),
+        fontsize=9,
+        title_fontsize=9,
+        framealpha=0.95,
     )
     figure.add_artist(legend_color)
     figure.legend(
-        handles=shape_handles, title="Variant (shape)", loc="upper left",
-        bbox_to_anchor=(0.87, 0.6), fontsize=9, title_fontsize=9, framealpha=0.95,
+        handles=shape_handles,
+        title="Variant (shape)",
+        loc="upper left",
+        bbox_to_anchor=(0.87, 0.62),
+        fontsize=8.5,
+        title_fontsize=9,
+        framealpha=0.95,
     )
 
 
@@ -441,22 +478,45 @@ def _short_model(model_name: str) -> str:
     return model_name.removeprefix("claude-").removeprefix("google/")
 
 
-def _variant_kind(agent: str) -> str:
+def _skill_name(agent: str) -> str:
+    """The skill/variant identity behind an agent_name, or "" for plain vanilla.
+
+    Strips the provider prefix (claude-/codex-/...) so `claude-ntcoding-tactical-ddd`
+    and `codex-ntcoding-tactical-ddd` map to the same skill `ntcoding-tactical-ddd`
+    (same marker shape across providers). Plain `vanilla` → "" (the circle).
+    """
     lowered = agent.lower()
-    if not lowered or lowered.endswith("vanilla") or lowered == "vanilla":
-        return "vanilla"
-    if "guided" in lowered:
-        return "guided"
-    return "skill"
+    for prefix in PROVIDER_PREFIXES:
+        if lowered.startswith(prefix):
+            lowered = lowered[len(prefix) :]
+            break
+    if lowered in ("", "vanilla"):
+        return ""
+    return lowered
 
 
-def _variant_marker(agent: str) -> str:
-    kind = _variant_kind(agent)
-    if kind == "vanilla":
-        return VANILLA_MARKER
-    if kind == "skill":
-        return SKILL_MARKER
-    return OTHER_MARKER
+def _skill_marker_map(groups: list[ModelGroup]) -> dict[str, str]:
+    """Assign a stable marker to each distinct skill (vanilla always the circle).
+
+    Skills get markers from SKILL_MARKERS in first-seen order so the same skill
+    keeps its shape across both panels and the legend. If there are more skills
+    than shapes, the palette cycles — flagged with a warning rather than silently
+    colliding (two skills would otherwise share a shape with no notice)."""
+    skills: list[str] = []
+    for group in groups:
+        name = _skill_name(group.agent)
+        if name and name not in skills:
+            skills.append(name)
+    if len(skills) > len(SKILL_MARKERS):
+        print(
+            f"WARNING: {len(skills)} distinct skills but only {len(SKILL_MARKERS)} marker shapes — "
+            "shapes will repeat; read point labels / the legend to disambiguate.",
+            file=sys.stderr,
+        )
+    mapping = {"": VANILLA_MARKER}
+    for index, skill in enumerate(skills):
+        mapping[skill] = SKILL_MARKERS[index % len(SKILL_MARKERS)]
+    return mapping
 
 
 def _print_groups(groups: list[ModelGroup], token_axis: str) -> None:

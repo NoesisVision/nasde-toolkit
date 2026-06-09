@@ -1,0 +1,56 @@
+---
+title: NASDE Toolkit
+description: Run an AI coding agent on a task you already know the answer to. Score the result. Compare configurations.
+template: splash
+hero:
+  tagline: Noesis Agentic Software Development Evals — turn "the agent feels better now" into a repeatable measurement.
+  actions:
+    - text: Quick Start
+      link: /nasde-toolkit/getting-started/quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/NoesisVision/nasde-toolkit
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What NASDE does — in four steps
+
+One `nasde run` command executes the whole chain.
+
+<CardGrid>
+	<Card title="1. Describe a task you understand" icon="pencil">
+		An instruction, a repo snapshot, and the assessment criteria describing what a good solution looks like. The output can be anything the agent writes — code, a migration plan, an ADR, a SQL script, updated docs.
+	</Card>
+	<Card title="2. The agent solves it in a sandbox" icon="rocket">
+		A safe, isolated environment — the agent can't touch your machine. Every run starts from the same clean state, so different configurations get a fair comparison. Powered by [Harbor](https://www.harborframework.com/), local Docker or cloud.
+	</Card>
+	<Card title="3. A reviewer agent assesses it" icon="approve-check">
+		After the rough tests, a second coding agent (`claude` or `codex`) navigates the workspace and scores your chosen dimensions (e.g. *domain modeling*, *test quality*) on whatever scale you picked.
+	</Card>
+	<Card title="4. Results land in a dashboard" icon="bars">
+		Browse scores, compare variants, and track how your agent setup evolves — optionally via [Opik](https://www.comet.com/site/products/opik/).
+	</Card>
+</CardGrid>
+
+You're the one defining "what good looks like." NASDE just automates running the experiment and assessing it the same way every time.
+
+## Where to next
+
+<CardGrid stagger>
+	<Card title="Get started" icon="open-book">
+		Install the CLI and build your first benchmark from your own git history. See [Quick Start](/nasde-toolkit/getting-started/quick-start/).
+	</Card>
+	<Card title="Understand the scoring" icon="information">
+		Two independent kinds of scoring — deterministic rough tests and the multi-dimensional LLM-as-a-Judge reviewer. See [How Scoring Works](/nasde-toolkit/concepts/scoring/).
+	</Card>
+	<Card title="CLI reference" icon="setting">
+		Every command, flag, and config-file format. See [Commands](/nasde-toolkit/reference/commands/).
+	</Card>
+	<Card title="See real results" icon="chart-bar">
+		Worked examples with numbers across agents, skills, and tasks. See [Benchmark Results](/nasde-toolkit/guides/benchmark-results/).
+	</Card>
+</CardGrid>

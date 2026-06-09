@@ -135,7 +135,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="append",
         default=[],
         metavar="name,effort,score,cost_usd,output_tokens",
-        help="An explicit data point; repeatable. cost_usd may be empty for unpriced models.",
+        help="An explicit data point; repeatable. cost_usd may be empty for unpriced models. "
+        "output_tokens is a raw count (e.g. 69055) or, if <1000, taken as already-in-millions.",
     )
     parser.add_argument("--out", default="quality_chart.png", help="Output PNG path.")
     parser.add_argument(
@@ -476,14 +477,15 @@ def _connect_same_model(axis, groups: list[ModelGroup], x_attr: str) -> None:
 
 
 def _shade_attractive_quadrant(axis, xs: list[float], scores: list[float], log_x: bool) -> None:
-    positive_xs = [x for x in xs if x > 0] if log_x else xs
-    x_min, x_max = min(positive_xs or xs), max(positive_xs or xs)
     y_min, y_max = min(scores), max(scores)
     if log_x:
-        ratio = (x_max / x_min) if x_min > 0 else 1.0
+        positive_xs = [x for x in xs if x > 0] or [1.0]
+        x_min, x_max = min(positive_xs), max(positive_xs)
+        ratio = x_max / x_min
         x_pad = ratio**0.12 if ratio > 1 else 1.3
         x_lo, x_hi, x_mid = x_min / x_pad, x_max * x_pad, (x_min * x_max) ** 0.5
     else:
+        x_min, x_max = min(xs), max(xs)
         span = x_max - x_min or abs(x_max) or 1
         x_lo, x_hi, x_mid = x_min - 0.1 * span, x_max + 0.1 * span, (x_min + x_max) / 2
     y_pad = 0.1 * (y_max - y_min or 0.1)
@@ -536,7 +538,7 @@ def _skill_marker_map(groups: list[ModelGroup]) -> dict[str, str]:
     """Assign a stable marker to each distinct skill (vanilla always the circle).
 
     Skills get markers from SKILL_MARKERS in first-seen order so the same skill
-    keeps its shape across both panels and the legend. If there are more skills
+    keeps its shape across every panel and the legend. If there are more skills
     than shapes, the palette cycles — flagged with a warning rather than silently
     colliding (two skills would otherwise share a shape with no notice)."""
     skills: list[str] = []

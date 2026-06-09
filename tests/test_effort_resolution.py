@@ -1,11 +1,9 @@
-"""Tests for reasoning-effort resolution, validation, and threading into Harbor config."""
+"""Tests for reasoning-effort resolution and threading into Harbor config."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-
-import pytest
 
 from nasde_toolkit.runner import _build_merged_config, _resolve_effort
 
@@ -20,30 +18,25 @@ def _write_variant(variant_dir: Path, agent: str, effort: str | None = None) -> 
 
 def test_cli_effort_overrides_variant(tmp_path: Path) -> None:
     _write_variant(tmp_path, "claude", effort="high")
-    assert _resolve_effort("xhigh", tmp_path, "claude") == "xhigh"
+    assert _resolve_effort("xhigh", tmp_path) == "xhigh"
 
 
 def test_variant_effort_used_when_no_cli(tmp_path: Path) -> None:
     _write_variant(tmp_path, "claude", effort="max")
-    assert _resolve_effort(None, tmp_path, "claude") == "max"
+    assert _resolve_effort(None, tmp_path) == "max"
 
 
 def test_unset_effort_is_none(tmp_path: Path) -> None:
     _write_variant(tmp_path, "claude")
-    assert _resolve_effort(None, tmp_path, "claude") is None  # unset → Harbor family default
+    assert _resolve_effort(None, tmp_path) is None  # unset → Harbor family default
 
 
-def test_out_of_scale_effort_aborts(tmp_path: Path) -> None:
+def test_any_value_passes_through_validation_is_harbors_job(tmp_path: Path) -> None:
+    # No local allow-list: scales differ per family and change often, so an unknown
+    # value is passed straight to Harbor (the source of truth) rather than blocked here.
     _write_variant(tmp_path, "codex")
-    with pytest.raises(SystemExit):
-        _resolve_effort("xhigh", tmp_path, "codex")  # xhigh is Claude-only
-
-
-def test_each_family_accepts_its_own_top_level(tmp_path: Path) -> None:
-    _write_variant(tmp_path, "codex")
-    assert _resolve_effort("high", tmp_path, "codex") == "high"
-    _write_variant(tmp_path / "g", "gemini")
-    assert _resolve_effort("minimal", tmp_path / "g", "gemini") == "minimal"
+    assert _resolve_effort("xhigh", tmp_path) == "xhigh"  # would be wrong for codex, but Harbor decides
+    assert _resolve_effort("some-future-level", tmp_path) == "some-future-level"
 
 
 def _harbor_config(tmp_path: Path) -> Path:

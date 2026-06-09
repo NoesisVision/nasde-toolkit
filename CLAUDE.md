@@ -285,7 +285,7 @@ Declares the agent type and the model the variant runs against. Every variant MU
 ```toml
 agent = "claude"                    # "claude" | "codex" | "gemini"
 model = "claude-sonnet-4-6"         # REQUIRED. Model appropriate for the agent family.
-reasoning_effort = "high"           # Optional. Reasoning effort (per-family scale, see below).
+reasoning_effort = "high"           # Optional. Passed straight to the agent (no local validation, see below).
 
 tasks = ["my-benchmark/task-a"]     # Optional: task-scope. Restrict this variant to specific tasks.
 
@@ -296,13 +296,7 @@ ref  = "abc1234"                    # optional git ref, same semantics as [nasde
 
 **Model priority**: `--model` CLI flag > `variant.toml [model]`. Missing model in both places → SystemExit with a clear error.
 
-**`reasoning_effort` (optional)**: controls how hard the model thinks. Priority: `--effort` CLI flag > `variant.toml reasoning_effort` > unset (unset → not passed → Harbor's per-family default, which is UNEQUAL across families: Codex `high` is its max of 3 levels; Claude `high` is 3/5, with `xhigh`/`max` above). Threaded to Harbor via the agent's `reasoning_effort` kwarg, which Harbor turns into the right CLI flag (Claude `--effort`, Codex `-c model_reasoning_effort=`, Gemini ctor arg). Validation rejects an out-of-scale value per family:
-
-| Family | Valid efforts |
-| ------ | ------------- |
-| claude | `low`, `medium`, `high`, `xhigh`, `max` |
-| codex  | `low`, `medium`, `high` |
-| gemini | `minimal`, `low`, `medium`, `high` |
+**`reasoning_effort` (optional)**: controls how hard the model thinks. Priority: `--effort` CLI flag > `variant.toml reasoning_effort` > unset (unset → not passed → Harbor's per-family default, which is UNEQUAL across families: Codex `high` is its max of 3 levels; Claude `high` is 3/5, with `xhigh`/`max` above). Threaded to Harbor via the agent's `reasoning_effort` kwarg, which Harbor turns into the right CLI flag (Claude `--effort`, Codex `-c model_reasoning_effort=`, Gemini ctor arg). **No local validation**: `_resolve_effort` only resolves priority + emptiness, then passes the value straight to Harbor (the source of truth — Claude/Gemini reject unknown levels via their own `choices`, Codex takes a free-form string). A hardcoded per-family allow-list was deliberately removed — effort scales change too often and a stale list wrongly blocks a newly-valid level. Typical levels for reference (not enforced): Claude `low`/`medium`/`high`/`xhigh`/`max`, Codex `low`/`medium`/`high`, Gemini `minimal`/`low`/`medium`/`high`.
 
 The effort is stamped onto each trial's `assessment_summary.json` / `metrics.json` (read back from `config.json` `config.agent.kwargs.reasoning_effort`; `""` when no override was set — only explicit overrides are recorded) and the run-summary economics group by `(agent_name, model_name, reasoning_effort)`.
 

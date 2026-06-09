@@ -92,13 +92,12 @@ Claude `high` is 3 of 5, with `xhigh`/`max` above), so "default vs default" sile
   Priority: `--effort` > `variant.toml reasoning_effort` > unset. Unset means the effort is **not passed**, leaving
   Harbor's family default in place. The value is threaded to Harbor via the agent's `reasoning_effort` kwarg, which
   Harbor turns into the right CLI flag per family (Claude `--effort`, Codex `-c model_reasoning_effort=`, Gemini ctor arg).
-- **Per-family valid scales** (validation rejects an out-of-scale value, e.g. `xhigh` for Codex):
-
-  | Family | Valid efforts |
-  | ------ | ------------- |
-  | claude | `low`, `medium`, `high`, `xhigh`, `max` |
-  | codex  | `low`, `medium`, `high` |
-  | gemini | `minimal`, `low`, `medium`, `high` |
+- **No local validation.** The value is passed straight to Harbor, which is the source of truth: Claude and Gemini
+  reject an unknown level via their own CLI `choices`, and Codex takes a free-form string. An earlier hardcoded
+  per-family allow-list was removed — effort scales differ per family and change often, so a stale list does more harm
+  than good (it would wrongly block a newly-valid level, and for free-form Codex it was a guess in the first place).
+  Typical levels for reference (NOT enforced): Claude `low`/`medium`/`high`/`xhigh`/`max`, Codex `low`/`medium`/`high`,
+  Gemini `minimal`/`low`/`medium`/`high`.
 
 - **Stamp.** The effort is stamped onto each trial's `assessment_summary.json` (run path) and `metrics.json`
   (export path) as a `reasoning_effort` string, read back from the per-trial Harbor `config.json`

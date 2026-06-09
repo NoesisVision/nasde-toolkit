@@ -37,9 +37,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   defaults are *unequal* (Codex `high` is its max of 3 levels; Claude `high` is 3/5,
   with `xhigh`/`max` above), so default-vs-default compared different thinking budgets.
   Priority: `--effort` > `variant.toml reasoning_effort` > unset (Harbor family
-  default). Per-family valid scales (out-of-scale rejected) — claude: `low`/`medium`/
-  `high`/`xhigh`/`max`; codex: `low`/`medium`/`high`; gemini: `minimal`/`low`/`medium`/
-  `high`. The effort is threaded to Harbor via the agent's `reasoning_effort` kwarg and
+  default). The value is **not** validated locally — it is passed straight to Harbor
+  (the source of truth; Claude/Gemini reject unknown levels themselves, Codex is
+  free-form), so a stale built-in scale list can't wrongly block a newly-valid level.
+  The effort is threaded to Harbor via the agent's `reasoning_effort` kwarg and
   **stamped onto each trial** (`reasoning_effort` in `assessment_summary.json` and
   `metrics.json`, read back from the trial's Harbor `config.json`; `""` when no override
   was set — only explicit overrides are recorded). Run-summary economics now group by

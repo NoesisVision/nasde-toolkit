@@ -81,7 +81,7 @@ async def run_benchmark(
     _ensure_auth(_read_agent_import_path(harbor_config_path))
 
     resolved_model = _resolve_model(model, variant_dir, config)
-    resolved_effort = _resolve_effort(effort, variant_dir, load_variant_agent_type(variant_dir))
+    resolved_effort = _resolve_effort(effort, variant_dir)
 
     merged_config = _build_merged_config(
         config=config,
@@ -213,31 +213,21 @@ def _resolve_model(
     raise SystemExit(1)
 
 
-def _resolve_effort(
-    cli_effort: str | None,
-    variant_dir: Path,
-    agent_type: str,
-) -> str | None:
+def _resolve_effort(cli_effort: str | None, variant_dir: Path) -> str | None:
     """Resolve the reasoning-effort override from CLI flag or variant.toml.
 
     Priority: --effort flag > variant.toml ``reasoning_effort`` > unset. Unset
     (None) means no override is passed to Harbor, which then applies its own
     per-family default — a deliberately valid state, so effort is optional.
-    Any value is validated against the agent family's scale (the scales are
-    unequal: e.g. ``xhigh``/``max`` exist for Claude but not Codex), and an
-    out-of-scale value aborts with a clear error.
+
+    The value is NOT validated here: effort scales differ per model family and
+    change often, so any non-empty value is passed straight to Harbor, which is
+    the source of truth (Claude/Gemini reject unknown values via their own
+    ``choices``; Codex takes a free-form string). A stale local allow-list would
+    do more harm than good — wrongly blocking a newly-valid level.
     """
     effort = cli_effort or load_variant_config(variant_dir).get("reasoning_effort")
-    if not effort:
-        return None
-    valid = _EFFORT_SCALES[agent_type]
-    if effort not in valid:
-        console.print(
-            f"[red]ERROR: reasoning effort {effort!r} is not valid for agent "
-            f"'{agent_type}'. Valid values: {', '.join(valid)}.[/red]"
-        )
-        raise SystemExit(1)
-    return effort
+    return effort or None
 
 
 def _ensure_auth(agent_import_path: str | None = None) -> None:
@@ -391,12 +381,6 @@ def _collect_gemini_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> 
 
 
 _VALID_AGENT_TYPES = {"claude", "codex", "gemini"}
-
-_EFFORT_SCALES = {
-    "claude": ("low", "medium", "high", "xhigh", "max"),
-    "codex": ("low", "medium", "high"),
-    "gemini": ("minimal", "low", "medium", "high"),
-}
 
 
 def load_variant_config(variant_dir: Path) -> dict:

@@ -709,13 +709,7 @@ reasoning_effort = "high"          # optional — see "Reasoning effort" below
 
 How hard the model thinks is a configuration you should set deliberately, not leave to chance. Each agent family ships a *different* default level, and those defaults are not comparable — Codex's `high` is the top of its three levels, while Claude's `high` is only the middle of five (`xhigh` and `max` sit above it). Comparing two agents on their respective defaults silently compares different thinking budgets.
 
-Set the effort explicitly with the optional `reasoning_effort` field in `variant.toml`, or override it for a single run with `nasde run --effort`. Priority is **`--effort` > `variant.toml reasoning_effort` > Harbor's family default** (left unset means NASDE passes nothing and the family default applies). Valid levels are per-family — an out-of-scale value (e.g. `xhigh` for Codex) is rejected:
-
-| Family | Valid efforts |
-| ------ | ------------- |
-| claude | `low`, `medium`, `high`, `xhigh`, `max` |
-| codex  | `low`, `medium`, `high` |
-| gemini | `minimal`, `low`, `medium`, `high` |
+Set the effort explicitly with the optional `reasoning_effort` field in `variant.toml`, or override it for a single run with `nasde run --effort`. Priority is **`--effort` > `variant.toml reasoning_effort` > Harbor's family default** (left unset means NASDE passes nothing and the family default applies). Typical levels (for reference — the exact set differs per model and changes over time): Claude `low`/`medium`/`high`/`xhigh`/`max`, Codex `low`/`medium`/`high`, Gemini `minimal`/`low`/`medium`/`high`. NASDE does **not** police the value — it passes whatever you set straight to the agent, which is the source of truth and rejects an unknown level itself; this avoids a stale built-in list wrongly blocking a newly-valid level.
 
 The effort you set is stamped onto each trial (`reasoning_effort` in `assessment_summary.json` and `metrics.json`), and the `nasde run` cost table groups by `(agent, model, effort)` — a different effort is treated as a different configuration and never averaged in with another.
 

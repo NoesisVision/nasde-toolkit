@@ -185,8 +185,9 @@ def run(
     effort: str | None = typer.Option(
         None,
         "--effort",
-        help="Reasoning-effort override (claude: low/medium/high/xhigh/max; codex: low/medium/high; "
-        "gemini: minimal/low/medium/high). Default: variant.toml reasoning_effort, else Harbor family default.",
+        help="Reasoning-effort override, passed straight to the agent (the agent validates it). "
+        "Typical levels — claude: low/medium/high/xhigh/max; codex: low/medium/high; gemini: minimal/low/medium/high. "
+        "Default: variant.toml reasoning_effort, else Harbor family default.",
     ),
     timeout: int | None = typer.Option(
         None,
@@ -314,7 +315,7 @@ def run(
 
         from nasde_toolkit.runner import _resolve_effort
 
-        display_effort = _resolve_effort(resolved_effort, variant_dir, agent_type)
+        display_effort = _resolve_effort(resolved_effort, variant_dir)
         _print_run_header(
             variant=resolved_variant,
             model=display_model,

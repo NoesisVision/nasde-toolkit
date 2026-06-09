@@ -374,7 +374,7 @@ uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
   --out /tmp/pareto.png
 ```
 
-Points sharing `(name, effort)` are averaged into one group and their per-axis std is reported (n≥2). The script marks front members green ● and dominated points red ✗.
+Trials are grouped by `(agent_name, model_name, reasoning_effort)` — the same key the toolkit uses for run-summary economics — so two variants of the *same* model (e.g. `claude-vanilla` vs `claude-ntcoding-tactical-ddd`, both on `claude-sonnet-4-6`) stay separate points, not one averaged blob. Each group's per-axis std is reported (n≥2). The script marks front members green ● and dominated points red ✗. (With `--point` you have no separate agent field, so the point name doubles as the variant.)
 
 ### Chart rule — full model version strings, always
 

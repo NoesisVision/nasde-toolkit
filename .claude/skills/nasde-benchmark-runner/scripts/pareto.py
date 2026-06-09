@@ -54,6 +54,7 @@ DOMINATED_COLOR = "#e76f51"
 @dataclass
 class TrialPoint:
     name: str
+    agent: str
     effort: str
     score: float
     cost_usd: float | None
@@ -63,6 +64,7 @@ class TrialPoint:
 @dataclass
 class ModelGroup:
     name: str
+    agent: str
     effort: str
     n: int
     score: float
@@ -76,7 +78,8 @@ class ModelGroup:
     @property
     def label(self) -> str:
         effort = self.effort or "default"
-        return f"{self.name} (effort={effort}, n={self.n})"
+        agent = f"{self.agent} / " if self.agent and self.agent != self.name else ""
+        return f"{agent}{self.name} (effort={effort}, n={self.n})"
 
 
 def pareto_nondominated(groups: list[ModelGroup], x_attr: str) -> list[ModelGroup]:
@@ -156,6 +159,7 @@ def _trial_point_from_artifacts(metrics: dict, summary: dict) -> TrialPoint | No
         return None
     return TrialPoint(
         name=_extract_model_name(metrics, summary),
+        agent=_extract_agent_name(metrics, summary),
         effort=_extract_effort(metrics, summary),
         score=score,
         cost_usd=_extract_cost(metrics, summary),
@@ -204,6 +208,14 @@ def _extract_effort(metrics: dict, summary: dict) -> str:
     return ""
 
 
+def _extract_agent_name(metrics: dict, summary: dict) -> str:
+    for source in (metrics, summary):
+        value = source.get("agent_name")
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
 def _parse_point(spec: str) -> TrialPoint:
     parts = [field.strip() for field in spec.split(",")]
     if len(parts) != 5:
@@ -216,6 +228,7 @@ def _parse_point(spec: str) -> TrialPoint:
     tokens_millions = tokens if tokens < 1000 else tokens / 1e6
     return TrialPoint(
         name=name,
+        agent=name,
         effort=effort,
         score=float(score_raw),
         cost_usd=float(cost_raw) if cost_raw else None,
@@ -224,19 +237,20 @@ def _parse_point(spec: str) -> TrialPoint:
 
 
 def _group_trials(trials: list[TrialPoint]) -> list[ModelGroup]:
-    buckets: dict[tuple[str, str], list[TrialPoint]] = {}
+    buckets: dict[tuple[str, str, str], list[TrialPoint]] = {}
     for trial in trials:
-        buckets.setdefault((trial.name, trial.effort), []).append(trial)
+        buckets.setdefault((trial.agent, trial.name, trial.effort), []).append(trial)
     return [_aggregate_bucket(key, members) for key, members in buckets.items()]
 
 
-def _aggregate_bucket(key: tuple[str, str], members: list[TrialPoint]) -> ModelGroup:
-    name, effort = key
+def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> ModelGroup:
+    agent, name, effort = key
     scores = [member.score for member in members]
     tokens = [member.tokens_millions for member in members]
     costs = [member.cost_usd for member in members if member.cost_usd is not None]
     return ModelGroup(
         name=name,
+        agent=agent,
         effort=effort,
         n=len(members),
         score=statistics.fmean(scores),
@@ -286,7 +300,7 @@ def _build_figure(groups: list[ModelGroup], title: str):
 def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title: str) -> None:
     plottable = [group for group in groups if getattr(group, x_attr) is not None]
     front = pareto_nondominated(plottable, x_attr)
-    front_keys = {(group.name, group.effort) for group in front}
+    front_keys = {(group.agent, group.name, group.effort) for group in front}
     front_sorted = sorted(front, key=lambda group: getattr(group, x_attr))
 
     axis.plot(
@@ -299,7 +313,7 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
         label="Pareto front",
     )
     for group in plottable:
-        on_front = (group.name, group.effort) in front_keys
+        on_front = (group.agent, group.name, group.effort) in front_keys
         axis.scatter(
             getattr(group, x_attr),
             group.score,
@@ -319,12 +333,12 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
 
 
 def _print_groups(groups: list[ModelGroup]) -> None:
-    print("Model groups (averaged within (model, reasoning_effort)):")
+    print("Groups (averaged within (agent, model, reasoning_effort)):")
     for group in sorted(groups, key=lambda g: g.score, reverse=True):
         cost = "n/a" if group.cost_usd is None else f"${group.cost_usd:.2f}"
         note = "  [n=1 preliminary signal, no variance]" if group.n < 2 else ""
         print(
-            f"  {group.name:<24} effort={group.effort or 'default':<12} "
+            f"  {_group_id(group):<46} effort={group.effort or 'default':<8} "
             f"n={group.n}  score={group.score:.3f}±{group.score_std:.3f}  "
             f"tok={group.tokens_millions:.2f}M  cost={cost}{note}"
         )
@@ -334,8 +348,14 @@ def _print_fronts(groups: list[ModelGroup]) -> None:
     for x_attr, axis_name in (("cost_usd", "cost"), ("tokens_millions", "tokens")):
         plottable = [group for group in groups if getattr(group, x_attr) is not None]
         front = sorted(pareto_nondominated(plottable, x_attr), key=lambda g: getattr(g, x_attr))
-        names = " < ".join(group.name for group in front) or "(none)"
+        names = " < ".join(_group_id(group) for group in front) or "(none)"
         print(f"front[{axis_name}]: {names}")
+
+
+def _group_id(group: ModelGroup) -> str:
+    if group.agent and group.agent != group.name:
+        return f"{group.agent} / {group.name}"
+    return group.name
 
 
 def _load_json(path: Path) -> dict:

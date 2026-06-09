@@ -56,7 +56,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch
 
 QUADRANT_COLOR = "#bfe3cf"
 
@@ -99,13 +98,6 @@ class ModelGroup:
     output_tokens_std: float = 0.0
     total_tokens_std: float = 0.0
     members: list[TrialPoint] = field(default_factory=list)
-
-    @property
-    def label(self) -> str:
-        effort = f", effort={self.effort}" if self.effort else ""
-        variant = f"{self.agent} / " if self.agent and self.agent != self.name else ""
-        spread = f"±{self.score_std:.2f}" if self.n >= 2 else " (n=1)"
-        return f"{variant}{self.name}  q={self.score:.2f}{spread}{effort}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -307,17 +299,18 @@ def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> M
 
 
 def _build_figure(groups: list[ModelGroup], title: str, token_axis: str):
-    figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(15, 6))
+    figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(16, 6.5))
     _draw_panel(axis_cost, groups, "cost_usd", "Cost (USD per trial)", "Quality vs Cost", log_x=False)
     token_attr = "output_tokens_millions" if token_axis == "output" else "total_tokens_millions"
     token_label = f"{token_axis.capitalize()} tokens (millions per trial, log scale)"
     _draw_panel(axis_tokens, groups, token_attr, token_label, "Quality vs Tokens (price-independent)", log_x=True)
+    _add_encoding_legend(figure, groups)
     figure.suptitle(
         f"{title}\nColor = provider · shape = variant · line links variants of one model · "
-        "shaded = most attractive region, arrow toward 'better'",
+        "shaded green = most attractive region (high quality, low cost/tokens)",
         fontsize=10,
     )
-    figure.tight_layout(rect=[0, 0, 1, 0.9])
+    figure.tight_layout(rect=[0, 0, 0.86, 0.9])
     return figure
 
 
@@ -330,25 +323,67 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
     scores = [group.score for group in plottable]
     _shade_attractive_quadrant(axis, xs, scores, log_x)
     _connect_same_model(axis, plottable, x_attr)
-    for group in sorted(plottable, key=lambda g: g.score, reverse=True):
+    for group in plottable:
         axis.scatter(
             getattr(group, x_attr),
             group.score,
-            s=200,
+            s=210,
             color=_provider_color(group.name),
             edgecolor="white",
             linewidth=1.4,
             marker=_variant_marker(group.agent),
             zorder=3,
-            label=group.label,
         )
+    _label_points(axis, plottable, x_attr, log_x)
     if log_x:
         axis.set_xscale("log")
     axis.set_xlabel(x_label)
     axis.set_ylabel("Quality (normalized rubric score)")
     axis.set_title(title, fontweight="bold")
     axis.grid(True, alpha=0.25, which="both")
-    axis.legend(loc="best", fontsize=7.5, framealpha=0.95)
+
+
+def _label_points(axis, groups: list[ModelGroup], x_attr: str, log_x: bool) -> None:
+    ordered = sorted(groups, key=lambda g: g.score, reverse=True)
+    for index, group in enumerate(ordered):
+        x = getattr(group, x_attr)
+        offset_y = 9 if index % 2 == 0 else -15
+        axis.annotate(
+            _short_model(group.name),
+            (x, group.score),
+            xytext=(0, offset_y),
+            textcoords="offset points",
+            ha="center",
+            fontsize=8,
+            fontweight="medium",
+            zorder=5,
+        )
+
+
+def _add_encoding_legend(figure, groups: list[ModelGroup]) -> None:
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+
+    providers = {_provider_label(group.name): _provider_color(group.name) for group in groups}
+    variant_kinds = {_variant_kind(group.agent) for group in groups}
+    variant_name = {"vanilla": "vanilla", "skill": "+skill", "guided": "guided"}
+    variant_marker = {"vanilla": VANILLA_MARKER, "skill": SKILL_MARKER, "guided": OTHER_MARKER}
+
+    color_handles = [Patch(facecolor=color, edgecolor="white", label=name) for name, color in sorted(providers.items())]
+    shape_handles = [
+        Line2D([], [], marker=variant_marker.get(k, OTHER_MARKER), color="#555", linestyle="none", markersize=10,
+               label=variant_name.get(k, k))
+        for k in sorted(variant_kinds)
+    ]
+    legend_color = figure.legend(
+        handles=color_handles, title="Provider (color)", loc="upper left",
+        bbox_to_anchor=(0.87, 0.88), fontsize=9, title_fontsize=9, framealpha=0.95,
+    )
+    figure.add_artist(legend_color)
+    figure.legend(
+        handles=shape_handles, title="Variant (shape)", loc="upper left",
+        bbox_to_anchor=(0.87, 0.6), fontsize=9, title_fontsize=9, framealpha=0.95,
+    )
 
 
 def _connect_same_model(axis, groups: list[ModelGroup], x_attr: str) -> None:
@@ -373,36 +408,14 @@ def _connect_same_model(axis, groups: list[ModelGroup], x_attr: str) -> None:
 def _shade_attractive_quadrant(axis, xs: list[float], scores: list[float], log_x: bool) -> None:
     x_min, x_max = min(xs), max(xs)
     y_min, y_max = min(scores), max(scores)
-    x_pad = (x_max / x_min) ** 0.08 if log_x and x_min > 0 else 1.0
-    x_lo = x_min / x_pad if log_x else x_min - 0.06 * (x_max - x_min or 1)
-    x_hi = x_max * x_pad if log_x else x_max + 0.06 * (x_max - x_min or 1)
-    y_pad = 0.06 * (y_max - y_min or 0.1)
+    x_pad = (x_max / x_min) ** 0.12 if log_x and x_min > 0 else 1.0
+    x_lo = x_min / x_pad if log_x else x_min - 0.1 * (x_max - x_min or 1)
+    x_hi = x_max * x_pad if log_x else x_max + 0.1 * (x_max - x_min or 1)
+    y_pad = 0.1 * (y_max - y_min or 0.1)
     axis.set_xlim(x_lo, x_hi)
     axis.set_ylim(y_min - y_pad, y_max + y_pad)
     x_mid = (x_min * x_max) ** 0.5 if log_x else (x_min + x_max) / 2
     axis.axvspan(x_lo, x_mid, ymin=0.5, ymax=1.0, color=QUADRANT_COLOR, alpha=0.45, zorder=0)
-    axis.add_patch(
-        FancyArrowPatch(
-            (x_mid, y_min - y_pad / 2),
-            (x_lo + (x_mid - x_lo) * 0.15 if not log_x else x_lo * (x_mid / x_lo) ** 0.15, y_max + y_pad / 2),
-            arrowstyle="-|>",
-            mutation_scale=16,
-            color="#2a9d8f",
-            alpha=0.8,
-            lw=1.6,
-            zorder=1,
-        )
-    )
-    axis.text(
-        x_lo if not log_x else x_lo * 1.02,
-        y_max + y_pad / 2,
-        "better",
-        fontsize=8,
-        color="#2a9d8f",
-        fontweight="bold",
-        va="top",
-        zorder=2,
-    )
 
 
 def _provider_color(model_name: str) -> str:
@@ -411,6 +424,21 @@ def _provider_color(model_name: str) -> str:
         if key in lowered:
             return color
     return PROVIDER_COLORS["unknown"]
+
+
+def _provider_label(model_name: str) -> str:
+    lowered = model_name.lower()
+    if "claude" in lowered:
+        return "Anthropic"
+    if "gpt" in lowered or "codex" in lowered:
+        return "OpenAI"
+    if "gemini" in lowered:
+        return "Google"
+    return "other"
+
+
+def _short_model(model_name: str) -> str:
+    return model_name.removeprefix("claude-").removeprefix("google/")
 
 
 def _variant_kind(agent: str) -> str:

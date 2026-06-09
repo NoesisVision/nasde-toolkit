@@ -494,3 +494,29 @@ def test_collect_native_skill_dirs_no_warning_on_clean_frontmatter(
     _collect_native_skill_dirs(variant_dir, "codex")
 
     assert "missing YAML frontmatter" not in capsys.readouterr().out
+
+
+def test_refresh_keys_skills_per_agent_in_mixed_config(tmp_path: Path) -> None:
+    """A hand-written multi-agent config can mix types. Each agent must read
+    its OWN subdir (keyed off its import_path), not the variant's first type —
+    so a codex agent gets agents_skills/ and a gemini agent gets gemini_skills/
+    from the same variant dir."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    codex_skill = _make_native_skill(variant_dir, "agents_skills", "tdd-codex")
+    gemini_skill = _make_native_skill(variant_dir, "gemini_skills", "tdd-gemini")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    config = json.loads(harbor_path.read_text())
+    config["agents"].append(
+        {
+            "import_path": "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini",
+            "name": "v-gemini",
+            "kwargs": {"sandbox_files": {}},
+        }
+    )
+    harbor_path.write_text(json.dumps(config))
+
+    _ensure_harbor_config(variant_dir, "v", {})
+
+    assert _skills(harbor_path, agent_index=0) == [str(codex_skill.resolve())]
+    assert _skills(harbor_path, agent_index=1) == [str(gemini_skill.resolve())]

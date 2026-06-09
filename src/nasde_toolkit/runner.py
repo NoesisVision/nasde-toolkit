@@ -314,6 +314,13 @@ def resolve_variant_dir(project_dir: Path, variant: str) -> Path:
 
 
 def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
+    """Build the sandbox_files map for a variant.
+
+    Only Claude skills ride sandbox_files (its cwd ``.claude/skills/`` is a
+    discovery root). Codex/Gemini skills are NOT collected here — they go
+    through Harbor's native ``config.agent.skills`` list via
+    ``_collect_native_skill_dirs`` / ``_refresh_agent_skills`` (see ADR-012).
+    """
     sandbox_files: dict[str, str] = {}
     claude_md = variant_dir / "CLAUDE.md"
     if claude_md.exists():
@@ -640,13 +647,31 @@ def _refresh_agent_skills(agent: dict, variant_dir: Path, agent_type: str) -> No
     removed ``[[skill]]`` drops from ``sandbox_files``. Any other entry was put
     in ``harbor_config.json`` by hand and is kept untouched, so an author who
     wires Harbor-native ``skills`` themselves is never clobbered.
+
+    The skill subdir is keyed on *this agent's own* type, read back from its
+    ``import_path`` (falling back to the variant's declared type). A variant is
+    one agent type by contract, but a hand-written multi-agent config can mix
+    types — keying per agent keeps each one reading the right subdir instead of
+    the variant's first declared type.
     """
-    derived = _collect_native_skill_dirs(variant_dir, agent_type)
+    effective_type = _agent_type_from_import_path(agent.get("import_path")) or agent_type
+    derived = _collect_native_skill_dirs(variant_dir, effective_type)
     prev_derived = set(agent.get("_nasde_derived_skills", []) or [])
     current = agent.get("skills", []) or []
     handwritten = [s for s in current if s not in prev_derived and s not in derived]
     agent["skills"] = derived + handwritten
     agent["_nasde_derived_skills"] = sorted(derived)
+
+
+def _agent_type_from_import_path(import_path: str | None) -> str | None:
+    """Map an agent import_path back to its ``agent`` type, or None if unknown."""
+    if _is_codex_agent(import_path):
+        return "codex"
+    if _is_gemini_agent(import_path):
+        return "gemini"
+    if import_path and "claude" in import_path.lower():
+        return "claude"
+    return None
 
 
 def _warn_sandbox_collisions(

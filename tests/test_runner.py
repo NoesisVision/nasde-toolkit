@@ -450,8 +450,30 @@ def test_generate_harbor_config_gemini_with_skills(tmp_path: Path) -> None:
     _generate_harbor_config(variant_dir, "gemini-skilled")
 
     config = json.loads((variant_dir / "harbor_config.json").read_text())
-    sandbox = config["agents"][0]["kwargs"]["sandbox_files"]
-    assert "/app/.gemini/skills/tactical-ddd/SKILL.md" in sandbox
+    agent = config["agents"][0]
+    sandbox = agent["kwargs"]["sandbox_files"]
+    assert not any(k.startswith("/app/.gemini/skills/") for k in sandbox)
+    assert agent["skills"] == [str(skill_dir.resolve())]
+
+
+def test_generate_harbor_config_codex_with_skills(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "codex-skilled"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "AGENTS.md").write_text("# Codex")
+    (variant_dir / "variant.toml").write_text('agent = "codex"')
+    skill_dir = variant_dir / "agents_skills" / "tactical-ddd"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# TDD Skill")
+    (skill_dir / "references").mkdir()
+    (skill_dir / "references" / "patterns.md").write_text("# Patterns")
+
+    _generate_harbor_config(variant_dir, "codex-skilled")
+
+    config = json.loads((variant_dir / "harbor_config.json").read_text())
+    agent = config["agents"][0]
+    sandbox = agent["kwargs"]["sandbox_files"]
+    assert not any(k.startswith("/app/.agents/skills/") for k in sandbox)
+    assert agent["skills"] == [str(skill_dir.resolve())]
 
 
 # ---------------------------------------------------------------------------

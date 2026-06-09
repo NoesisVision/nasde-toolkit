@@ -104,6 +104,25 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   max_turns` in `nasde.toml`. ([#54])
 
 ### Fixed
+- **Codex/Gemini skills are now natively registered ([ADR-012](docs/adr/012-native-codex-gemini-skill-injection.md)).**
+  Codex and Gemini auto-discover skills only from a HOME-scoped directory
+  (`$HOME/.agents/skills`, `~/.gemini/skills`), never from a `.agents/skills` /
+  `.gemini/skills` dir in the agent's `/app` cwd. nasde used to upload
+  `agents_skills/<name>/` and `gemini_skills/<name>/` into the cwd path via
+  `sandbox_files`, so the CLI **never registered the skill as a native
+  mechanism** — the agent only found the file by reading it by hand, silently
+  turning a "skill (native)" benchmark treatment into "skill-as-a-document".
+  Skills now route through **Harbor's native `config.agent.skills`** list, which
+  uploads each skill dir to the container's `skills_dir` and lets the agent's own
+  `_build_register_skills_command` copy it into the correct HOME-scoped location
+  *inside* `run()` (the only point with the right timing). The harbor_config
+  `skills` list is regenerated each run (tracked via `_nasde_derived_skills`) and
+  preserves hand-authored entries. Claude's skill path is unchanged (its cwd
+  `.claude/skills/` **is** a discovery root). nasde now also warns when a
+  `SKILL.md` does not open with a `---` frontmatter line — Codex's loader rejects
+  it (`missing YAML frontmatter delimited by ---`) and silently skips the skill;
+  a leading provenance comment is the usual culprit. Skill×model results for
+  Codex/Gemini collected before this fix are invalid and must be re-run. ([#65])
 - **Codex ChatGPT OAuth in the sandbox (harbor 0.13 regression).** Harbor 0.13's
   Codex agent changed auth to *default to `OPENAI_API_KEY`*, uploading the OAuth
   `~/.codex/auth.json` only when `CODEX_AUTH_JSON_PATH` or `CODEX_FORCE_AUTH_JSON`
@@ -502,4 +521,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#56]: https://github.com/NoesisVision/nasde-toolkit/pull/56
 [#59]: https://github.com/NoesisVision/nasde-toolkit/pull/59
 [#61]: https://github.com/NoesisVision/nasde-toolkit/pull/61
+[#65]: https://github.com/NoesisVision/nasde-toolkit/pull/65
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

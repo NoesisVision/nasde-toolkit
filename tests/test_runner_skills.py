@@ -15,6 +15,7 @@ import pytest
 
 from nasde_toolkit.config import PluginConfig, ProjectConfig, TaskConfig
 from nasde_toolkit.runner import (
+    _collect_native_skill_dirs,
     _collect_sandbox_files,
     _ensure_harbor_config,
     _generate_harbor_config,
@@ -35,6 +36,18 @@ def _sandbox(harbor_path: Path, agent_index: int = 0) -> dict[str, str]:
 
 def _derived_keys(harbor_path: Path, agent_index: int = 0) -> list[str]:
     return json.loads(harbor_path.read_text())["agents"][agent_index].get("_nasde_derived_keys", [])
+
+
+def _skills(harbor_path: Path, agent_index: int = 0) -> list[str]:
+    return json.loads(harbor_path.read_text())["agents"][agent_index].get("skills", [])
+
+
+def _make_native_skill(variant_dir: Path, subdir: str, name: str) -> Path:
+    skill = variant_dir / subdir / name
+    (skill / "references").mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\nbody")
+    (skill / "references" / "deep.md").write_text("deep rules")
+    return skill
 
 
 def _bare_variant(variant_dir: Path) -> Path:
@@ -332,3 +345,178 @@ def test_require_homogeneous_plugins_rejects_different_refs(tmp_path: Path) -> N
     )
     with pytest.raises(SystemExit):
         _require_homogeneous_plugins(config)
+
+
+# ---------------------------------------------------------------------------
+# Native skill injection — codex/gemini (bug: cwd skills never auto-discovered)
+# ---------------------------------------------------------------------------
+#
+# Codex/Gemini auto-discover skills only from a HOME-scoped dir, never from a
+# /app cwd dir. The old path wrote skill files into /app/.agents/skills and
+# /app/.gemini/skills via sandbox_files, so they were never registered as
+# native skills. The fix routes them through Harbor's config.agent.skills list.
+
+
+def _codex_variant(variant_dir: Path) -> Path:
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "AGENTS.md").write_text("# c")
+    (variant_dir / "variant.toml").write_text('agent = "codex"\nmodel = "m"\n')
+    return variant_dir
+
+
+def test_collect_native_skill_dirs_codex(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    skill = _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+
+    dirs = _collect_native_skill_dirs(variant_dir, "codex")
+
+    assert dirs == [str(skill.resolve())]
+
+
+def test_collect_native_skill_dirs_gemini(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "v"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "GEMINI.md").write_text("# g")
+    (variant_dir / "variant.toml").write_text('agent = "gemini"\nmodel = "m"\n')
+    skill = _make_native_skill(variant_dir, "gemini_skills", "tactical-ddd")
+
+    dirs = _collect_native_skill_dirs(variant_dir, "gemini")
+
+    assert dirs == [str(skill.resolve())]
+
+
+def test_collect_native_skill_dirs_claude_is_empty(tmp_path: Path) -> None:
+    """Claude is intentionally NOT routed through native skills — its
+    variants/<v>/skills/ → sandbox_files path already lands where Claude
+    Code discovers from cwd and is tested separately."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    _make_skill_in_variant(variant_dir, "analyze-conversation")
+
+    assert _collect_native_skill_dirs(variant_dir, "claude") == []
+
+
+def test_collect_native_skill_dirs_skips_dirs_without_skill_md(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    (variant_dir / "agents_skills" / "incomplete").mkdir(parents=True)
+    (variant_dir / "agents_skills" / "incomplete" / "notes.md").write_text("x")
+
+    assert _collect_native_skill_dirs(variant_dir, "codex") == []
+
+
+def test_codex_skills_not_in_sandbox_files(tmp_path: Path) -> None:
+    """Regression: agents_skills must NOT leak into sandbox_files (the old bug
+    put them at /app/.agents/skills where Codex never scans)."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+
+    _generate_harbor_config(variant_dir, "v")
+
+    assert not any(k.startswith("/app/.agents/skills/") for k in _sandbox(harbor_path))
+
+
+def test_generate_harbor_config_codex_writes_native_skills(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    skill = _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+
+    _generate_harbor_config(variant_dir, "v")
+
+    assert _skills(harbor_path) == [str(skill.resolve())]
+
+
+def test_refresh_drops_stale_native_skill_between_runs(tmp_path: Path) -> None:
+    """A skill dir removed between runs must drop from agent.skills, exactly
+    like a removed [[skill]] drops from sandbox_files."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    skill = _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    assert _skills(harbor_path) == [str(skill.resolve())]
+
+    import shutil
+
+    shutil.rmtree(variant_dir / "agents_skills" / "tactical-ddd")
+    _ensure_harbor_config(variant_dir, "v", {})
+
+    assert _skills(harbor_path) == []
+
+
+def test_refresh_preserves_handwritten_native_skill(tmp_path: Path) -> None:
+    """A skill path an author wired into harbor_config.json by hand (not
+    derived from a variant subdir) survives the refresh."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    config = json.loads(harbor_path.read_text())
+    config["agents"][0]["skills"] = ["/host/hand/authored-skill"]
+    harbor_path.write_text(json.dumps(config))
+
+    _ensure_harbor_config(variant_dir, "v", {})
+
+    assert "/host/hand/authored-skill" in _skills(harbor_path)
+
+
+def test_refresh_native_skill_is_idempotent(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    skill = _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {})
+    _ensure_harbor_config(variant_dir, "v", {})
+
+    assert _skills(harbor_path) == [str(skill.resolve())]
+
+
+def test_collect_native_skill_dirs_warns_on_leading_comment_frontmatter(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Codex rejects a SKILL.md not starting with '---'. A leading provenance
+    comment before the frontmatter is the usual culprit — warn loudly."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    skill = variant_dir / "agents_skills" / "tactical-ddd"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("<!-- Source: x -->\n---\nname: tactical-ddd\n---\nbody")
+
+    dirs = _collect_native_skill_dirs(variant_dir, "codex")
+
+    assert dirs == [str(skill.resolve())]
+    assert "missing YAML frontmatter" in capsys.readouterr().out
+
+
+def test_collect_native_skill_dirs_no_warning_on_clean_frontmatter(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+
+    _collect_native_skill_dirs(variant_dir, "codex")
+
+    assert "missing YAML frontmatter" not in capsys.readouterr().out
+
+
+def test_refresh_keys_skills_per_agent_in_mixed_config(tmp_path: Path) -> None:
+    """A hand-written multi-agent config can mix types. Each agent must read
+    its OWN subdir (keyed off its import_path), not the variant's first type —
+    so a codex agent gets agents_skills/ and a gemini agent gets gemini_skills/
+    from the same variant dir."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    codex_skill = _make_native_skill(variant_dir, "agents_skills", "tdd-codex")
+    gemini_skill = _make_native_skill(variant_dir, "gemini_skills", "tdd-gemini")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    config = json.loads(harbor_path.read_text())
+    config["agents"].append(
+        {
+            "import_path": "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini",
+            "name": "v-gemini",
+            "kwargs": {"sandbox_files": {}},
+        }
+    )
+    harbor_path.write_text(json.dumps(config))
+
+    _ensure_harbor_config(variant_dir, "v", {})
+
+    assert _skills(harbor_path, agent_index=0) == [str(codex_skill.resolve())]
+    assert _skills(harbor_path, agent_index=1) == [str(gemini_skill.resolve())]

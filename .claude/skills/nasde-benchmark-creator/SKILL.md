@@ -318,7 +318,9 @@ variants/vanilla/
 variants/codex-baseline/
   variant.toml       # agent = "codex"
   AGENTS.md          # Instructions (injected to /app/AGENTS.md)
-  agents_skills/     # Optional: skill snapshots (injected to /app/.agents/skills/)
+  agents_skills/     # Optional: skill snapshots (native injection -> $HOME/.agents/skills/)
+    my-skill/
+      SKILL.md       # MUST start with --- YAML frontmatter (name + description)
 ```
 
 ### Gemini CLI variant
@@ -327,8 +329,18 @@ variants/codex-baseline/
 variants/gemini-baseline/
   variant.toml       # agent = "gemini"
   GEMINI.md          # Instructions (injected to /app/GEMINI.md)
-  gemini_skills/     # Optional: skill snapshots (injected to /app/.gemini/skills/)
+  gemini_skills/     # Optional: skill snapshots (native injection -> ~/.gemini/skills/)
+    my-skill/
+      SKILL.md       # MUST start with --- YAML frontmatter (name + description)
 ```
+
+> **Codex/Gemini skills are registered natively** (Harbor `config.agent.skills`),
+> not via `sandbox_files` — these CLIs auto-discover skills only from a
+> HOME-scoped dir, never from a `/app` cwd dir. Each `SKILL.md` **must start with
+> a `---` YAML frontmatter line**: Codex's loader rejects a file that opens with
+> anything else (`missing YAML frontmatter delimited by ---`) and silently skips
+> the skill. Put any provenance comment *below* the closing `---`. See
+> [ADR-012](../../../docs/adr/012-native-codex-gemini-skill-injection.md).
 
 If no `harbor_config.json` exists, `nasde` auto-generates one from `variant.toml`. To customize (e.g., add MCP servers), create it explicitly:
 

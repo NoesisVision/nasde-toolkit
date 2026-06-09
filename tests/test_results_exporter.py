@@ -170,8 +170,10 @@ def test_export_includes_token_cost_economics(job_dir: Path, tmp_path: Path) -> 
     assert usage["total_tokens"] == 1_060_000
     # claude-sonnet-4-6: 1M*$3 + 0.06M*$15 = 3.0 + 0.9 = 3.9
     assert metrics["cost_usd"] == pytest.approx(3.9)
-    assert metrics["cost_efficiency"] == pytest.approx(0.65 / 3.9, rel=1e-3)
     assert metrics["pricing_as_of"] == "2026-06-08"
+    assert "cost_efficiency" not in metrics  # removed: arbitrary zero → use Pareto front
+    assert "token_efficiency" not in metrics
+    assert metrics["reasoning_effort"] == ""  # fixture set no override
     # statistical rigor: judge-noise std + eval n + single-eval flag
     assert metrics["score"] == pytest.approx(0.65)
     assert metrics["score_eval_std"] == pytest.approx(0.05)
@@ -191,7 +193,19 @@ def test_export_unpriced_model_leaves_cost_null(job_dir: Path, tmp_path: Path) -
 
     assert metrics["token_usage"]["total_tokens"] == 1_060_000  # tokens always computed
     assert metrics["cost_usd"] is None  # but cost left unset
-    assert metrics["cost_efficiency"] is None
+
+
+def test_export_stamps_reasoning_effort_from_config(job_dir: Path, tmp_path: Path) -> None:
+    trial = job_dir / "demo-task__aaa111"
+    config = json.loads((trial / "config.json").read_text())
+    config["agent"]["kwargs"] = {"reasoning_effort": "high"}
+    (trial / "config.json").write_text(json.dumps(config))
+
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+    metrics = json.loads((dest / "2026-06-03__demo-job__demo-task__aaa111" / "metrics.json").read_text())
+
+    assert metrics["reasoning_effort"] == "high"
 
 
 def test_idempotent_skip(job_dir: Path, tmp_path: Path) -> None:

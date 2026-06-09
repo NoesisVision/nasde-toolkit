@@ -100,8 +100,12 @@ class AssessmentSummary:
 
     Token/cost economics live here (per-trial, one agent run) rather than in
     EvaluatorGroupSummary, which averages over repeated judge evaluations.
-    model_name is the agent's model — the grouping key for cross-model analysis,
-    since agent_name (the variant name) does not distinguish models.
+    model_name is the agent's model and reasoning_effort the agent's effort
+    override — together the grouping key for cross-config analysis, since
+    agent_name (the variant name) distinguishes neither. reasoning_effort is the
+    empty string when the run set no explicit override (it then ran at Harbor's
+    family default); we record only what was explicitly set, never a synthesized
+    default.
     """
 
     task_name: str
@@ -109,10 +113,9 @@ class AssessmentSummary:
     agent_name: str
     groups: list[EvaluatorGroupSummary] = field(default_factory=list)
     model_name: str = ""
+    reasoning_effort: str = ""
     token_usage: dict | None = None
     cost_usd: float | None = None
-    token_efficiency: float | None = None
-    cost_efficiency: float | None = None
     pricing_as_of: str | None = None
 
 
@@ -686,20 +689,12 @@ def _write_assessment_summary(trial_dir: Path) -> AssessmentSummary | None:
 
 def _enrich_with_economics(summary: AssessmentSummary, trial_dir: Path) -> None:
     model = _resolve_model_name(trial_dir)
-    normalized_score = _dominant_normalized_score(summary)
-    economics = build_trial_economics(trial_dir, model, load_pricing(), normalized_score)
+    economics = build_trial_economics(trial_dir, model, load_pricing())
     summary.model_name = economics["model_name"]
+    summary.reasoning_effort = resolve_reasoning_effort(trial_dir)
     summary.token_usage = economics["token_usage"]
     summary.cost_usd = economics["cost_usd"]
-    summary.token_efficiency = economics["token_efficiency"]
-    summary.cost_efficiency = economics["cost_efficiency"]
     summary.pricing_as_of = economics["pricing_as_of"]
-
-
-def _dominant_normalized_score(summary: AssessmentSummary) -> float | None:
-    if not summary.groups:
-        return None
-    return _dominant_group(summary).normalized_score_mean
 
 
 def _resolve_model_name(trial_dir: Path) -> str:
@@ -708,6 +703,24 @@ def _resolve_model_name(trial_dir: Path) -> str:
         config = _load_json(config_path)
         model: str = config.get("agent", {}).get("model_name", "")
         return model
+    return ""
+
+
+def resolve_reasoning_effort(trial_dir: Path) -> str:
+    """Read the agent's reasoning-effort override from the trial's Harbor config.
+
+    Harbor serializes the resolved agent config — including ``kwargs`` — into
+    each trial's ``config.json``; nasde writes the effort override into
+    ``agent.kwargs.reasoning_effort`` at run time. The empty string means the
+    run set no explicit override (Harbor's family default applied); we never
+    synthesize a default the run did not request. Shared with the export path
+    (results_exporter) so the run and export stamps agree.
+    """
+    config_path = trial_dir / "config.json"
+    if config_path.exists():
+        config = _load_json(config_path)
+        effort: str = config.get("agent", {}).get("kwargs", {}).get("reasoning_effort", "")
+        return effort
     return ""
 
 

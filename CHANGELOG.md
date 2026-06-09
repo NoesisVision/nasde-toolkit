@@ -10,25 +10,42 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Added
-- **Token & cost efficiency metrics ([ADR-011](docs/adr/011-token-cost-metrics.md)).** Every trial now carries token usage,
-  USD cost, and two efficiency metrics, derived from the agent's `agent/trajectory.json`
-  `final_metrics` and a versioned price catalog (`pricing.toml`). `token_efficiency`
-  is `normalized_score` per 1M tokens (price-independent); `cost_efficiency` is
-  `normalized_score` per USD. **Cost is computed "as if every run were the first"** —
-  the full prompt volume (cache included) at the full input rate, no cache discount,
-  with Codex reasoning tokens folded into output — so cost is deterministic and
-  independent of run order / cache TTL. A single extractor (`token_metrics.py`) feeds
-  both write paths: `assessment_summary.json` (run) and `metrics.json` (export). The
-  `nasde run` summary prints a per-`(agent, model)` table (trials, score, tokens,
-  $cost, q/$) plus the job path and an export hint. Unpriced models keep token metrics
-  with `cost_usd = null` + a warning; missing/legacy trajectories leave economics null —
-  never a crash. Prices live in a bundled, versioned `pricing.toml` (each model stamped
-  with `as_of` + `source`); confirm rates before quoting dollar figures. The summary
-  never reports a mean bare: the `nasde run` table shows `Score` as `mean ±std` across
-  trials (agent noise, sample n−1; single trial reads `mean (n=1)`), and `metrics.json`
-  carries the per-trial judge-noise stats (`score`, `score_eval_std`, `score_eval_n`,
-  `single_eval`). Two noise sources kept separate — between-trial (table) vs between-eval
-  (metrics). Bootstrap/Bayesian significance stays an offline step.
+- **Token & cost metrics ([ADR-011](docs/adr/011-token-cost-metrics.md)).** Every trial now carries token usage
+  and USD cost, derived from the agent's `agent/trajectory.json`
+  `final_metrics` and a versioned price catalog (`pricing.toml`). **Cost is computed
+  "as if every run were the first"** — the full prompt volume (cache included) at the
+  full input rate, no cache discount, with Codex reasoning tokens folded into output —
+  so cost is deterministic and independent of run order / cache TTL. A single extractor
+  (`token_metrics.py`) feeds both write paths: `assessment_summary.json` (run) and
+  `metrics.json` (export). The `nasde run` summary prints a per-`(agent, model, effort)`
+  table (trials, score, tokens, $cost) plus the job path and an export hint; raw
+  cost/token columns carry an inter-trial `±std` when the group has 2+ trials (n=1 →
+  bare value). Model comparison is a **Pareto front** (quality vs cost, quality vs
+  tokens), not a single ratio — that methodology lives in the `nasde-benchmark-runner`
+  skill. Unpriced models keep token metrics with `cost_usd = null` + a warning;
+  missing/legacy trajectories leave economics null — never a crash. Prices live in a
+  bundled, versioned `pricing.toml` (each model stamped with `as_of` + `source`);
+  confirm rates before quoting dollar figures. The summary never reports a mean bare:
+  the `nasde run` table shows `Score` as `mean ±std` across trials (agent noise, sample
+  n−1; single trial reads `mean (n=1)`), and `metrics.json` carries the per-trial
+  judge-noise stats (`score`, `score_eval_std`, `score_eval_n`, `single_eval`). Two
+  noise sources kept separate — between-trial (table) vs between-eval (metrics).
+  Bootstrap/Bayesian significance stays an offline step.
+- **Reasoning-effort control + per-trial stamping ([ADR-011](docs/adr/011-token-cost-metrics.md)).** New optional
+  `variant.toml` field `reasoning_effort` and `nasde run --effort` flag set how hard
+  the model thinks — previously nasde inherited Harbor's per-family default, and those
+  defaults are *unequal* (Codex `high` is its max of 3 levels; Claude `high` is 3/5,
+  with `xhigh`/`max` above), so default-vs-default compared different thinking budgets.
+  Priority: `--effort` > `variant.toml reasoning_effort` > unset (Harbor family
+  default). The value is **not** validated locally — it is passed straight to Harbor
+  (the source of truth; Claude/Gemini reject unknown levels themselves, Codex is
+  free-form), so a stale built-in scale list can't wrongly block a newly-valid level.
+  The effort is threaded to Harbor via the agent's `reasoning_effort` kwarg and
+  **stamped onto each trial** (`reasoning_effort` in `assessment_summary.json` and
+  `metrics.json`, read back from the trial's Harbor `config.json`; `""` when no override
+  was set — only explicit overrides are recorded). Run-summary economics now group by
+  `(agent, model, reasoning_effort)` — a different effort is a different configuration,
+  never averaged together.
 - **Rubric calibration via PR/MR review (`nasde calibrate`, [ADR-010](docs/adr/010-git-platform-integration.md)).** Close the
   loop between the LLM-as-a-Judge and a human reviewer. `nasde calibrate publish`
   pushes each trial as a Pull/Merge Request to a private sink repo: an orphan base
@@ -56,6 +73,17 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   declared tasks (others SKIPPED); with a single `--variant`, requesting a task
   outside its scope aborts with a clear error. The scope wins over an explicit
   `--tasks` filter. Absent/empty → unscoped (the default). ([#54])
+
+### Removed
+- **Scalar efficiency metrics `token_efficiency` / `cost_efficiency` ([ADR-011](docs/adr/011-token-cost-metrics.md)).**
+  Dropped from `assessment_summary.json`, `metrics.json`, and the `nasde run` console
+  table (the `score/$` / `score/MTok` columns). A `normalized_score / denominator`
+  ratio has an arbitrary zero (score 0 = an empty, unreachable rubric), so the model
+  ranking is not invariant to a baseline shift — the same data re-orders the "winner"
+  depending on where the zero sits. Replaced by a **Pareto-front** comparison (quality
+  vs cost, quality vs tokens) in the `nasde-benchmark-runner` skill, which is
+  shift-invariant and keeps the full 2D picture. The raw signals (`token_usage`,
+  `cost_usd`, `pricing_as_of`, score) stay and are the source of truth.
 
 ### Changed
 - **Bump Harbor `0.6` → `0.13`.** Pulls 6 minor releases of upstream fixes and

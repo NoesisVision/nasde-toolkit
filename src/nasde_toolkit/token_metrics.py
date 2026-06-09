@@ -71,42 +71,27 @@ def read_trajectory(trial_dir: Path) -> dict | None:
     return None
 
 
-def compute_efficiencies(
-    normalized_score: float | None,
-    total_tokens: int | None,
-    cost_usd: float | None,
-) -> tuple[float | None, float | None]:
-    """Return (token_efficiency, cost_efficiency).
-
-    token_efficiency is normalized_score per 1M tokens (scaled so the value is
-    human-readable rather than a ~1e-7 figure lost to rounding); cost_efficiency
-    is normalized_score per USD.
-    """
-    tokens_in_millions = total_tokens / 1_000_000 if total_tokens else None
-    token_efficiency = _safe_ratio(normalized_score, tokens_in_millions)
-    cost_efficiency = _safe_ratio(normalized_score, cost_usd)
-    return token_efficiency, cost_efficiency
-
-
 def build_trial_economics(
     trial_dir: Path,
     model: str,
     pricing: dict[str, ModelPrice],
-    normalized_score: float | None,
 ) -> dict:
-    """Assemble the economics block for one trial (used by run and export paths)."""
+    """Assemble the economics block for one trial (used by run and export paths).
+
+    Only raw, baseline-invariant signals are recorded — token volumes, USD cost,
+    and the price catalog date. Quality-vs-cost comparison is a Pareto front over
+    these raw axes (in the nasde-benchmark-runner skill), not a scalar
+    score/cost ratio whose zero point is arbitrary. See ADR-011.
+    """
     trajectory = read_trajectory(trial_dir)
     usage = extract_token_usage(trajectory) if trajectory is not None else None
     if usage is None:
         return _empty_economics(model)
     cost_usd = compute_cost_usd(usage.input_tokens, usage.output_tokens, model, pricing)
-    token_efficiency, cost_efficiency = compute_efficiencies(normalized_score, usage.total_tokens, cost_usd)
     return {
         "model_name": model,
         "token_usage": asdict(usage),
         "cost_usd": cost_usd,
-        "token_efficiency": token_efficiency,
-        "cost_efficiency": cost_efficiency,
         "pricing_as_of": pricing_as_of(model, pricing) if cost_usd is not None else None,
     }
 
@@ -116,13 +101,5 @@ def _empty_economics(model: str) -> dict:
         "model_name": model,
         "token_usage": None,
         "cost_usd": None,
-        "token_efficiency": None,
-        "cost_efficiency": None,
         "pricing_as_of": None,
     }
-
-
-def _safe_ratio(numerator: float | None, denominator: float | None) -> float | None:
-    if numerator is None or not denominator:
-        return None
-    return round(numerator / denominator, 6)

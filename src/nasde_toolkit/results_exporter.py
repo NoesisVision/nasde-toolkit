@@ -22,6 +22,7 @@ from nasde_toolkit.evaluator import (
     _load_json,
     _resolve_agent_name,
     _resolve_task_name,
+    resolve_reasoning_effort,
 )
 from nasde_toolkit.pricing import load_pricing
 from nasde_toolkit.token_metrics import build_trial_economics
@@ -152,12 +153,13 @@ def _build_metrics(trial_dir: Path) -> dict:
     result = _load_json(trial_dir / "result.json")
     model = _resolve_model_name(trial_dir)
     score_stats = _resolve_score_stats(trial_dir)
-    economics = build_trial_economics(trial_dir, model, load_pricing(), score_stats["score"])
+    economics = build_trial_economics(trial_dir, model, load_pricing())
     return {
         "trial_name": result.get("trial_name", trial_dir.name),
         "task_name": _resolve_task_name(result),
         "agent_name": _resolve_agent_name(trial_dir),
         "model_name": model,
+        "reasoning_effort": resolve_reasoning_effort(trial_dir),
         "source": result.get("source", ""),
         "started_at": result.get("started_at", ""),
         "finished_at": result.get("finished_at", ""),
@@ -169,8 +171,6 @@ def _build_metrics(trial_dir: Path) -> dict:
         "single_eval": score_stats["single_eval"],
         "token_usage": economics["token_usage"],
         "cost_usd": economics["cost_usd"],
-        "token_efficiency": economics["token_efficiency"],
-        "cost_efficiency": economics["cost_efficiency"],
         "pricing_as_of": economics["pricing_as_of"],
         "exception_info": result.get("exception_info"),
     }

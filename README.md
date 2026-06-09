@@ -297,10 +297,10 @@ nasde results-export jobs/2026-03-13__14-30-00 --to ~/Dropbox/nasde-results -C m
 
 The destination is any path you like — an iCloud or Dropbox folder, an external drive, or a git repo you commit yourself. NASDE just writes files there; it never talks to a cloud provider, so there's nothing to authenticate. Each trial becomes one flat folder `<job>__<trial>/` containing:
 
-- `metrics.json` — self-contained summary: timing, model, variant, task, reward, **token usage + USD cost + efficiency** (see [Token & cost efficiency](#token--cost-efficiency) below)
+- `metrics.json` — self-contained summary: timing, model, variant, task, reward, reasoning effort, **token usage + USD cost** (see [Token & cost](#token--cost) below)
 - `assessment_eval_*.json` — the reviewer's per-dimension scores and reasoning (one file per repetition)
 - `assessment_summary.json` — per-dimension mean/std/range across repetitions (the representative result)
-- `trajectory.json` — the agent's full tool-call trace, for post-hoc efficiency analysis
+- `trajectory.json` — the agent's full tool-call trace, for post-hoc cost/process analysis
 - `changes.patch` — exactly what the agent changed (a code diff, not the multi-GB workspace)
 - `verifier_stdout.txt`, `reward.txt` — the rough-test output
 
@@ -308,14 +308,16 @@ You can pass several paths at once, mixing whole jobs and individual trials — 
 
 > **Experimental / beta.** This command is new; the layout may still change. Feedback welcome.
 
-## Token & cost efficiency
+## Token & cost
 
-A passing test tells you the agent *can* do the task. It doesn't tell you what that capability **costs**. NASDE records, for every trial, how many tokens the agent burned and what that would cost in dollars — then turns it into two comparable numbers:
+A passing test tells you the agent *can* do the task. It doesn't tell you what that capability **costs**. NASDE records, for every trial, how many tokens the agent burned and what that would cost in dollars — the raw quality, token, and cost signals you need to compare agents and models:
 
-- **token efficiency** — quality per million tokens (`normalized_score ÷ (total_tokens / 1M)`). Price-independent; a pure measure of how much the model "thinks" to reach a given quality.
-- **cost efficiency** — quality per dollar (`normalized_score ÷ cost_usd`). The number that matters when you're choosing a model for a budget.
+- **token usage** — total input + output tokens for the run (price-independent; a measure of how much the model "thinks" to reach a given quality).
+- **cost (USD)** — what those tokens cost at catalog rates. The number that matters when you're choosing a model for a budget.
 
-These appear in three places: the `nasde run` summary prints a per-`(agent, model)` table (trials, score, tokens, $cost, `score/$`, `score/MTok`); `assessment_summary.json` carries them per trial; and `results-export` copies them into `metrics.json`.
+These appear in three places: the `nasde run` summary prints a per-`(agent, model, effort)` table (trials, score, tokens, $cost — with an inter-trial `±std` on cost and tokens once a group has 2+ trials, a bare value at n=1); `assessment_summary.json` carries them per trial; and `results-export` copies them into `metrics.json`.
+
+**Comparing models is a Pareto front, not a single ratio.** NASDE deliberately does *not* fold quality and cost into one "efficiency" number — a quality-per-dollar ratio has an arbitrary zero (a score of 0 means an empty rubric, which no real run reaches), so the same data can re-order which model "wins" just by shifting where you put that zero. Instead, the raw quality/cost/token signals are compared as a **Pareto front** (quality vs cost, quality vs tokens), which keeps the full two-axis picture and doesn't depend on an arbitrary origin. The Pareto comparison lives in the `nasde-benchmark-runner` skill.
 
 **A mean is never reported bare.** The summary table shows `Score` as `mean ±std` across trials — the standard deviation between repeated runs (agent noise: the agent writes different code each time). A single trial reads `mean (n=1)`, an explicit single-run flag rather than a fake `±0.00`, and the `Trials` column is the sample size. The other noise source — the judge scoring the *same* code differently — is per-trial, so it lives in `metrics.json` (`score_eval_std`, `score_eval_n`, `single_eval`). Keeping the two apart is the point: is a gap bigger than the run-to-run wobble, or just noise? (Bootstrap/Bayesian significance testing is a separate, offline step — this surfaces the spread and `n` that make a mean honest.)
 
@@ -637,6 +639,7 @@ general-purpose variant that runs everywhere.
 | `--variant` | Variant to run (defaults to config default) |
 | `--tasks` | Comma-separated task names to run |
 | `--model` | Model override (e.g. `claude-sonnet-4-6`, `o3`, `google/gemini-3-flash-preview`) |
+| `--effort` | Reasoning-effort override (overrides `variant.toml reasoning_effort`; see [Reasoning effort](#reasoning-effort)) |
 | `--timeout` | Agent timeout in seconds |
 | `--with-opik` | Enable Opik tracing |
 | `--without-eval` | Skip assessment evaluation |
@@ -699,7 +702,16 @@ Each variant must have a `variant.toml` declaring the agent type **and** the mod
 ```toml
 agent = "claude"                   # "claude" | "codex" | "gemini"
 model = "claude-sonnet-4-6"        # model appropriate for the agent family
+reasoning_effort = "high"          # optional — see "Reasoning effort" below
 ```
+
+### Reasoning effort
+
+How hard the model thinks is a configuration you should set deliberately, not leave to chance. Each agent family ships a *different* default level, and those defaults are not comparable — Codex's `high` is the top of its three levels, while Claude's `high` is only the middle of five (`xhigh` and `max` sit above it). Comparing two agents on their respective defaults silently compares different thinking budgets.
+
+Set the effort explicitly with the optional `reasoning_effort` field in `variant.toml`, or override it for a single run with `nasde run --effort`. Priority is **`--effort` > `variant.toml reasoning_effort` > Harbor's family default** (left unset means NASDE passes nothing and the family default applies). Typical levels (for reference — the exact set differs per model and changes over time): Claude `low`/`medium`/`high`/`xhigh`/`max`, Codex `none`/`minimal`/`low`/`medium`/`high`/`xhigh`, Gemini `minimal`/`low`/`medium`/`high`. NASDE does **not** police the value — it passes whatever you set straight to the agent, which is the source of truth and rejects an unknown level itself; this avoids a stale built-in list wrongly blocking a newly-valid level.
+
+The effort you set is stamped onto each trial (`reasoning_effort` in `assessment_summary.json` and `metrics.json`), and the `nasde run` cost table groups by `(agent, model, effort)` — a different effort is treated as a different configuration and never averaged in with another.
 
 ### `nasde.toml`
 

@@ -109,7 +109,7 @@ async def run_benchmark(
             project_name=config.reporting.project_name or config.name,
             project_dir=config.project_dir,
         )
-        _print_job_summary(result, _find_latest_job(config.project_dir))
+        _print_job_summary(result, _job_dir_from_config(merged_config))
         console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
@@ -704,6 +704,23 @@ def _resolve_jobs_dir(project_dir: Path) -> Path:
     return project_dir / "jobs"
 
 
+def _job_dir_from_config(merged_config: dict) -> Path | None:
+    """Resolve this run's own job directory from the config it submitted.
+
+    Harbor writes each job into ``jobs_dir / job_name`` — both stamped onto the
+    merged config by ``_build_merged_config`` before the job starts. Reading
+    them back is exact and race-free: it never depends on scanning ``jobs/``
+    for the newest directory, which under concurrent runs can belong to a
+    different, still-running job.
+    """
+    jobs_dir = merged_config.get("jobs_dir")
+    job_name = merged_config.get("job_name")
+    if not jobs_dir or not job_name:
+        return None
+    job_dir: Path = Path(jobs_dir) / job_name
+    return job_dir
+
+
 # ---------------------------------------------------------------------------
 # Opik monkey-patch: deferred Step metrics (ADR-006)
 # ---------------------------------------------------------------------------
@@ -891,7 +908,7 @@ async def _run_job_with_streaming_eval(
         if assessment_tasks:
             console.print(f"[dim]Waiting for {len(assessment_tasks)} assessment evaluation(s)...[/dim]")
             await asyncio.gather(*assessment_tasks, return_exceptions=True)
-    _print_job_summary(result, _find_latest_job(config.project_dir))
+    _print_job_summary(result, _job_dir_from_config(merged_config))
     console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
@@ -937,14 +954,26 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
     console.print(f"  Trials: {result.stats.n_completed_trials}")
     console.print(f"  Errors: {result.stats.n_errored_trials}")
 
-    rows = _collect_economics_rows(job_dir) if job_dir is not None else []
-    if rows and job_dir is not None:
-        _print_economics_table(rows)
-        _print_label_legend(rows)
-        _print_location_hints(job_dir)
+    if job_dir is not None:
+        rows = _collect_economics_rows(job_dir)
+        if rows:
+            _print_economics_table(rows)
+            _print_label_legend(rows)
+            _print_location_hints(job_dir)
+        elif result.stats.evals:
+            _warn_missing_economics(job_dir)
+            _print_eval_counts_table(result)
     elif result.stats.evals:
         _print_eval_counts_table(result)
     console.print()
+
+
+def _warn_missing_economics(job_dir: Path) -> None:
+    console.print(
+        f"[yellow]WARN: no assessment_summary.json found under {job_dir} — "
+        "cost/efficiency table skipped. Did assessment evaluation complete? "
+        f"Re-run with [bold]nasde eval {job_dir}[/bold].[/yellow]"
+    )
 
 
 def _print_economics_table(rows: list[dict]) -> None:
@@ -1079,48 +1108,3 @@ def _fmt_tokens(total: float | None) -> str:
     if total >= 1_000:
         return f"{total / 1_000:.0f}k"
     return str(int(total))
-
-
-# ---------------------------------------------------------------------------
-# Post-hoc assessment
-# ---------------------------------------------------------------------------
-
-
-async def _run_post_hoc_assessment(
-    config: ProjectConfig,
-    with_opik: bool,
-    job_dir: Path | None = None,
-    max_concurrent_eval: int = 10,
-) -> None:
-    target_job = job_dir or _find_latest_job(config.project_dir)
-    if not target_job:
-        console.print("[yellow]WARN: No job directory found for assessment[/yellow]")
-        return
-
-    console.print("\n[bold]Running assessment evaluation...[/bold]\n")
-
-    os.environ.pop("CLAUDECODE", None)
-
-    from nasde_toolkit.evaluator import evaluate_job
-
-    await evaluate_job(
-        job_dir=target_job,
-        project_root=config.project_dir,
-        project_name=config.reporting.project_name,
-        with_opik=with_opik,
-        max_concurrent=max_concurrent_eval,
-        eval_config=config.evaluation,
-    )
-
-
-def _find_latest_job(project_dir: Path) -> Path | None:
-    jobs_dir = _resolve_jobs_dir(project_dir)
-    if not jobs_dir.exists():
-        return None
-
-    job_dirs = sorted(
-        [d for d in jobs_dir.iterdir() if d.is_dir()],
-        key=lambda p: p.name,
-        reverse=True,
-    )
-    return job_dirs[0] if job_dirs else None

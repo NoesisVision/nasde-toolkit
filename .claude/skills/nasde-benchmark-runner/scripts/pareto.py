@@ -1,39 +1,41 @@
 #!/usr/bin/env python3
-"""Pareto-front comparison of agent/model trials — quality vs cost AND quality vs tokens.
+"""Quality-vs-cost / quality-vs-tokens scatter for nasde benchmark results.
 
-This is the PRIMARY comparison method for nasde benchmark results. A model is
-*dominated* iff some other model is no-worse in quality AND no-worse on the
-cost/token axis AND strictly better on at least one. The non-dominated set (the
-"front") is the set of real options to choose between; it is invariant to where
-you put the rubric-score zero, unlike a scalar "efficiency = score / denominator".
+Plots one point per `(agent_name, model_name, reasoning_effort)` configuration —
+raw position only. It does NOT paint a verdict on each point: no "Pareto front"
+line, no green/red "dominated" tags. The convention this follows (cf. Artificial
+Analysis intelligence-vs-tokens charts) is to show the data honestly, mark the
+*direction* of "better" with a shaded attractive quadrant and an arrow, and let
+the reader draw conclusions. That is also safer at small n, where a hard
+"dominated" label on a point with no variance over-claims.
 
-Two panels are drawn because the two axes answer different questions:
-  - quality vs cost ($)     — price-dependent (changes with the price catalog)
-  - quality vs tokens (1M)  — price-independent (pure model behaviour)
-When both fronts agree on the front membership, the conclusion is stronger.
+Two axes answer different questions, so two panels are drawn:
+  - quality vs cost ($)     — price-dependent (moves with the price catalog)
+  - quality vs tokens       — price-independent (pure model behaviour)
+Token axis defaults to OUTPUT tokens on a log scale (the Artificial Analysis
+convention); pass --token-axis total for total tokens.
 
-SCOPING (enforced by the caller, not this script): only feed points from ONE
-task, the SAME dimensions_fingerprint, and the SAME reasoning_effort. Never
-aggregate across tasks of different difficulty into a single number.
+SCOPING — a comparison is only meaningful within ONE task, the SAME
+dimensions_fingerprint, and the SAME reasoning_effort. Pass --task to keep an
+export dir that spans many tasks honest; never let points from tasks of
+different difficulty share one chart.
 
 Usage
 -----
-From a `nasde results-export` directory (one subdir per trial, each with a
-`metrics.json` / `assessment_summary.json`):
+From a `nasde results-export` dir (one subdir per trial), scoped to one task:
 
-    python pareto.py --export-dir /path/to/export --out /tmp/pareto.png
+    python pareto.py --export-dir /path/to/nasde-results --task ddd-weather-discount \
+        --out /tmp/quality_vs_cost.png
 
-Or with explicit data points (no export to read), as repeatable triples
-`name,effort,score,cost_usd,total_tokens` (tokens in raw count or millions):
+Or with explicit points `name,effort,score,cost_usd,output_tokens`:
 
     python pareto.py \
-        --point "claude-sonnet-4-6,,0.803,8.55,2720000" \
-        --point "claude-opus-4-8,,0.920,26.30,5120000" \
-        --out /tmp/pareto.png
+        --point "claude-opus-4-8,,0.92,26.30,69055" \
+        --point "claude-sonnet-4-6,,0.80,8.55,33430" \
+        --out /tmp/quality_vs_cost.png
 
-Points sharing the same (name, effort) across multiple trials are averaged, and
-their per-axis inter-trial std is reported on stdout (n>=2 → a real signal; n=1
-→ a preliminary signal only, no variance).
+Trials sharing one (agent, model, effort) are averaged; per-axis inter-trial std
+is reported on stdout (n>=2 → a real signal; n=1 → a preliminary signal only).
 """
 
 from __future__ import annotations
@@ -46,9 +48,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import FancyArrowPatch
 
-FRONT_COLOR = "#2a9d8f"
-DOMINATED_COLOR = "#e76f51"
+QUADRANT_COLOR = "#bfe3cf"
+
+PROVIDER_COLORS = {
+    "claude": "#d97757",
+    "gpt": "#000000",
+    "gemini": "#1a73e8",
+    "codex": "#000000",
+    "unknown": "#888888",
+}
 
 
 @dataclass
@@ -58,7 +68,8 @@ class TrialPoint:
     effort: str
     score: float
     cost_usd: float | None
-    tokens_millions: float
+    output_tokens_millions: float
+    total_tokens_millions: float
 
 
 @dataclass
@@ -69,29 +80,19 @@ class ModelGroup:
     n: int
     score: float
     cost_usd: float | None
-    tokens_millions: float
+    output_tokens_millions: float
+    total_tokens_millions: float
     score_std: float = 0.0
     cost_std: float | None = None
-    tokens_std: float = 0.0
+    output_tokens_std: float = 0.0
+    total_tokens_std: float = 0.0
     members: list[TrialPoint] = field(default_factory=list)
 
     @property
     def label(self) -> str:
-        effort = self.effort or "default"
-        agent = f"{self.agent} / " if self.agent and self.agent != self.name else ""
-        return f"{agent}{self.name} (effort={effort}, n={self.n})"
-
-
-def pareto_nondominated(groups: list[ModelGroup], x_attr: str) -> list[ModelGroup]:
-    """Groups not dominated on (x_attr, score): lower x is better, higher score is better."""
-    front: list[ModelGroup] = []
-    for a in groups:
-        a_x = getattr(a, x_attr)
-        if a_x is None:
-            continue
-        if not _is_dominated(a, a_x, groups, x_attr):
-            front.append(a)
-    return front
+        effort = f", effort={self.effort}" if self.effort else ""
+        variant = f"{self.agent} / " if self.agent and self.agent != self.name else ""
+        return f"{variant}{self.name} (n={self.n}{effort})"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -101,33 +102,39 @@ def main(argv: list[str] | None = None) -> int:
         print("no trial points found", file=sys.stderr)
         return 1
     groups = _group_trials(trials)
-    _print_groups(groups)
-    figure = _build_figure(groups, args.title)
+    _print_groups(groups, args.token_axis)
+    figure = _build_figure(groups, args.title, args.token_axis)
     out = Path(args.out)
     figure.savefig(out, dpi=150, bbox_inches="tight")
     print(f"saved {out}")
-    _print_fronts(groups)
     return 0
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--export-dir", type=Path, help="A `nasde results-export` dir (one subdir per trial).")
     parser.add_argument(
-        "--export-dir",
-        type=Path,
-        help="A `nasde results-export` dir; reads metrics.json/assessment_summary.json per trial.",
+        "--task",
+        default="",
+        help="Keep only trials whose task_name matches this (scoping: one task per chart).",
     )
     parser.add_argument(
         "--point",
         action="append",
         default=[],
-        metavar="name,effort,score,cost_usd,total_tokens",
+        metavar="name,effort,score,cost_usd,output_tokens",
         help="An explicit data point; repeatable. cost_usd may be empty for unpriced models.",
     )
-    parser.add_argument("--out", default="pareto.png", help="Output PNG path.")
+    parser.add_argument("--out", default="quality_chart.png", help="Output PNG path.")
+    parser.add_argument(
+        "--token-axis",
+        choices=("output", "total"),
+        default="output",
+        help="Which token count on the tokens panel (default output, the Artificial Analysis convention).",
+    )
     parser.add_argument(
         "--title",
-        default="Pareto front — one task, same fingerprint, same reasoning effort",
+        default="Quality vs cost and tokens — one task, same fingerprint, same effort",
         help="Figure suptitle; state the task + scope here.",
     )
     return parser.parse_args(argv)
@@ -136,16 +143,18 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 def _collect_trials(args: argparse.Namespace) -> list[TrialPoint]:
     trials: list[TrialPoint] = []
     if args.export_dir:
-        trials.extend(_read_export_dir(args.export_dir))
+        trials.extend(_read_export_dir(args.export_dir, args.task))
     trials.extend(_parse_point(spec) for spec in args.point)
     return trials
 
 
-def _read_export_dir(export_dir: Path) -> list[TrialPoint]:
+def _read_export_dir(export_dir: Path, task: str) -> list[TrialPoint]:
     trials: list[TrialPoint] = []
     for trial_dir in sorted(p for p in export_dir.iterdir() if p.is_dir()):
         metrics = _load_json(trial_dir / "metrics.json")
         summary = _load_json(trial_dir / "assessment_summary.json")
+        if task and _extract_task_name(metrics, summary) != task:
+            continue
         point = _trial_point_from_artifacts(metrics, summary)
         if point is not None:
             trials.append(point)
@@ -154,16 +163,18 @@ def _read_export_dir(export_dir: Path) -> list[TrialPoint]:
 
 def _trial_point_from_artifacts(metrics: dict, summary: dict) -> TrialPoint | None:
     score = _extract_score(summary, metrics)
-    tokens = _extract_total_tokens(metrics, summary)
-    if score is None or tokens is None:
+    total = _extract_total_tokens(metrics, summary)
+    if score is None or total is None:
         return None
+    output = _extract_output_tokens(metrics, summary)
     return TrialPoint(
         name=_extract_model_name(metrics, summary),
         agent=_extract_agent_name(metrics, summary),
         effort=_extract_effort(metrics, summary),
         score=score,
         cost_usd=_extract_cost(metrics, summary),
-        tokens_millions=tokens / 1e6,
+        output_tokens_millions=(output if output is not None else total) / 1e6,
+        total_tokens_millions=total / 1e6,
     )
 
 
@@ -177,10 +188,18 @@ def _extract_score(summary: dict, metrics: dict) -> float | None:
 
 
 def _extract_total_tokens(metrics: dict, summary: dict) -> float | None:
+    return _extract_usage_field(metrics, summary, "total_tokens")
+
+
+def _extract_output_tokens(metrics: dict, summary: dict) -> float | None:
+    return _extract_usage_field(metrics, summary, "output_tokens")
+
+
+def _extract_usage_field(metrics: dict, summary: dict, field_name: str) -> float | None:
     for source in (metrics, summary):
         usage = source.get("token_usage")
-        if isinstance(usage, dict) and isinstance(usage.get("total_tokens"), (int, float)):
-            return float(usage["total_tokens"])
+        if isinstance(usage, dict) and isinstance(usage.get(field_name), (int, float)):
+            return float(usage[field_name])
     return None
 
 
@@ -200,6 +219,14 @@ def _extract_model_name(metrics: dict, summary: dict) -> str:
     return "unknown-model"
 
 
+def _extract_agent_name(metrics: dict, summary: dict) -> str:
+    for source in (metrics, summary):
+        value = source.get("agent_name")
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
 def _extract_effort(metrics: dict, summary: dict) -> str:
     for source in (summary, metrics):
         value = source.get("reasoning_effort")
@@ -208,9 +235,9 @@ def _extract_effort(metrics: dict, summary: dict) -> str:
     return ""
 
 
-def _extract_agent_name(metrics: dict, summary: dict) -> str:
+def _extract_task_name(metrics: dict, summary: dict) -> str:
     for source in (metrics, summary):
-        value = source.get("agent_name")
+        value = source.get("task_name")
         if isinstance(value, str) and value:
             return value
     return ""
@@ -220,8 +247,7 @@ def _parse_point(spec: str) -> TrialPoint:
     parts = [field.strip() for field in spec.split(",")]
     if len(parts) != 5:
         raise SystemExit(
-            f"--point needs 5 comma-separated fields "
-            f"(name,effort,score,cost_usd,total_tokens); got: {spec!r}"
+            f"--point needs 5 comma-separated fields (name,effort,score,cost_usd,output_tokens); got: {spec!r}"
         )
     name, effort, score_raw, cost_raw, tokens_raw = parts
     tokens = float(tokens_raw)
@@ -232,7 +258,8 @@ def _parse_point(spec: str) -> TrialPoint:
         effort=effort,
         score=float(score_raw),
         cost_usd=float(cost_raw) if cost_raw else None,
-        tokens_millions=tokens_millions,
+        output_tokens_millions=tokens_millions,
+        total_tokens_millions=tokens_millions,
     )
 
 
@@ -246,7 +273,8 @@ def _group_trials(trials: list[TrialPoint]) -> list[ModelGroup]:
 def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> ModelGroup:
     agent, name, effort = key
     scores = [member.score for member in members]
-    tokens = [member.tokens_millions for member in members]
+    output = [member.output_tokens_millions for member in members]
+    total = [member.total_tokens_millions for member in members]
     costs = [member.cost_usd for member in members if member.cost_usd is not None]
     return ModelGroup(
         name=name,
@@ -255,101 +283,118 @@ def _aggregate_bucket(key: tuple[str, str, str], members: list[TrialPoint]) -> M
         n=len(members),
         score=statistics.fmean(scores),
         cost_usd=statistics.fmean(costs) if costs else None,
-        tokens_millions=statistics.fmean(tokens),
+        output_tokens_millions=statistics.fmean(output),
+        total_tokens_millions=statistics.fmean(total),
         score_std=statistics.stdev(scores) if len(scores) >= 2 else 0.0,
         cost_std=statistics.stdev(costs) if len(costs) >= 2 else None,
-        tokens_std=statistics.stdev(tokens) if len(tokens) >= 2 else 0.0,
+        output_tokens_std=statistics.stdev(output) if len(output) >= 2 else 0.0,
+        total_tokens_std=statistics.stdev(total) if len(total) >= 2 else 0.0,
         members=members,
     )
 
 
-def _is_dominated(group: ModelGroup, x_value: float, groups: list[ModelGroup], x_attr: str) -> bool:
-    for other in groups:
-        if other is group:
-            continue
-        other_x = getattr(other, x_attr)
-        if other_x is None:
-            continue
-        not_worse = other_x <= x_value and other.score >= group.score
-        strictly_better = other_x < x_value or other.score > group.score
-        if not_worse and strictly_better:
-            return True
-    return False
-
-
-def _build_figure(groups: list[ModelGroup], title: str):
-    figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(13, 5.2))
-    _draw_panel(axis_cost, groups, "cost_usd", "Cost (USD per trial)", "Quality vs Cost")
-    _draw_panel(
-        axis_tokens,
-        groups,
-        "tokens_millions",
-        "Tokens (millions per trial)",
-        "Quality vs Tokens (price-independent)",
-    )
+def _build_figure(groups: list[ModelGroup], title: str, token_axis: str):
+    figure, (axis_cost, axis_tokens) = plt.subplots(1, 2, figsize=(14, 5.6))
+    _draw_panel(axis_cost, groups, "cost_usd", "Cost (USD per trial)", "Quality vs Cost", log_x=False)
+    token_attr = "output_tokens_millions" if token_axis == "output" else "total_tokens_millions"
+    token_label = f"{token_axis.capitalize()} tokens (millions per trial, log scale)"
+    _draw_panel(axis_tokens, groups, token_attr, token_label, "Quality vs Tokens (price-independent)", log_x=True)
     figure.suptitle(
-        f"{title}\n"
-        "Green ● = efficient choices (Pareto front) · "
-        "Red ✗ = dominated (worse on both axes, never worth picking)",
+        f"{title}\nShaded = most attractive region (higher quality, lower cost/tokens) · arrow points toward 'better'",
         fontsize=10,
     )
-    figure.tight_layout(rect=[0, 0, 1, 0.91])
+    figure.tight_layout(rect=[0, 0, 1, 0.9])
     return figure
 
 
-def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title: str) -> None:
+def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title: str, log_x: bool) -> None:
     plottable = [group for group in groups if getattr(group, x_attr) is not None]
-    front = pareto_nondominated(plottable, x_attr)
-    front_keys = {(group.agent, group.name, group.effort) for group in front}
-    front_sorted = sorted(front, key=lambda group: getattr(group, x_attr))
-
-    axis.plot(
-        [getattr(group, x_attr) for group in front_sorted],
-        [group.score for group in front_sorted],
-        "-",
-        color=FRONT_COLOR,
-        lw=2,
-        zorder=1,
-        label="Pareto front",
-    )
+    if not plottable:
+        axis.set_title(f"{title}\n(no priced data)", fontweight="bold")
+        return
+    xs = [getattr(group, x_attr) for group in plottable]
+    scores = [group.score for group in plottable]
+    _shade_attractive_quadrant(axis, xs, scores, log_x)
     for group in plottable:
-        on_front = (group.agent, group.name, group.effort) in front_keys
         axis.scatter(
             getattr(group, x_attr),
             group.score,
-            s=180,
-            color=FRONT_COLOR if on_front else DOMINATED_COLOR,
-            edgecolor="black",
-            linewidth=1.2,
+            s=200,
+            color=_provider_color(group.name),
+            edgecolor="white",
+            linewidth=1.4,
             zorder=3,
-            marker="o" if on_front else "X",
-            label=f'{group.label}{"" if on_front else "  — dominated"}',
         )
+        axis.annotate(
+            group.label,
+            (getattr(group, x_attr), group.score),
+            xytext=(7, 4),
+            textcoords="offset points",
+            fontsize=8,
+            zorder=4,
+        )
+    if log_x:
+        axis.set_xscale("log")
     axis.set_xlabel(x_label)
     axis.set_ylabel("Quality (normalized rubric score)")
     axis.set_title(title, fontweight="bold")
-    axis.grid(True, alpha=0.25)
-    axis.legend(loc="lower right", fontsize=7.5, framealpha=0.95)
+    axis.grid(True, alpha=0.25, which="both")
 
 
-def _print_groups(groups: list[ModelGroup]) -> None:
+def _shade_attractive_quadrant(axis, xs: list[float], scores: list[float], log_x: bool) -> None:
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(scores), max(scores)
+    x_pad = (x_max / x_min) ** 0.08 if log_x and x_min > 0 else 1.0
+    x_lo = x_min / x_pad if log_x else x_min - 0.06 * (x_max - x_min or 1)
+    x_hi = x_max * x_pad if log_x else x_max + 0.06 * (x_max - x_min or 1)
+    y_pad = 0.06 * (y_max - y_min or 0.1)
+    axis.set_xlim(x_lo, x_hi)
+    axis.set_ylim(y_min - y_pad, y_max + y_pad)
+    x_mid = (x_min * x_max) ** 0.5 if log_x else (x_min + x_max) / 2
+    axis.axvspan(x_lo, x_mid, ymin=0.5, ymax=1.0, color=QUADRANT_COLOR, alpha=0.45, zorder=0)
+    axis.add_patch(
+        FancyArrowPatch(
+            (x_mid, y_min - y_pad / 2),
+            (x_lo + (x_mid - x_lo) * 0.15 if not log_x else x_lo * (x_mid / x_lo) ** 0.15, y_max + y_pad / 2),
+            arrowstyle="-|>",
+            mutation_scale=16,
+            color="#2a9d8f",
+            alpha=0.8,
+            lw=1.6,
+            zorder=1,
+        )
+    )
+    axis.text(
+        x_lo if not log_x else x_lo * 1.02,
+        y_max + y_pad / 2,
+        "better",
+        fontsize=8,
+        color="#2a9d8f",
+        fontweight="bold",
+        va="top",
+        zorder=2,
+    )
+
+
+def _provider_color(model_name: str) -> str:
+    lowered = model_name.lower()
+    for key, color in PROVIDER_COLORS.items():
+        if key in lowered:
+            return color
+    return PROVIDER_COLORS["unknown"]
+
+
+def _print_groups(groups: list[ModelGroup], token_axis: str) -> None:
     print("Groups (averaged within (agent, model, reasoning_effort)):")
     for group in sorted(groups, key=lambda g: g.score, reverse=True):
         cost = "n/a" if group.cost_usd is None else f"${group.cost_usd:.2f}"
+        tok = group.output_tokens_millions if token_axis == "output" else group.total_tokens_millions
         note = "  [n=1 preliminary signal, no variance]" if group.n < 2 else ""
         print(
             f"  {_group_id(group):<46} effort={group.effort or 'default':<8} "
             f"n={group.n}  score={group.score:.3f}±{group.score_std:.3f}  "
-            f"tok={group.tokens_millions:.2f}M  cost={cost}{note}"
+            f"{token_axis}_tok={tok:.2f}M  cost={cost}{note}"
         )
-
-
-def _print_fronts(groups: list[ModelGroup]) -> None:
-    for x_attr, axis_name in (("cost_usd", "cost"), ("tokens_millions", "tokens")):
-        plottable = [group for group in groups if getattr(group, x_attr) is not None]
-        front = sorted(pareto_nondominated(plottable, x_attr), key=lambda g: getattr(g, x_attr))
-        names = " < ".join(_group_id(group) for group in front) or "(none)"
-        print(f"front[{axis_name}]: {names}")
 
 
 def _group_id(group: ModelGroup) -> str:

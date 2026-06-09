@@ -310,21 +310,21 @@ cat jobs/<timestamp>/<trial-id>/assessment_eval.json | python3 -m json.tool
 nasde harbor view path/to/benchmark/jobs/<timestamp>
 ```
 
-## Comparing models — Pareto front (PRIMARY method)
+## Comparing models — quality vs cost / tokens (PRIMARY method)
 
-When the user asks "which model/agent is best?" or "which is most efficient?", the answer is a **Pareto front**, not a single ranked number. This is the primary, documented comparison method for nasde results. Two reasons it is primary:
+When the user asks "which model/agent is best?" or "which is most efficient?", the answer is a **two-axis scatter (quality vs cost, quality vs tokens)**, not a single ranked number. Show the data honestly and let the reader judge — the convention here follows charts like Artificial Analysis's intelligence-vs-tokens plots: **raw points with full names, a shaded "most attractive" region, an arrow pointing toward "better", and no verdict painted on individual points.** Two reasons this is the primary method:
 
-1. **Quality and cost are two axes, and you keep both.** A model is *dominated* iff some other model is **no-worse in quality AND no-worse on the cost (or token) axis AND strictly better on at least one**. The **front** is the non-dominated set — the real options worth choosing between. Everything off the front is strictly worse on both axes and should never be picked.
-2. **The front is invariant to where you put the score zero.** That is exactly why nasde deliberately does **not** compute a scalar "token efficiency" or "cost efficiency" (`score / denominator`). See "Why no scalar efficiency" below.
+1. **Quality and cost are two axes, and you keep both.** Collapsing them into one number throws away information. *Pareto dominance* is the concept you reason **with** (point A is dominated if some B is no-worse on both axes and strictly better on one), but it is **not** a tag stamped on the chart — at small n a hard "dominated / never pick" label on a point with no variance over-claims. State dominance in prose when it is clear from the data; let the chart stay raw.
+2. **Position is invariant to where you put the score zero.** That is exactly why nasde deliberately does **not** compute a scalar "token efficiency" or "cost efficiency" (`score / denominator`). See "Why no scalar efficiency" below.
 
-### The two fronts — report BOTH
+### Two panels — report BOTH
 
 Always draw and report both panels:
 
 - **Quality × cost ($)** — *price-dependent*. Uses `cost_usd`, which moves with the price catalog (`pricing.toml`).
-- **Quality × tokens (1M)** — *price-independent*. Uses `token_usage.total_tokens`. Pure model behaviour, stable across price changes.
+- **Quality × tokens** — *price-independent*. Uses `token_usage` (output tokens by default on a log axis, the Artificial Analysis convention; total tokens optional). Pure model behaviour, stable across price changes.
 
-When both fronts agree on which models are on the front, the conclusion is stronger. When they disagree (e.g. a model is token-efficient but expensive due to a high per-token price), say so explicitly — that disagreement is itself the finding.
+When both panels tell the same story, the conclusion is stronger. When they disagree (e.g. a model is token-light but expensive due to a high per-token price), say so explicitly — that disagreement is itself the finding.
 
 ### Hard scoping rules — do NOT violate
 
@@ -346,9 +346,9 @@ If the points you are about to plot span more than one task, fingerprint, or eff
 The raw numbers come straight from `nasde results-export` (see below). For each trial:
 
 - `score` — `normalized_score_mean` in `assessment_summary.json` (or `normalized_score` / `score`).
-- `token_usage.total_tokens` — in `metrics.json` (and mirrored on the summary).
+- `token_usage.output_tokens` / `token_usage.total_tokens` — in `metrics.json` (and mirrored on the summary). Output tokens is the default token axis; total is available via `--token-axis total`.
 - `cost_usd` — in `metrics.json`. `null` for an unpriced/legacy-trajectory model — such a point is dropped from the cost panel but still appears on the token panel.
-- `reasoning_effort` and `model_name` — stamped on the artifacts; they define the group.
+- `reasoning_effort`, `model_name`, `agent_name`, `task_name` — stamped on the artifacts; the first three define the group, `task_name` enforces the one-task scope.
 
 Export first, then compare:
 
@@ -358,23 +358,25 @@ nasde results-export path/to/benchmark/jobs/<timestamp> --to /tmp/myexport -C pa
 
 ### Generating the chart
 
-The skill ships a reference generator at `<SKILL_SCRIPTS>/pareto.py` (matplotlib + stdlib only — install matplotlib into whatever Python you run it with, e.g. `uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py ...`). It reads an export dir directly, or accepts explicit data points, draws both fronts, and prints the front membership.
+The skill ships a reference generator at `<SKILL_SCRIPTS>/pareto.py` (matplotlib + stdlib only — install matplotlib into whatever Python you run it with, e.g. `uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py ...`). It reads an export dir directly, or accepts explicit data points, and draws both panels in the raw-points style (shaded attractive region + "better" arrow, points colored by provider, full model/variant/effort names — no front line, no dominated tags).
 
 ```bash
-# From an export dir (one subdir per trial). Title MUST state the scope.
+# From an export dir (one subdir per trial). --task scopes a multi-task export to one task.
+# Title MUST state the scope (task, fingerprint, effort).
 uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
-  --export-dir /tmp/myexport \
+  --export-dir /path/to/nasde-results \
+  --task ddd-weather-discount \
   --title "weather-discount — fp=abc123def456 — effort=default" \
-  --out /tmp/pareto.png
+  --out /tmp/quality_chart.png
 
-# Or explicit points: name,effort,score,cost_usd,total_tokens (cost may be empty for unpriced).
+# Or explicit points: name,effort,score,cost_usd,output_tokens (cost may be empty for unpriced).
 uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
-  --point "claude-sonnet-4-6,,0.803,8.55,2720000" \
-  --point "claude-opus-4-8,,0.920,26.30,5120000" \
-  --out /tmp/pareto.png
+  --point "claude-opus-4-8,,0.92,26.30,69055" \
+  --point "claude-sonnet-4-6,,0.80,8.55,33430" \
+  --out /tmp/quality_chart.png
 ```
 
-Trials are grouped by `(agent_name, model_name, reasoning_effort)` — the same key the toolkit uses for run-summary economics — so two variants of the *same* model (e.g. `claude-vanilla` vs `claude-ntcoding-tactical-ddd`, both on `claude-sonnet-4-6`) stay separate points, not one averaged blob. Each group's per-axis std is reported (n≥2). The script marks front members green ● and dominated points red ✗. (With `--point` you have no separate agent field, so the point name doubles as the variant.)
+`--token-axis {output,total}` picks the token panel's x-axis (default `output`, log scale). Trials are grouped by `(agent_name, model_name, reasoning_effort)` — the same key the toolkit uses for run-summary economics — so two variants of the *same* model (e.g. `claude-vanilla` vs `claude-ntcoding-tactical-ddd`, both on `claude-sonnet-4-6`) stay separate points, not one averaged blob. Each group's per-axis std is printed to stdout (n≥2), with an `[n=1 preliminary signal]` flag otherwise. (With `--point` you have no separate agent field, so the point name doubles as the variant.)
 
 ### Chart rule — full model version strings, always
 

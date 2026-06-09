@@ -2,8 +2,11 @@
 """Quality-vs-cost / quality-vs-tokens scatter for nasde benchmark results.
 
 Plots one point per `(agent_name, model_name, reasoning_effort)` configuration —
-raw position only. It does NOT paint a verdict on each point: no "Pareto front"
-line, no green/red "dominated" tags. The convention this follows (cf. Artificial
+raw position only. Color encodes the provider, marker shape encodes the variant
+(circle = vanilla, square = a skill variant, triangle = other), and a thin line
+links the variants of one model so the "shift from adding a skill" is visible at
+a glance. It does NOT paint a verdict on each point: no "Pareto front" line, no
+green/red "dominated" tags. The convention this follows (cf. Artificial
 Analysis intelligence-vs-tokens charts) is to show the data honestly, mark the
 *direction* of "better" with a shaded attractive quadrant and an arrow, and let
 the reader draw conclusions. That is also safer at small n, where a hard
@@ -59,6 +62,10 @@ PROVIDER_COLORS = {
     "codex": "#000000",
     "unknown": "#888888",
 }
+
+VANILLA_MARKER = "o"
+SKILL_MARKER = "s"
+OTHER_MARKER = "^"
 
 
 @dataclass
@@ -299,12 +306,36 @@ def _build_figure(groups: list[ModelGroup], title: str, token_axis: str):
     token_attr = "output_tokens_millions" if token_axis == "output" else "total_tokens_millions"
     token_label = f"{token_axis.capitalize()} tokens (millions per trial, log scale)"
     _draw_panel(axis_tokens, groups, token_attr, token_label, "Quality vs Tokens (price-independent)", log_x=True)
+    _add_shape_legend(figure, groups)
     figure.suptitle(
-        f"{title}\nShaded = most attractive region (higher quality, lower cost/tokens) · arrow points toward 'better'",
+        f"{title}\nColor = provider · shape = variant · line links variants of one model · "
+        "shaded = most attractive region, arrow toward 'better'",
         fontsize=10,
     )
-    figure.tight_layout(rect=[0, 0, 1, 0.9])
+    figure.tight_layout(rect=[0, 0, 1, 0.89])
     return figure
+
+
+def _add_shape_legend(figure, groups: list[ModelGroup]) -> None:
+    from matplotlib.lines import Line2D
+
+    kinds = {_variant_kind(group.agent) for group in groups}
+    marker_for = {"vanilla": VANILLA_MARKER, "skill": SKILL_MARKER, "guided": OTHER_MARKER}
+    name_for = {"vanilla": "vanilla", "skill": "+skill", "guided": "guided"}
+    handles = [
+        Line2D(
+            [],
+            [],
+            marker=marker_for.get(kind, OTHER_MARKER),
+            color="#555555",
+            linestyle="none",
+            markersize=9,
+            label=name_for.get(kind, kind),
+        )
+        for kind in sorted(kinds)
+    ]
+    if len(handles) > 1:
+        figure.legend(handles=handles, loc="upper right", fontsize=8, title="variant", framealpha=0.95)
 
 
 def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title: str, log_x: bool) -> None:
@@ -315,6 +346,7 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
     xs = [getattr(group, x_attr) for group in plottable]
     scores = [group.score for group in plottable]
     _shade_attractive_quadrant(axis, xs, scores, log_x)
+    _connect_same_model(axis, plottable, x_attr)
     for group in plottable:
         axis.scatter(
             getattr(group, x_attr),
@@ -323,6 +355,7 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
             color=_provider_color(group.name),
             edgecolor="white",
             linewidth=1.4,
+            marker=_variant_marker(group.agent),
             zorder=3,
         )
         axis.annotate(
@@ -339,6 +372,25 @@ def _draw_panel(axis, groups: list[ModelGroup], x_attr: str, x_label: str, title
     axis.set_ylabel("Quality (normalized rubric score)")
     axis.set_title(title, fontweight="bold")
     axis.grid(True, alpha=0.25, which="both")
+
+
+def _connect_same_model(axis, groups: list[ModelGroup], x_attr: str) -> None:
+    by_model: dict[str, list[ModelGroup]] = {}
+    for group in groups:
+        by_model.setdefault(group.name, []).append(group)
+    for model_groups in by_model.values():
+        if len(model_groups) < 2:
+            continue
+        ordered = sorted(model_groups, key=lambda g: getattr(g, x_attr))
+        axis.plot(
+            [getattr(g, x_attr) for g in ordered],
+            [g.score for g in ordered],
+            "-",
+            color=_provider_color(ordered[0].name),
+            alpha=0.35,
+            lw=1.3,
+            zorder=2,
+        )
 
 
 def _shade_attractive_quadrant(axis, xs: list[float], scores: list[float], log_x: bool) -> None:
@@ -382,6 +434,24 @@ def _provider_color(model_name: str) -> str:
         if key in lowered:
             return color
     return PROVIDER_COLORS["unknown"]
+
+
+def _variant_kind(agent: str) -> str:
+    lowered = agent.lower()
+    if not lowered or lowered.endswith("vanilla") or lowered == "vanilla":
+        return "vanilla"
+    if "guided" in lowered:
+        return "guided"
+    return "skill"
+
+
+def _variant_marker(agent: str) -> str:
+    kind = _variant_kind(agent)
+    if kind == "vanilla":
+        return VANILLA_MARKER
+    if kind == "skill":
+        return SKILL_MARKER
+    return OTHER_MARKER
 
 
 def _print_groups(groups: list[ModelGroup], token_axis: str) -> None:

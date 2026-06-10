@@ -54,7 +54,7 @@ Homepage = "https://noesis.vision/nasde/"
 Source = "https://github.com/NoesisVision/nasde-toolkit"
 Issues = "https://github.com/NoesisVision/nasde-toolkit/issues"
 Changelog = "https://github.com/NoesisVision/nasde-toolkit/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/NoesisVision/nasde-toolkit/tree/main/docs"
+Documentation = "https://noesisvision.github.io/nasde-toolkit/"
 
 [project.scripts]
 nasde = "nasde_toolkit.cli:app"

@@ -15,3 +15,8 @@ nasde-registry-*.json
 pytest-of-*/
 src/nasde_toolkit/_version.py
 .claude/scheduled_tasks.lock
+
+# Starlight (Astro) docs site — website/
+website/node_modules/
+website/dist/
+website/.astro/

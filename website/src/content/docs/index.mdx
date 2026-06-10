@@ -1,0 +1,60 @@
+---
+title: Nasde Toolkit Docs
+description: Documentation for Nasde — run an AI coding agent on a task you already know the answer to, score the result, and compare configurations.
+template: splash
+hero:
+  tagline: The official documentation for the Nasde Toolkit — install it, learn how the scoring works, and find every command and config option.
+  image:
+    file: ../../assets/nasde-toolkit-logo.png
+  actions:
+    - text: Get Started
+      link: /nasde-toolkit/getting-started/quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: What is Nasde?
+      link: /nasde-toolkit/getting-started/overview/
+      icon: open-book
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/NoesisVision/nasde-toolkit
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Find your way around
+
+<CardGrid>
+	<LinkCard
+		title="🚀 Get Started"
+		description="Install the CLI and build your first benchmark from your own git history."
+		href="/nasde-toolkit/getting-started/quick-start/"
+	/>
+	<LinkCard
+		title="💡 Concepts"
+		description="How the two-stage scoring works, the evaluation pipeline, token & cost, and rubric calibration."
+		href="/nasde-toolkit/concepts/how-it-works/"
+	/>
+	<LinkCard
+		title="📖 Reference"
+		description="Every CLI command, plus the nasde.toml / variant.toml / task.toml config formats and authentication."
+		href="/nasde-toolkit/reference/cli-reference/"
+	/>
+	<LinkCard
+		title="🛠️ Guides"
+		description="Cloud providers, the reviewer agent, plugins, skill-by-reference, exporting results, and worked examples."
+		href="/nasde-toolkit/guides/use-cases/"
+	/>
+</CardGrid>
+
+## New here?
+
+<CardGrid>
+	<Card title="What is Nasde?" icon="open-book">
+		Run an AI coding agent on a task you already know the answer to, score the result against your own criteria, and compare configurations. Start with the [Overview](/nasde-toolkit/getting-started/overview/).
+	</Card>
+	<Card title="See it in action" icon="approve-check">
+		A real task end to end — instruction, criteria, and the scores four agent configurations earned. See [A Real Task](/nasde-toolkit/concepts/real-task-example/) and [Benchmark Results](/nasde-toolkit/guides/benchmark-results/).
+	</Card>
+</CardGrid>

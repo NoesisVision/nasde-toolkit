@@ -1,0 +1,65 @@
+---
+/**
+ * Override of Starlight's SocialIcons component.
+ * Adds top-level text nav links (Documentation, Changelog) to the header —
+ * the navbar UX users expect from Docusaurus — then renders the default
+ * social icons after them.
+ */
+import Default from '@astrojs/starlight/components/SocialIcons.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const { pathname } = Astro.url;
+
+const links = [
+	{ label: 'Documentation', href: `${base}/getting-started/overview/`, match: /\/(getting-started|concepts|reference|guides)\// },
+	{ label: 'Changelog', href: 'https://github.com/NoesisVision/nasde-toolkit/blob/main/CHANGELOG.md', match: null, external: true },
+];
+---
+
+<nav class="header-nav" aria-label="Main">
+	{
+		links.map((link) => (
+			<a
+				href={link.href}
+				class="header-nav-link"
+				aria-current={link.match && link.match.test(pathname) ? 'page' : undefined}
+				{...(link.external ? { target: '_blank', rel: 'noopener' } : {})}
+			>
+				{link.label}
+			</a>
+		))
+	}
+</nav>
+
+<Default {...Astro.props}><slot /></Default>
+
+<style>
+	.header-nav {
+		display: none;
+		align-items: center;
+		gap: 1rem;
+		margin-inline-end: 0.5rem;
+	}
+
+	@media (min-width: 50rem) {
+		.header-nav {
+			display: flex;
+		}
+	}
+
+	.header-nav-link {
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-base);
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.header-nav-link:hover {
+		color: var(--sl-color-white);
+	}
+
+	.header-nav-link[aria-current='page'] {
+		color: var(--sl-color-accent-high);
+	}
+</style>

@@ -1,0 +1,85 @@
+/* NASDE Toolkit docs — Noesis teal brand theme.
+   Replaces Starlight's default purple accent with the teal/cyan from the
+   Noesis logo, keeping the docs visually consistent with noesis-docs. */
+
+:root {
+	/* Dark theme accent (teal/cyan from the logo glow) */
+	--sl-color-accent-low: #11353a;
+	--sl-color-accent: #2b92a8;
+	--sl-color-accent-high: #a7e3ed;
+
+	/* Slightly desaturated neutral grays so the teal reads as the one accent */
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: #eceef2;
+	--sl-color-gray-2: #c0c2c7;
+	--sl-color-gray-3: #888b96;
+	--sl-color-gray-4: #545861;
+	--sl-color-gray-5: #353841;
+	--sl-color-gray-6: #24272f;
+	--sl-color-black: #181a1f;
+}
+
+:root[data-theme='light'] {
+	/* Light theme accent (darker teal so it passes contrast on white) */
+	--sl-color-accent-low: #c6ebf1;
+	--sl-color-accent: #1c7a8e;
+	--sl-color-accent-high: #0c3b46;
+
+	/* In light mode Starlight's scale is inverted: --sl-color-white is the
+	   DARKEST color (used for headings/hero title) and --sl-color-black is
+	   the page background. These mirror Starlight's own light-theme defaults
+	   so text contrast is preserved. */
+	--sl-color-white: #181a1f;
+	--sl-color-gray-1: #24272f;
+	--sl-color-gray-2: #353841;
+	--sl-color-gray-3: #545861;
+	--sl-color-gray-4: #888b96;
+	--sl-color-gray-5: #c0c2c7;
+	--sl-color-gray-6: #eceef2;
+	--sl-color-gray-7: #f4f5f7;
+	--sl-color-black: #ffffff;
+}
+
+/* Make the site title sit nicely next to the logo */
+.site-title {
+	font-weight: 600;
+}
+
+/* Hero logo on the splash landing — round the corners and add a soft card
+   so the light-background NASDE artwork doesn't clash with dark mode. */
+.hero > img,
+.hero .hero-html img {
+	border-radius: 1rem;
+	background: var(--sl-color-gray-7, #f4f5f7);
+	box-shadow: 0 0 3rem rgba(43, 146, 168, 0.2);
+}
+
+/* Inline `code` inside headings renders at the full heading size by default,
+   which looks oversized next to the prose. Scale it down a touch. */
+.sl-markdown-content h1 code,
+.sl-markdown-content h2 code,
+.sl-markdown-content h3 code,
+.sl-markdown-content h4 code {
+	font-size: 0.85em;
+}
+
+/* The Previous/Next pager link titles (.link-title) default to ~1.5rem, which
+   reads louder than the page's own body text. Tone them down to body size. */
+.pagination-links a .link-title {
+	font-size: var(--sl-text-base);
+	font-weight: 600;
+}
+
+/* The right-hand "On this page" table of contents reads small/cramped next to
+   the left sidebar — its heading is smaller than its own links and the rows
+   are tight. Bring the heading up to match the link size and relax the rows. */
+mobile-starlight-toc nav > h2,
+starlight-toc nav > h2 {
+	font-size: var(--sl-text-sm);
+}
+.right-sidebar a,
+starlight-toc a {
+	font-size: var(--sl-text-sm);
+	line-height: 1.4;
+	padding-block: 0.3rem;
+}

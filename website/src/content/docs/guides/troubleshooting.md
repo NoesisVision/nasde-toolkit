@@ -34,13 +34,17 @@ Harbor reinstalls the agent CLI per trial, which can trip provider rate limits a
 ## What to expect
 
 ### How long does a run take?
-A single trial is typically a few minutes to ~30 minutes, dominated by how long the agent takes on the task (set by the task's `[agent] timeout_sec`, default 1800s) plus the reviewer pass. A full `--all-variants` run multiplies that by variants × tasks × repetitions, so start with one task and one variant.
+A single trial (one agent solving one task) is typically a few minutes to ~30 minutes, dominated by how long the agent takes on the task (set by the task's `[agent] timeout_sec`, default 1800s) plus the reviewer pass. Total wall-clock multiplies by **variants × tasks × attempts** (`--attempts` / `-n`, the independent agent runs per task) — and each trial is then reviewed `--eval-repetitions` times. So start with one task and one variant.
 
 ### How much does it cost?
-Each trial spends real tokens on both the agent and the (repeated) reviewer. NASDE records the exact token and USD cost per trial — see [Token & Cost](/nasde-toolkit/concepts/token-cost/). On a Claude Max or ChatGPT Plus subscription, casual benchmarking is covered by your plan; heavy parallel runs may hit subscription windows.
+Each trial spends real tokens on the agent; each trial is then reviewed several times (`--eval-repetitions`, default 3), so the reviewer cost multiplies too. NASDE records the exact token and USD cost per trial — see [Token & Cost](/nasde-toolkit/concepts/token-cost/). On a Claude Max or ChatGPT Plus subscription, casual benchmarking is covered by your plan; heavy parallel runs may hit subscription windows.
 
-### How many trials do I need?
-Enough that the gap you care about clears the noise. One trial gives a point estimate with no spread; **3+ per configuration** lets NASDE report a `mean ±std` you can actually compare. If two configs differ by less than their combined spread, run more trials before believing the gap. See [Reading Your Results](/nasde-toolkit/getting-started/reading-results/).
+### How many attempts do I need?
+Two different knobs, two different noise sources:
+- **`--attempts` (agent runs per task)** — the agent writes different code each run. More attempts shrink the **`mean ±std`** spread you see *between trials* in the run summary. One attempt gives a point estimate with no spread; **3+** lets you compare configurations honestly.
+- **`--eval-repetitions` (reviewer passes per trial, default 3)** — the judge scores the same code slightly differently each pass. This is *judge* noise, reported per trial.
+
+If two configs differ by less than their combined spread, run more attempts before believing the gap. See [Reading Your Results](/nasde-toolkit/getting-started/reading-results/).
 
 ## FAQ
 

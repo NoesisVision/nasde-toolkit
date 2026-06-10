@@ -22,12 +22,9 @@ Why not a single "efficiency" ratio (quality per dollar)? Because that ratio has
 
 So NASDE plots the raw signals as a **Pareto frontier** (quality vs. cost, and quality vs. tokens). Models on the frontier are the best available trade-offs; a model above it is overpaying for its quality, one below it is buying cheap quality. *You* pick the point on the frontier that matches your budget and quality bar.
 
-<!-- TODO(image): pareto.png — a 2-D scatter, quality (normalized score, Y) vs. cost in USD (X), with 4–5 model points (e.g. Claude Sonnet/Opus, Codex, Gemini) and the Pareto frontier drawn as a line. Generate from real run data via the nasde-benchmark-runner skill's scripts/pareto.py and drop into website/src/assets/benchmark/pareto.png, then add:
-![Quality vs cost Pareto frontier across models](../../../assets/benchmark/pareto.png) -->
+![Quality vs cost across models and skill variants: one shared cost panel plus a per-provider token panel](../../../assets/benchmark/pareto.png)
 
-:::note[Chart coming]
-A worked quality-vs-cost Pareto chart will live here. For now, the token and time charts in [Benchmark Results](/nasde-toolkit/guides/benchmark-results/) show the raw cost signals per configuration.
-:::
+A real example from a skill×model matrix. **Left panel — quality vs. cost (USD), all providers together**, because dollars are a fair common unit. Color is the provider, marker shape is the variant (circle = vanilla, square = with the skill), and a line links a model's variants. The shaded region is the most attractive corner (high quality, low cost). **The two right panels are quality vs. tokens, one per provider** — token counts use each provider's native tokenizer and are *not* comparable across providers, so they never share a panel. Reading the left panel, `gpt-5.4` and `sonnet-4-6` sit cheap-but-lower, `opus-4-8` buys the top score at the highest cost — which one "wins" depends entirely on where your budget and quality bar fall.
 
 The Pareto comparison and the chart generator live in the `nasde-benchmark-runner` skill.
 

@@ -5,17 +5,16 @@ description: What a run produces — the summary table, the jobs/ directory, ass
 
 Your first `nasde run` finishes and prints a table, then writes a pile of files. Here's how to read both.
 
-## The run summary table
+## What a run looks like
 
-At the end of a run, NASDE prints a per-configuration table — one row per `(agent, model, reasoning effort)` group:
+When you start a run, NASDE echoes the configuration so you know exactly what's about to execute — agent, variant, model, attempts, whether Opik and assessment are on:
 
-<!-- TODO(image): nasde-run-summary.png — screenshot of the actual `nasde run` summary table (the per-(agent, model, effort) table with Trials, Score mean ±std, Tokens, Cost). Capture by running `nasde run --all-variants` on an example benchmark and screenshotting the terminal output. Drop into website/src/assets/benchmark/nasde-run-summary.png and add:
-![The nasde run summary table](../../../assets/benchmark/nasde-run-summary.png) -->
+![The nasde run startup banner showing agent, variant, model, attempts, and tracking configuration](../../../assets/benchmark/nasde-run-summary.png)
 
-Read it like this:
+As trials complete, progress streams in; at the end NASDE prints a **per-configuration summary table** — one row per `(agent, model, reasoning effort)` group. Read it like this:
 
-- **Trials** — how many times that configuration ran. The sample size behind the mean.
-- **Score** — the normalized quality (0–1) as `mean ±std`. The `±std` is the spread *between repeated runs* (the agent writes different code each time). A single run shows `mean (n=1)` rather than a fake `±0.00`.
+- **Trials** — how many times that configuration ran (set by `--attempts` / `-n`). The sample size behind the mean.
+- **Score** — the normalized quality (0–1) as `mean ±std`. The `±std` is the spread *between attempts* (the agent writes different code each run). A single attempt shows `mean (n=1)` rather than a fake `±0.00`.
 - **Tokens / Cost** — total tokens and USD cost (see [Token & Cost](/nasde-toolkit/concepts/token-cost/)), with an inter-trial `±std` once a group has 2+ trials.
 
 The headline question — *is configuration A better than B?* — is answered by comparing rows **and** their spreads: a 0.05 gap means little if each row wobbles by ±0.08.

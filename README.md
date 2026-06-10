@@ -3,7 +3,7 @@
 
   <h3>Noesis Agentic Software Development Evals Toolkit</h3>
 
-  <p>Run an AI coding agent on a task you already know the answer to. Score the result. Compare configurations.</p>
+  <p>Measure how your whole AI coding setup performs — and what it costs in tokens and dollars across models and providers — so you can choose where to invest and when to switch.</p>
 
   <a href="https://noesis.vision/nasde/"><img src="https://img.shields.io/badge/Product%20Page-Noesis%20Vision-0B6623?style=for-the-badge&logoColor=white" alt="Product Page"></a>
   <a href="https://discord.gg/QF5PMX4Dqg"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
@@ -13,6 +13,14 @@
 </div>
 
 ---
+
+## Why NASDE?
+
+Your team runs AI coding agents — but **which setup is actually best for *your* codebase, and what is it costing you?** Switch from Claude to Codex, swap a model, add a skill or an MCP server — and you're guessing whether quality went up, down, or just got more expensive.
+
+The decisions that matter are getting expensive: **which provider, which model, which configuration** — each with a different quality-per-dollar trade-off. NASDE measures your **whole harness** — the agent, its skills, its MCP servers, against *your* tasks — and reports not just **how good** the output is, but **how many tokens and how many dollars** it took, per model and per provider. That's the data behind a real decision: where to invest, which model to standardize on, and when a migration actually pays off.
+
+It runs on your own machine with a subscription you already have. **Today** it drives Claude Code, the Codex CLI, and the Gemini CLI; **planned:** Pi, Cursor, and router-based setups.
 
 ## What NASDE does — in four steps
 
@@ -39,14 +47,13 @@ Concepts (how the scoring works, the evaluation pipeline, token & cost, rubric c
 
 ## What do I use it for?
 
-Anyone working with AI coding agents eventually hits the same wall: *"I changed my skill / `CLAUDE.md` / MCP setup — is the agent actually better now, or does it just feel that way?"* NASDE turns that gut feeling into a repeatable measurement which is **easy to do even on a personal machine, with a Claude Code or Codex subscription**.
+The core use is a **cost-and-quality decision** about your AI coding stack: *which agent, which model, which provider, which configuration — for our codebase and our budget?* NASDE answers it with numbers instead of vibes. Typical things you'd do with it:
 
-Typical things you'd do with it:
-
-- **Run an agent safely on a realistic task** — a sandboxed container means the agent can `rm -rf`, install random packages, or run your tests in loops without wrecking your laptop.
-- **Compare two configurations of the same agent** — baseline vs. "with my new skill"; see whether the skill moves the score up or down, and on which dimensions.
-- **Compare different agents on the same task** — Claude Code vs. Codex vs. Gemini CLI against *your* workspace and *your* criteria.
-- **Build a regression suite for your AI setup** — once a task set exists, re-run it every time someone tweaks the prompt/skills/MCP and spot regressions before they ship.
+- **Compare providers and models on quality *and* cost** — Claude Code vs. Codex vs. Gemini, Sonnet vs. Opus, against *your* tasks; see the score *and* the tokens and dollars each one spends, and pick the best quality-per-dollar for your budget.
+- **Decide whether a migration pays off** — before standardizing on a new agent or model, measure what actually changes in output quality and in spend.
+- **Measure your whole harness, not just one skill** — run your real `CLAUDE.md` + skills + MCP servers as a unit and see how the full configuration performs.
+- **Tune a single skill or config** — baseline vs. "with my new skill"; see whether it moves the score up or down, and on which dimensions.
+- **Build a regression suite for your AI setup** — re-run the task set whenever someone tweaks the prompt/skills/MCP/model and catch quality *or* cost regressions before they ship.
 
 ## Quick start
 

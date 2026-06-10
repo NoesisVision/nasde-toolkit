@@ -32,9 +32,9 @@ You're the one defining "what good looks like." NASDE just automates running the
 Concepts (how the scoring works, the evaluation pipeline, token & cost, rubric calibration), the complete CLI reference, every configuration-file format, authentication, and step-by-step guides — all there, searchable.
 
 - [Quick Start](https://noesisvision.github.io/nasde-toolkit/getting-started/quick-start/) — zero to a working benchmark from your own git history
-- [How scoring works](https://noesisvision.github.io/nasde-toolkit/concepts/scoring/) — the two independent kinds of scoring
+- [How it works](https://noesisvision.github.io/nasde-toolkit/concepts/how-it-works/) — the two independent kinds of scoring, end to end
 - [A real task, end to end](https://noesisvision.github.io/nasde-toolkit/concepts/real-task-example/) — instruction, criteria, and scores
-- [CLI commands](https://noesisvision.github.io/nasde-toolkit/reference/commands/) — the full command reference
+- [CLI reference](https://noesisvision.github.io/nasde-toolkit/reference/cli-reference/) — the full command reference
 - [Use Cases](https://noesisvision.github.io/nasde-toolkit/guides/use-cases/) · [Benchmark Results](https://noesisvision.github.io/nasde-toolkit/guides/benchmark-results/) — worked examples with numbers
 
 ## What do I use it for?
@@ -75,7 +75,7 @@ nasde run --all-variants -C path/to/generated-benchmark
 
 **Start small** — one task is enough to validate the loop end to end. Your existing `claude` / `codex` / `gemini` CLI auth covers it (a Claude Max or ChatGPT Plus subscription is enough). API keys work too.
 
-→ Full walkthrough: **[Quick Start](https://noesisvision.github.io/nasde-toolkit/getting-started/quick-start/)** · **[Installation reference](https://noesisvision.github.io/nasde-toolkit/getting-started/installation/)** · **[Authentication](https://noesisvision.github.io/nasde-toolkit/reference/authentication/)**
+→ Full walkthrough: **[Quick Start](https://noesisvision.github.io/nasde-toolkit/getting-started/quick-start/)** · **[Authentication & Opik](https://noesisvision.github.io/nasde-toolkit/reference/authentication/)**
 
 ## Authoring helpers (Claude Code skills)
 

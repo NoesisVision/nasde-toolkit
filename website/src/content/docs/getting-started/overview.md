@@ -14,6 +14,35 @@ One `nasde run` command executes the whole chain.
 
 You're the one defining "what good looks like." NASDE just automates running the experiment and assessing it the same way every time.
 
+## The evaluation pipeline, end to end
+
+```mermaid
+flowchart LR
+    A["Task:<br/>instruction.md<br/>+ test.sh<br/>+ assessment_criteria.md"] --> B["Coding agent solves task<br/>in an isolated container<br/>(Docker or cloud sandbox)"]
+    B --> C["test.sh:<br/>initial rough tests"]
+    C --> D["Binary reward<br/>0 or 1"]
+    D --> E["Reviewer agent<br/>reads the produced<br/>workspace + trajectory"]
+    E --> F["Per-dimension scores<br/>vs. your criteria"]
+    F --> G["Results logged<br/>(locally + optional<br/>experiment tracker)"]
+
+    style E fill:#c0392b,color:#fff
+```
+
+Stage 1 (the agent solving the task in a sandbox) comes from [Harbor](https://www.harborframework.com/); the optional tracking stage uses [Opik](https://github.com/comet-ml/opik). NASDE is the glue that connects them and adds the **reviewer stage** in between — the part that turns "did the test pass?" into "how good is the result, on the dimensions *I* care about?" See [How It Works](/nasde-toolkit/concepts/how-it-works/) for the two kinds of scoring and the full per-stage detail.
+
+## Why this is useful — a concrete example
+
+The value shows up the moment you compare configurations. Here are four agent setups scored against the *same* criteria on one real task (a DDD weather-discount feature):
+
+| Variant | Pass | Domain (/25) | Tests (/20) | Total (/100) |
+|---|:---:|:---:|:---:|:---:|
+| `claude-vanilla` | 75% | 17.1 | 7.7 | **61.6** |
+| `claude-guided` (with a DDD skill) | 75% | 17.4 | 8.7 | **65.1** |
+| `codex-vanilla` | 89% | 18.8 | 8.7 | **69.4** |
+| `codex-guided` (same skill) | 50% | 11.5 | 6.0 | **47.4** |
+
+The same "DDD guidance" skill helps Claude a little (+3.5) and *badly* hurts Codex (−22) — an insight that's invisible without per-dimension assessment, and exactly what NASDE is built to surface. See [A Real Task](/nasde-toolkit/concepts/real-task-example/) for the full breakdown and [Benchmark Results](/nasde-toolkit/guides/benchmark-results/) for more.
+
 ## What do I use it for?
 
 Anyone working with AI coding agents eventually hits the same wall: *"I changed my skill / `CLAUDE.md` / MCP setup — is the agent actually better now, or does it just feel that way?"* NASDE turns that gut feeling into a repeatable measurement which is **easy to do on even on a personal machine, with a Claude Code or Codex subscription**.

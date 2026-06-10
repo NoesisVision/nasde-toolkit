@@ -32,16 +32,13 @@ export default defineConfig({
 					label: 'Getting Started',
 					items: [
 						{ label: 'Overview', slug: 'getting-started/overview' },
-						{ label: 'Installation', slug: 'getting-started/installation' },
 						{ label: 'Quick Start', slug: 'getting-started/quick-start' },
-						{ label: 'Prerequisites', slug: 'getting-started/prerequisites' },
 					],
 				},
 				{
 					label: 'Concepts',
 					items: [
-						{ label: 'How Scoring Works', slug: 'concepts/scoring' },
-						{ label: 'Evaluation Pipeline', slug: 'concepts/pipeline' },
+						{ label: 'How It Works', slug: 'concepts/how-it-works' },
 						{ label: 'A Real Task (DDD example)', slug: 'concepts/real-task-example' },
 						{ label: 'Token & Cost', slug: 'concepts/token-cost' },
 						{ label: 'Calibrating the Rubric', slug: 'concepts/calibration' },
@@ -50,24 +47,16 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
-						{ label: 'CLI Cheatsheet', slug: 'reference/cli-cheatsheet' },
-						{ label: 'Commands', slug: 'reference/commands' },
-						{ label: 'Project Structure & nasde.toml', slug: 'reference/project-structure' },
-						{ label: 'variant.toml & task.toml', slug: 'reference/config-formats' },
-						{ label: 'Authentication', slug: 'reference/authentication' },
-						{ label: 'Verifying Opik Results', slug: 'reference/verifying-opik' },
+						{ label: 'CLI Reference', slug: 'reference/cli-reference' },
+						{ label: 'Configuration', slug: 'reference/configuration' },
+						{ label: 'Authentication & Opik', slug: 'reference/authentication' },
 					],
 				},
 				{
 					label: 'Guides',
 					items: [
-						{ label: 'Exporting Results', slug: 'guides/exporting-results' },
-						{ label: 'Cloud Sandbox Providers', slug: 'guides/cloud-providers' },
-						{ label: 'Configuring the Reviewer Agent', slug: 'guides/reviewer-config' },
-						{ label: 'Local Repo Benchmarks', slug: 'guides/local-repo-benchmarks' },
-						{ label: 'Benchmarking a Plugin', slug: 'guides/benchmarking-a-plugin' },
-						{ label: 'Referencing a Skill', slug: 'guides/referencing-a-skill' },
-						{ label: 'Scoping a Variant to Tasks', slug: 'guides/scoping-variants' },
+						{ label: 'Running & Configuring Runs', slug: 'guides/running-benchmarks' },
+						{ label: 'Plugins & Skills', slug: 'guides/plugins-and-skills' },
 						{ label: 'Use Cases (end-to-end)', slug: 'guides/use-cases' },
 						{ label: 'Benchmark Results', slug: 'guides/benchmark-results' },
 					],

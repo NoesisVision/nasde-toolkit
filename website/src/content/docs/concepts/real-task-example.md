@@ -3,7 +3,7 @@ title: A Real Task (DDD example)
 description: One benchmark task shown end to end — instruction, assessment criteria, and the scores four agent configurations earned against it.
 ---
 
-Everything in [How Scoring Works](/nasde-toolkit/concepts/scoring/) is easier to grasp on a concrete example. Here is one benchmark task from the repo — [`examples/ddd-architectural-challenges/tasks/ddd-weather-discount`](https://github.com/NoesisVision/nasde-toolkit/tree/main/examples/ddd-architectural-challenges/tasks/ddd-weather-discount) — shown end to end: the agent's instruction, the assessment criteria, and the resulting scores.
+Everything in [How It Works](/nasde-toolkit/concepts/how-it-works/) is easier to grasp on a concrete example. Here is one benchmark task from the repo — [`examples/ddd-architectural-challenges/tasks/ddd-weather-discount`](https://github.com/NoesisVision/nasde-toolkit/tree/main/examples/ddd-architectural-challenges/tasks/ddd-weather-discount) — shown end to end: the agent's instruction, the assessment criteria, and the resulting scores.
 
 ## `instruction.md` — what the coding agent is asked to do
 

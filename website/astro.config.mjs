@@ -12,11 +12,12 @@ export default defineConfig({
 	integrations: [
 		mermaid(),
 		starlight({
-			title: 'NASDE Toolkit',
+			title: 'Nasde Toolkit Docs',
 			logo: {
 				src: './src/assets/noesis-logo.png',
-				alt: 'NASDE Toolkit',
+				alt: 'Noesis Vision',
 			},
+			favicon: '/favicon.png',
 			customCss: ['./src/styles/custom.css'],
 			components: {
 				SocialIcons: './src/components/HeaderNav.astro',

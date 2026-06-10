@@ -25,6 +25,11 @@
 	--sl-color-accent: #1c7a8e;
 	--sl-color-accent-high: #0c3b46;
 
+	/* In light mode Starlight's scale is inverted: --sl-color-white is the
+	   DARKEST color (used for headings/hero title) and --sl-color-black is
+	   the page background. These mirror Starlight's own light-theme defaults
+	   so text contrast is preserved. */
+	--sl-color-white: #181a1f;
 	--sl-color-gray-1: #24272f;
 	--sl-color-gray-2: #353841;
 	--sl-color-gray-3: #545861;
@@ -40,8 +45,11 @@
 	font-weight: 600;
 }
 
-/* Hero on the splash landing — keep the logo glow subtle behind the title */
+/* Hero logo on the splash landing — round the corners and add a soft card
+   so the light-background NASDE artwork doesn't clash with dark mode. */
 .hero > img,
-.hero .hero-html {
-	filter: drop-shadow(0 0 2rem rgba(43, 146, 168, 0.25));
+.hero .hero-html img {
+	border-radius: 1rem;
+	background: var(--sl-color-gray-7, #f4f5f7);
+	box-shadow: 0 0 3rem rgba(43, 146, 168, 0.2);
 }

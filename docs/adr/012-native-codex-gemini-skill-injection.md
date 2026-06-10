@@ -78,6 +78,13 @@ field. Like `sandbox_files`, the list is **regenerated each run** and tracked
 via `_nasde_derived_skills`, so a removed skill dir drops out next run while a
 hand-authored `skills` entry is preserved.
 
+The skill subdir is keyed on **each agent's own type**, read back from its
+`import_path` (`_agent_type_from_import_path`, falling back to the variant's
+declared type). A variant is one agent type by contract, but a hand-written
+multi-agent `harbor_config.json` can mix types — keying per agent keeps a codex
+agent reading `agents_skills/` and a gemini agent reading `gemini_skills/`
+instead of all agents sharing the variant's first declared type.
+
 ### Claude is deliberately left on the cwd path
 
 The Claude `variants/<v>/skills/` → `sandbox_files` → `/app/.claude/skills/`
@@ -102,8 +109,18 @@ comments moved below the closing `---`.
 
 - Codex/Gemini skills are now **natively registered** — the trajectory shows
   the skill in the CLI's own skill registry, loaded from the HOME-scoped path,
-  not read by hand. Verified empirically: a Codex trial's `codex.txt` shows the
-  CLI loading `/root/.agents/skills/<name>/SKILL.md` through its skill loader.
+  not read by hand. Verified empirically on a live `ddd-threshold-discount` run
+  for both agents:
+  - **Codex** — `codex.txt` shows the CLI loading
+    `/root/.agents/skills/<name>/SKILL.md` through its skill loader
+    (`codex_core::session::session`); under the old code that path was never
+    scanned.
+  - **Gemini** — clean run (reward 1, 0 errors); the trajectory shows the skill
+    used through Gemini's native `activate_skill` tool with an
+    `<activated_skill>` observation carrying the full skill body, and
+    `<available_resources>` reporting the skill at
+    `/root/.gemini/skills/<name>/SKILL.md`. The agent activated the skill via
+    its native mechanism, not by reading the file.
 - Skill×model matrix results for Codex/Gemini collected under the old behavior
   are invalid (skill-as-document, not skill-as-native) and must be re-run.
 - `sandbox_files` no longer carries skill files for Codex/Gemini; it carries
@@ -114,7 +131,8 @@ comments moved below the closing `---`.
 
 ## References
 
-- `runner._collect_native_skill_dirs`, `runner._refresh_agent_skills`
+- `runner._collect_native_skill_dirs`, `runner._refresh_agent_skills`,
+  `runner._agent_type_from_import_path`
 - Harbor `agents/installed/codex.py::_build_register_skills_command`,
   `gemini_cli.py::_build_register_skills_command`, `trial.py` skill upload
 - `openai/codex` `core-skills/src/loader.rs` (native discovery roots)

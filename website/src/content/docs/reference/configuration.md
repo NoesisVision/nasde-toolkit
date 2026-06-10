@@ -52,7 +52,7 @@ my-benchmark/
   jobs/                        # Trial output (gitignored)
 ```
 
-Each agent family injects its instructions differently: Claude Code variants get `CLAUDE.md` → `/app/CLAUDE.md`, Codex variants `AGENTS.md` → `/app/AGENTS.md`, Gemini variants `GEMINI.md` → `/app/GEMINI.md`. Codex/Gemini skills live under `agents_skills/` and `gemini_skills/` respectively.
+Each agent family injects its instructions differently: Claude Code variants get `CLAUDE.md` → `/app/CLAUDE.md`, Codex variants `AGENTS.md` → `/app/AGENTS.md`, Gemini variants `GEMINI.md` → `/app/GEMINI.md`. Codex/Gemini skills live under `agents_skills/` and `gemini_skills/` respectively — and their `SKILL.md` **must start with a `---` YAML frontmatter line** (see [Plugins & Skills → how skills reach each agent](/nasde-toolkit/guides/plugins-and-skills/#how-skills-reach-each-agent)).
 
 ### What each task file does
 

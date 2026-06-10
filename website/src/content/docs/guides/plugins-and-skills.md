@@ -37,6 +37,19 @@ ref  = "abc1234"   # optional, same semantics as [nasde.source]
 
 The **whole** skill directory (including `references/`) is staged into the sandbox — no copy under `variants/`. The legacy `variants/<v>/skills/<name>/` copy path still works unchanged (and now also carries `references/`, which it previously dropped).
 
+## How skills reach each agent
+
+Each agent family auto-discovers skills from a different place, so NASDE delivers them where the CLI actually looks (you don't manage this — but it's worth knowing where your skill files end up):
+
+- **Claude Code** discovers from the project, so its skills land in `/app/.claude/skills/`.
+- **Codex** and **Gemini** auto-discover skills only from a HOME-scoped directory — `$HOME/.agents/skills/` for Codex, `~/.gemini/skills/` for Gemini. NASDE routes Codex/Gemini skills there through the agent's native skill-injection (not into the project directory, where the CLI would never scan them). See [ADR-012](https://github.com/NoesisVision/nasde-toolkit/blob/main/docs/adr/012-native-codex-gemini-skill-injection.md).
+
+This applies to all three skill sources for Codex/Gemini: a variant's `agents_skills/` / `gemini_skills/` snapshot, a `[[skill]]` reference, and a `[nasde.plugin]`'s own skills.
+
+:::caution[Codex/Gemini skills must start with `---` frontmatter]
+Codex's loader is strict: a `SKILL.md` that does **not start** with a `---` YAML frontmatter line is silently rejected and the skill is never registered. A common trap is a leading comment (e.g. `<!-- Source: ... -->`) *above* the frontmatter — move it below the closing `---`. NASDE warns at run time when a skill's `SKILL.md` doesn't open with `---`, so the gotcha surfaces instead of the skill mysteriously doing nothing. (Claude is more lenient, but starting every `SKILL.md` with frontmatter is the safe habit.)
+:::
+
 ## Scoping a variant to specific tasks (`tasks`)
 
 Some variants only make sense for one task — for example, a skill whose code examples are *tuned to a particular repo's conventions*. Running such a variant against a different codebase produces misleading results. Declare a `tasks` scope in the variant's `variant.toml`:

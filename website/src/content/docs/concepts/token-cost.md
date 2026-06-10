@@ -36,9 +36,9 @@ The summary table shows `Score` as `mean ±std` across trials — the standard d
 
 The full input volume (prompt tokens, cache included) is billed at the full catalog rate, with *no* cache discount, and the model's reasoning tokens are counted as output. This is deliberate: the prompt-token count is fixed for a task, but the cache hit rate drifts with run order and timing — so billing the full volume keeps cost **deterministic and comparable across runs**, not a function of how warm your cache happened to be.
 
-## Pricing is yours to keep current
+## Where pricing comes from
 
-Rates live in a small, versioned `pricing.toml` bundled with NASDE, each model stamped with the date and source it came from. A model that isn't in the catalog still gets token metrics — only its `cost_usd` is left blank (with a warning), never a wrong number. To add or update a model, edit `pricing.toml`:
+Rates live in a small, versioned `pricing.toml` bundled with NASDE, each model stamped with the date and source it came from. A model entry looks like:
 
 ```toml
 [models."your-model-id"]
@@ -47,6 +47,12 @@ output_per_1m = 15.0
 as_of = "2026-06-08"
 source = "https://…"
 ```
+
+A model that isn't in the catalog still gets token metrics — only its `cost_usd` is left blank (with a warning), never a wrong number.
+
+:::note[Editing the catalog]
+The catalog is **bundled into the package**, so editing it depends on how you installed NASDE. From a source checkout (`uv sync`) you can edit `src/nasde_toolkit/pricing.toml` directly. After a PyPI install (`uv tool install` / pipx) the file lives inside an isolated environment and any edit is overwritten on the next upgrade — so for now, adding a model or correcting a rate means contributing it upstream or running from source. A per-project / per-user pricing override is a planned improvement.
+:::
 
 :::caution[Confirm rates before quoting costs]
 The bundled catalog is a convenience, not a billing authority — re-check against the provider's current rate card before publishing any dollar figure.

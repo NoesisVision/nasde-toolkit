@@ -32,7 +32,7 @@ source scripts/export_codex_oauth_token.sh # validate tokens are present
 uv run nasde run --variant codex-vanilla -C my-benchmark
 ```
 
-NASDE auto-detects `~/.codex/auth.json` with `auth_mode: "chatgpt"` and injects the full OAuth token structure into the sandbox. No env vars needed.
+When no API key is set, NASDE auto-detects the presence of `~/.codex/auth.json` (created by `codex login`) and opts into uploading it to the sandbox (it sets `CODEX_FORCE_AUTH_JSON=true`; Harbor does the actual upload). No env vars needed.
 
 **Option 2: API key** — billed per-token through your OpenAI Platform account.
 
@@ -53,12 +53,15 @@ Gemini CLI variants support three authentication methods:
 export GEMINI_API_KEY=your-key
 ```
 
-**Option 2: Google Cloud / Vertex AI** — uses your Google Cloud project billing.
+**Option 2: Google Cloud / Vertex AI** — uses your Google Cloud project billing. Set either an API key or a service-account credentials file:
 
 ```bash
 export GOOGLE_API_KEY=your-key
-export GOOGLE_CLOUD_PROJECT=your-project
+# or, for a service account:
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 ```
+
+These are the env vars NASDE checks for the API-key path (alongside `GEMINI_API_KEY`).
 
 **Option 3: OAuth (Google account)** — uses your Gemini subscription credits.
 
@@ -105,7 +108,8 @@ for s in sorted(scores, key=lambda x: x["name"]):
 
 Expected feedback scores after a full run with `--with-opik`:
 
-- `arch_<dimension>` (e.g. `arch_domain_modeling`) — normalized 0.0-1.0
-- `arch_total` — overall architecture score
+- `arch_<dimension>` (e.g. `arch_domain_modeling`) — normalized 0.0-1.0, plus `arch_<dimension>_std`
+- `arch_total` — overall architecture score, plus `arch_total_std`
+- `eval_n` — how many judge evaluations the mean is over
 - `reward` — Harbor rough-test result (0.0 or 1.0)
 - `duration_sec` — trial duration

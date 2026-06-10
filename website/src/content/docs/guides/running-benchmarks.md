@@ -11,15 +11,12 @@ A NASDE run involves **two** coding agents: the **agent under test** (the one wh
 
 ## Running on a local repo
 
-You can build benchmarks from local (private) repositories by setting `source.git` to a relative path:
+You can build benchmarks from local (private) repositories by adding `[nasde.source]` to `task.toml` with a relative path:
 
-```json
-{
-  "source": {
-    "git": "../..",
-    "ref": "abc1234"
-  }
-}
+```toml
+[nasde.source]
+git = "../.."
+ref = "abc1234"
 ```
 
 NASDE auto-generates the Docker environment — no custom `Dockerfile` needed. See [`examples/nasde-dev-skill/`](https://github.com/NoesisVision/nasde-toolkit/tree/main/examples/nasde-dev-skill) for a complete example that tests nasde-toolkit itself. The full `[nasde.source]` reference is in [Configuration](/nasde-toolkit/reference/configuration/#local-repo-source-nasdesource).

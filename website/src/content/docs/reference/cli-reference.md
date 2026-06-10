@@ -63,11 +63,16 @@ Authentication is covered in [Authentication & Opik](/nasde-toolkit/reference/au
 | Flag | Description |
 |------|-------------|
 | `--variant` | Variant to run (defaults to config default) |
+| `--all-variants` | Run every available variant (Cartesian product with tasks) |
 | `--tasks` | Comma-separated task names to run |
 | `--model` | Model override (e.g. `claude-sonnet-4-6`, `o3`, `google/gemini-3-flash-preview`) |
 | `--effort` | Reasoning-effort override (overrides `variant.toml reasoning_effort`; see [Configuration → Reasoning effort](/nasde-toolkit/reference/configuration/#reasoning-effort)) |
+| `--attempts`, `-n` | Independent agent attempts per task (Harbor `n_attempts`) — the sample size behind the `mean ±std` |
 | `--timeout` | Agent timeout in seconds |
 | `--with-opik` | Enable Opik tracing |
 | `--without-eval` | Skip assessment evaluation |
+| `--eval-repetitions` | Judge evaluations per trial (default: from `nasde.toml [evaluation]`, fallback 3) |
+| `--max-concurrent-eval` | Max concurrent assessment evaluations (default: 10) |
 | `--harbor-env` | Harbor execution environment (`docker`, `daytona`, `modal`, `e2b`, `runloop`, `gke`) |
+| `--job-suffix` | Custom suffix for the job directory name (default: random 6-char hex) |
 | `--project-dir`, `-C` | Path to evaluation project |

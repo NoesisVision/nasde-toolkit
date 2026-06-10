@@ -53,3 +53,21 @@
 	background: var(--sl-color-gray-7, #f4f5f7);
 	box-shadow: 0 0 3rem rgba(43, 146, 168, 0.2);
 }
+
+/* Inline `code` inside headings renders at the full heading size by default,
+   which looks oversized next to the prose. Scale it down a touch. */
+.sl-markdown-content h1 code,
+.sl-markdown-content h2 code,
+.sl-markdown-content h3 code,
+.sl-markdown-content h4 code {
+	font-size: 0.85em;
+}
+
+/* The Previous/Next pager link titles default to a large size; tone them down
+   so they sit closer to the "Previous"/"Next" labels above them. */
+.pagination-links a {
+	font-size: var(--sl-text-base);
+}
+.pagination-links a > span {
+	font-size: var(--sl-text-h5);
+}

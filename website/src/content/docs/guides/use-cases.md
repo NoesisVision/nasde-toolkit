@@ -58,7 +58,7 @@ For each selected problem, create a task directory under `tasks/`. Each task nee
 
 | File | Purpose |
 |------|---------|
-| `task.json` | Git source (your repo at the commit *before* the fix), evaluation config |
+| `task.toml` | Git source (your repo at the commit *before* the fix), evaluation config |
 | `instruction.md` | What the agent should do — derived from the original issue/PR description |
 | `environment/Dockerfile` | Clones your repo at the right commit, installs dependencies |
 | `tests/test.sh` | Verifies the solution works — often adapted from your existing tests |
@@ -144,7 +144,7 @@ NASDE includes a dedicated skill that accelerates Phase 1 by mining git history 
 **What it does:**
 1. Scans the specified commits, reads diffs, and filters for good candidates (self-contained changes with clear before/after states)
 2. Presents a numbered list of candidates with metadata — files changed, difficulty estimate, whether tests exist
-3. For each candidate you approve, generates the full task directory: `task.json`, `instruction.md`, `Dockerfile`, `test.sh`, `assessment_criteria.md`
+3. For each candidate you approve, generates the full task directory: `task.toml`, `instruction.md`, `Dockerfile`, `test.sh`, `assessment_criteria.md`
 4. You review and edit each generated file before it's written — the skill proposes, you decide
 
 **What it won't do:** It doesn't generate instructions that leak the actual solution. The instruction describes the *problem to solve* (derived from the commit message and PR description), not the *implementation* (the diff). The agent must arrive at a solution independently.
@@ -268,7 +268,7 @@ NASDE includes a dedicated skill for curating diverse benchmark suites from publ
 **What it does:**
 1. Builds a **diversity matrix** based on your skill description — axes like language, project size, test coverage, architecture style — and presents it for your approval
 2. For each cell in the matrix, searches for and proposes public repositories with concrete task ideas
-3. For each repo+task pair you approve, generates the full task directory: `task.json` (with pinned commit hash), `instruction.md`, language-appropriate `Dockerfile`, `test.sh`, `assessment_criteria.md`
+3. For each repo+task pair you approve, generates the full task directory: `task.toml` (with pinned commit hash), `instruction.md`, language-appropriate `Dockerfile`, `test.sh`, `assessment_criteria.md`
 4. After all tasks are created, shows a coverage summary highlighting which matrix cells are filled and where gaps remain
 
 **Key design principle:** Task instructions are written to be **skill-agnostic**. The instruction describes the raw problem; the skill being tested is injected via the variant's `CLAUDE.md`. This means the same benchmark can test "with skill" vs "without skill" by simply switching variants.

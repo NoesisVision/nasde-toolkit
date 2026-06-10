@@ -93,6 +93,7 @@ build_commands = []
 backend = "claude"                            # "claude" (default) | "codex"
 model = "claude-opus-4-7"
 dimensions_file = "assessment_dimensions.json"
+# eval_repetitions = 3                        # Judge evaluations per trial (default 3)
 # max_turns = 60                              # Max evaluator conversation turns (default 60)
 # allowed_tools = ["Read", "Glob", "Grep"]    # Override default tool whitelist
 # mcp_config = "./evaluator_mcp.json"         # MCP server config for evaluator
@@ -102,6 +103,7 @@ dimensions_file = "assessment_dimensions.json"
 
 [reporting]
 platform = "opik"
+project_name = "my-benchmark"                 # Opik project name (defaults to [project] name)
 ```
 
 The `[evaluation]` block is the reviewer agent's configuration — see [Configuring the Reviewer Agent](/nasde-toolkit/guides/running-benchmarks/#configuring-the-reviewer-agent) for what each option does.
@@ -147,15 +149,12 @@ A single task config file, shared with Harbor — it reads its standard sections
 
 ### Local repo source (`[nasde.source]`)
 
-Build benchmarks from local (private) repositories by setting `source.git` to a relative path — NASDE auto-generates the Docker environment, no custom `Dockerfile` needed:
+Build benchmarks from local (private) repositories by adding `[nasde.source]` to `task.toml` — NASDE auto-generates the Docker environment, no custom `Dockerfile` needed:
 
-```json
-{
-  "source": {
-    "git": "../..",
-    "ref": "abc1234"
-  }
-}
+```toml
+[nasde.source]
+git = "../.."
+ref = "abc1234"
 ```
 
 ### Plugin source (`[nasde.plugin]`)

@@ -29,7 +29,7 @@ Every run writes a timestamped **job** folder under `jobs/` (gitignored). Inside
 | `assessment_eval_<N>.json` | Each individual reviewer pass (one per repetition) with full reasoning |
 | `result.json` / `config.json` | The trial's reward, model, variant, and config |
 | `agent/trajectory.json` | The agent's full tool-call trace |
-| `logs/verifier/` | The rough-test output |
+| `verifier/` | The rough-test output — `reward.txt` (0/1) and `test-stdout.txt` |
 
 ## Interpreting `assessment_summary.json`
 

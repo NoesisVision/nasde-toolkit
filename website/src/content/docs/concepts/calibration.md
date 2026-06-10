@@ -38,7 +38,7 @@ repo = "https://github.com/YourOrg/nasde-calibration"   # a private sink repo yo
 nasde calibrate publish jobs/2026-03-13__14-30-00/movie__abc -C my-benchmark
 ```
 
-Each trial becomes **one Pull/Merge Request** against an orphan base branch that holds the codebase in the exact state the agent started from. The PR diff is therefore *exactly the agent's work* — clean to read and navigate — and the PR description renders the reviewer's per-dimension scores (`mean ± std`) with a link to the full reasoning. Alongside the diff, a `.calibration/` directory carries the context a reviewer needs to judge fairly: the task's `instruction.md` (what the agent was asked to do), the `assessment_criteria.md` and `assessment_dimensions.json` the judge scored against, every `assessment_eval_<N>.json` (the per-dimension reasoning behind each repetition), and `metrics.json`.
+Each trial becomes **one Pull/Merge Request** against an orphan base branch that holds the codebase in the exact state the agent started from. The PR diff is therefore *exactly the agent's work* — clean to read and navigate — and the PR description renders the reviewer's per-dimension scores (`mean ± std`) with a link to the full reasoning. Alongside the diff, a `.calibration/` directory carries the context a reviewer needs to judge fairly: the task's `instruction.md` (what the agent was asked to do), the `assessment_criteria.md` and `assessment_dimensions.json` the judge scored against, every `assessment_eval_<N>.json` (the per-dimension reasoning behind each repetition), `assessment_summary.json`, and `metrics.json`.
 
 ## Review and comment
 

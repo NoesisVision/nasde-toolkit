@@ -69,3 +69,17 @@
 	font-size: var(--sl-text-base);
 	font-weight: 600;
 }
+
+/* The right-hand "On this page" table of contents reads small/cramped next to
+   the left sidebar — its heading is smaller than its own links and the rows
+   are tight. Bring the heading up to match the link size and relax the rows. */
+mobile-starlight-toc nav > h2,
+starlight-toc nav > h2 {
+	font-size: var(--sl-text-sm);
+}
+.right-sidebar a,
+starlight-toc a {
+	font-size: var(--sl-text-sm);
+	line-height: 1.4;
+	padding-block: 0.3rem;
+}

@@ -83,3 +83,17 @@ starlight-toc a {
 	line-height: 1.4;
 	padding-block: 0.3rem;
 }
+
+/* The Expressive Code "copy" button is a fixed 32px on desktop (fine), but on
+   mobile Safari/Chrome iOS it inflates and overlaps the code. Pin it smaller on
+   narrow screens and disable iOS button auto-styling. The icon is a `::after`
+   with inset:0, so it scales down with the button automatically. */
+@media (max-width: 50rem) {
+	.expressive-code .copy button {
+		inline-size: 1.75rem;
+		block-size: 1.75rem;
+		min-inline-size: 0;
+		-webkit-appearance: none;
+		appearance: none;
+	}
+}

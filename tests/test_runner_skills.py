@@ -682,7 +682,7 @@ def test_plugin_skills_route_native_for_codex(tmp_path: Path) -> None:
     _ensure_harbor_config(variant_dir, "v", extra_sandbox, extra_skill_dirs)
 
     skills = _skills(harbor_path)
-    assert any(s.endswith("/plug-skill") for s in skills)
+    assert any(Path(s).name == "plug-skill" for s in skills)
     assert skills == [str(Path(s).resolve()) for s in skills]
 
 

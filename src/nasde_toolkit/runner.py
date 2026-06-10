@@ -698,7 +698,7 @@ def _refresh_agent_skills(
     effective_type = _agent_type_from_import_path(agent.get("import_path")) or agent_type
     snapshot = _collect_native_skill_dirs(variant_dir, effective_type)
     referenced = _referenced_skill_dirs_for_agent(effective_type, extra_skill_dirs or [])
-    derived = _dedup_preserving_order(snapshot + referenced)
+    derived = list(dict.fromkeys(snapshot + referenced))
 
     _warn_skill_basename_collisions(str(agent.get("name", "<unnamed>")), derived)
 
@@ -723,16 +723,6 @@ def _referenced_skill_dirs_for_agent(effective_type: str, extra_skill_dirs: list
         if skill_md.exists():
             _warn_if_skill_frontmatter_malformed(skill_md, effective_type)
     return extra_skill_dirs
-
-
-def _dedup_preserving_order(items: list[str]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            result.append(item)
-    return result
 
 
 def _warn_skill_basename_collisions(agent_name: str, skill_dirs: list[str]) -> None:

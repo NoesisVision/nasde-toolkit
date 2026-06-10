@@ -28,13 +28,25 @@ A real example from a skill×model matrix. **Left panel — quality vs. cost (US
 
 The Pareto comparison and the chart generator live in the `nasde-benchmark-runner` skill.
 
-## A mean is never reported bare
+## Why scores come with a ± (and why that matters)
 
-The summary table shows `Score` as `mean ±std` across trials — the standard deviation between repeated runs (agent noise: the agent writes different code each time). A single trial reads `mean (n=1)`, an explicit single-run flag rather than a fake `±0.00`, and the `Trials` column is the sample size. The other noise source — the judge scoring the *same* code differently — is per-trial, so it lives in `metrics.json` (`score_eval_std`, `score_eval_n`, `single_eval`). Keeping the two apart is the point: is a gap bigger than the run-to-run wobble, or just noise? (Bootstrap/Bayesian significance testing is a separate, offline step — this surfaces the spread and `n` that make a mean honest.)
+A benchmark score is never perfectly repeatable — run the same setup twice and you'll get slightly different numbers. So a bare average can lie: if config A scores 0.82 and config B scores 0.80, is A *really* better, or did it just get lucky this time? To answer that honestly, you need to know **how much the score wobbles**. That's why NASDE always reports a score as **`mean ±std`** — the average, plus the typical wobble around it.
 
-## How cost is computed — "as if every run were the first"
+There are **two separate sources of wobble**, and NASDE keeps them apart on purpose:
 
-The full input volume (prompt tokens, cache included) is billed at the full catalog rate, with *no* cache discount, and the model's reasoning tokens are counted as output. This is deliberate: the prompt-token count is fixed for a task, but the cache hit rate drifts with run order and timing — so billing the full volume keeps cost **deterministic and comparable across runs**, not a function of how warm your cache happened to be.
+- **The agent writes different code each time.** Ask the same agent to solve the same task twice and it won't produce identical code, so the scores differ. This wobble shows up as the **`±std` in the run summary table**, measured *across your attempts* (the `Trials` column is how many attempts went into the average). Run more attempts — `--attempts` — and this estimate gets sharper. A single attempt is shown honestly as `mean (n=1)`, not a fake `±0.00`.
+
+- **The judge scores the same code slightly differently each time.** Even on identical code, the reviewer isn't perfectly consistent. This is a *different* wobble, so it's recorded *per trial* in `metrics.json` (`score_eval_std`, `score_eval_n`).
+
+Why split them? Because the question you actually care about is: **is the gap between two configs bigger than the wobble, or is it just noise?** Keeping the two sources separate lets you answer that — a 0.02 gap means nothing if each score wobbles by ±0.08. (Formal significance testing is a separate, offline step; NASDE's job here is to surface the spread and sample size that make an average trustworthy in the first place.)
+
+## How the cost is calculated — "as if every run were the first"
+
+The dollar figure NASDE reports is **deliberately consistent**: run the same task ten times and you'll get the same cost ten times. That's on purpose, and here's why it matters.
+
+Most providers give a discount for **prompt caching** — if you send the same prompt again soon after, the repeated part is cheaper. That sounds good, but it makes cost *unpredictable for comparison*: the exact same run can cost more or less depending on whether your cache happened to be "warm" (recently used) or "cold". You'd be comparing models on luck, not on how much they actually cost.
+
+So NASDE **ignores the cache discount entirely** and prices every run **as if it were the very first one** — the full prompt billed at the full catalog rate, every time. The model's reasoning tokens (the "thinking" some models do) are counted as output. The result is a cost number that depends only on the model and the task, not on timing — so when you compare two models, you're comparing them fairly.
 
 ## Where pricing comes from
 

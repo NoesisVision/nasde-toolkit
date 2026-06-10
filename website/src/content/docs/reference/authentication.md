@@ -5,6 +5,10 @@ description: How NASDE auto-detects credentials per agent — Claude Code, OpenA
 
 NASDE auto-detects the required credentials based on the variant's agent type.
 
+:::note[Programmatic use]
+NASDE drives the agents **non-interactively** (`claude -p`, `codex exec`, and the Gemini CLI equivalent), so it counts as *programmatic* use of those tools. For Claude specifically, Anthropic has announced that **from June 15, 2026, paid plans include a dedicated monthly credit for programmatic usage** — covering `claude -p`, the Claude Agent SDK, and Claude Code GitHub Actions. Running NASDE on a paid Claude subscription is therefore supported; check [Anthropic's current terms](https://www.anthropic.com/) for the credit and limits on your plan.
+:::
+
 ## Claude Code
 
 The tool checks for auth tokens in this order:

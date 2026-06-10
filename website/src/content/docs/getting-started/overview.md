@@ -66,6 +66,12 @@ It helps to be clear about the boundaries before you invest:
 - **A judge of the "one true model."** It surfaces trade-offs (quality vs. cost, per-dimension strengths) — *you* decide what wins for your budget and priorities.
 - **Zero-setup or zero-cost.** It needs Docker and an agent you're authenticated to; each run spends real tokens.
 
+### How NASDE drives the agents
+
+NASDE runs every agent **non-interactively** — it scripts them rather than chatting with them, using each tool's programmatic mode (`claude -p`, `codex exec`, and the Gemini CLI equivalent) under the hood, for both the agent under test and the reviewer. An **interactive mode is planned** but not available yet.
+
+Because it uses Claude programmatically, NASDE falls under Anthropic's terms for programmatic use. Anthropic has announced that, **from June 15, 2026, paid Claude plans include a dedicated monthly credit for programmatic usage** — covering `claude -p`, the Claude Agent SDK, and Claude Code GitHub Actions, among others. So running NASDE on a paid Claude subscription is expected and supported; check [Anthropic's current terms](https://www.anthropic.com/) for the exact credit and limits that apply to your plan.
+
 ## What do I use it for?
 
 Anyone working with AI coding agents eventually hits the same wall: *"I changed my skill / `CLAUDE.md` / MCP setup — is the agent actually better now, or does it just feel that way?"* NASDE turns that gut feeling into a repeatable measurement which is **easy to do on even on a personal machine, with a Claude Code or Codex subscription**.

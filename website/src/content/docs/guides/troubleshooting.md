@@ -51,6 +51,12 @@ If two configs differ by less than their combined spread, run more attempts befo
 **Do I need an API key, or is a subscription enough?**
 A subscription is enough to get going — runs reuse your `claude` / `codex` / `gemini` CLI login. API keys work too when you have them.
 
+**Does NASDE run the agents interactively?**
+No — it drives them **non-interactively** (`claude -p`, `codex exec`, the Gemini CLI equivalent), scripting them rather than chatting. An interactive mode is **planned** but not available yet.
+
+**Does running it programmatically affect my Claude plan?**
+NASDE's non-interactive use counts as *programmatic* use of Claude. Anthropic has announced that **from June 15, 2026, paid Claude plans include a dedicated monthly credit for programmatic usage** (covering `claude -p`, the Agent SDK, and Claude Code GitHub Actions), so running NASDE on a paid plan is supported. Check [Anthropic's current terms](https://www.anthropic.com/) for the credit and limits on your plan.
+
 **Can I run this without Docker?**
 Yes — point `--harbor-env` at a [cloud sandbox provider](/nasde-toolkit/guides/running-benchmarks/#cloud-sandbox-providers). The reviewer (Stage 2) always runs locally on the host regardless.
 

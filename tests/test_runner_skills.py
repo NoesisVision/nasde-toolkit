@@ -13,12 +13,13 @@ from pathlib import Path
 
 import pytest
 
-from nasde_toolkit.config import PluginConfig, ProjectConfig, TaskConfig
+from nasde_toolkit.config import DockerConfig, PluginConfig, ProjectConfig, TaskConfig
 from nasde_toolkit.runner import (
     _collect_native_skill_dirs,
     _collect_sandbox_files,
     _ensure_harbor_config,
     _generate_harbor_config,
+    _prepare_task_environments,
     _require_homogeneous_plugins,
 )
 
@@ -482,7 +483,7 @@ def test_collect_native_skill_dirs_warns_on_leading_comment_frontmatter(
     dirs = _collect_native_skill_dirs(variant_dir, "codex")
 
     assert dirs == [str(skill.resolve())]
-    assert "missing YAML frontmatter" in capsys.readouterr().out
+    assert "missing YAML frontmatter" in " ".join(capsys.readouterr().out.split())
 
 
 def test_collect_native_skill_dirs_no_warning_on_clean_frontmatter(
@@ -493,7 +494,7 @@ def test_collect_native_skill_dirs_no_warning_on_clean_frontmatter(
 
     _collect_native_skill_dirs(variant_dir, "codex")
 
-    assert "missing YAML frontmatter" not in capsys.readouterr().out
+    assert "missing YAML frontmatter" not in " ".join(capsys.readouterr().out.split())
 
 
 def test_refresh_keys_skills_per_agent_in_mixed_config(tmp_path: Path) -> None:
@@ -520,3 +521,182 @@ def test_refresh_keys_skills_per_agent_in_mixed_config(tmp_path: Path) -> None:
 
     assert _skills(harbor_path, agent_index=0) == [str(codex_skill.resolve())]
     assert _skills(harbor_path, agent_index=1) == [str(gemini_skill.resolve())]
+
+
+# ---------------------------------------------------------------------------
+# extra_skill_dirs — [[skill]] / [nasde.plugin] native channel (ADR-012)
+# ---------------------------------------------------------------------------
+#
+# For Codex/Gemini these dirs flow into agent["skills"] (Harbor native), NOT
+# into /app/.claude/skills sandbox_files. For Claude they are dropped here
+# (they already ride sandbox_files via stage_referenced_skills/register).
+
+
+def _standalone_skill(parent: Path, name: str) -> Path:
+    skill = parent / name
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\nbody")
+    return skill
+
+
+def test_extra_skill_dirs_go_to_native_skills_for_codex(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    assert _skills(harbor_path) == [str(referenced)]
+
+
+def test_extra_skill_dirs_dropped_for_claude(tmp_path: Path) -> None:
+    """Claude's [[skill]]/plugin skills ride sandbox_files (stage_skill_dir),
+    so the native channel must stay empty — feeding it here would double-inject."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    assert _skills(harbor_path) == []
+
+
+def test_extra_skill_dirs_union_with_snapshot(tmp_path: Path) -> None:
+    """snapshot (agents_skills/) ∪ [[skill]]/plugin (extra_skill_dirs) — both
+    land in agent.skills, tracked by one _nasde_derived_skills marker."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    snapshot = _make_native_skill(variant_dir, "agents_skills", "snap-skill")
+    referenced = _standalone_skill(tmp_path / "src", "ref-skill")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    assert set(_skills(harbor_path)) == {str(snapshot.resolve()), str(referenced)}
+
+
+def test_extra_skill_dirs_stale_drop_between_runs(tmp_path: Path) -> None:
+    """A [[skill]] removed between runs drops from agent.skills next run."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+    assert _skills(harbor_path) == [str(referenced)]
+
+    _ensure_harbor_config(variant_dir, "v", {}, [])
+    assert _skills(harbor_path) == []
+
+
+def test_extra_skill_dirs_preserves_handwritten(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    config = json.loads(harbor_path.read_text())
+    config["agents"][0]["skills"] = ["/host/hand/authored-skill"]
+    harbor_path.write_text(json.dumps(config))
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    skills = _skills(harbor_path)
+    assert str(referenced) in skills
+    assert "/host/hand/authored-skill" in skills
+
+
+def test_extra_skill_dirs_warns_on_basename_collision(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """snapshot agents_skills/foo and referenced .../foo share a basename —
+    Harbor registers only the last (last-wins). Warn so the loser isn't lost."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+    collide = _standalone_skill(tmp_path / "elsewhere", "tactical-ddd")
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(collide)])
+
+    out = " ".join(capsys.readouterr().out.split())
+    assert "share the basename" in out
+    assert "tactical-ddd" in out
+
+
+def test_extra_skill_dirs_warns_on_malformed_frontmatter(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    bad = tmp_path / "src" / "tactical-ddd"
+    bad.mkdir(parents=True)
+    (bad / "SKILL.md").write_text("<!-- Source: x -->\n---\nname: tactical-ddd\n---\nbody")
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(bad)])
+
+    assert "missing YAML frontmatter" in " ".join(capsys.readouterr().out.split())
+
+
+# ---------------------------------------------------------------------------
+# [nasde.plugin] skills — integration through the REAL ensure_task_plugin (ADR-012)
+# ---------------------------------------------------------------------------
+#
+# Unlike the [[skill]] e2e (verified on a live agent), there is no example with
+# a [nasde.plugin], so these tests drive the real ensure_task_plugin → staging
+# → collect_plugin_skill_dirs → harbor_config chain (no Docker) to prove a
+# plugin's own skills route natively for codex/gemini and to sandbox for claude.
+
+
+def _make_local_plugin(root: Path, plugin_name: str, skill_name: str) -> Path:
+    plugin = root / plugin_name
+    (plugin / ".claude-plugin").mkdir(parents=True)
+    (plugin / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": plugin_name}))
+    skill = plugin / "skills" / skill_name
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\nname: {skill_name}\n---\nbody")
+    return plugin
+
+
+def _project_with_plugin(tmp_path: Path, plugin: Path) -> ProjectConfig:
+    task_path = tmp_path / "tasks" / "t"
+    (task_path / "environment").mkdir(parents=True)
+    (task_path / "environment" / "Dockerfile").write_text("FROM ubuntu:22.04\n")
+    (task_path / "task.toml").write_text('version = "1.0"\n\n[task]\nname = "p/t"\n')
+    task = TaskConfig(
+        name="t",
+        path=task_path,
+        plugin=PluginConfig(path=str(plugin)),
+    )
+    return ProjectConfig(name="p", project_dir=tmp_path, tasks=[task], docker=DockerConfig())
+
+
+def test_plugin_skills_route_native_for_codex(tmp_path: Path) -> None:
+    """A [nasde.plugin]'s own skills/ must reach a Codex agent through the
+    native config.agent.skills (resolved via the REAL ensure_task_plugin
+    staging). The Claude sandbox map is still built unconditionally, but a
+    Codex agent consumes the native skills list, not that map."""
+    plugin = _make_local_plugin(tmp_path / "plugins", "my-plugin", "plug-skill")
+    config = _project_with_plugin(tmp_path, plugin)
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    extra_sandbox, extra_skill_dirs = _prepare_task_environments(config, variant_dir)
+    _ensure_harbor_config(variant_dir, "v", extra_sandbox, extra_skill_dirs)
+
+    skills = _skills(harbor_path)
+    assert any(Path(s).name == "plug-skill" for s in skills)
+    assert skills == [str(Path(s).resolve()) for s in skills]
+
+
+def test_plugin_skills_route_sandbox_for_claude(tmp_path: Path) -> None:
+    """The same plugin on a Claude variant rides sandbox_files to
+    /app/.claude/skills (unchanged), and the native skills list stays empty."""
+    plugin = _make_local_plugin(tmp_path / "plugins", "my-plugin", "plug-skill")
+    config = _project_with_plugin(tmp_path, plugin)
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    extra_sandbox, extra_skill_dirs = _prepare_task_environments(config, variant_dir)
+    _ensure_harbor_config(variant_dir, "v", extra_sandbox, extra_skill_dirs)
+
+    assert "/app/.claude/skills/plug-skill/SKILL.md" in _sandbox(harbor_path)
+    assert _skills(harbor_path) == []

@@ -1,0 +1,9 @@
+agent = "codex"
+model = "gpt-5.4"
+
+# nasde-dev skill by-reference (ADR-009) from the live source. For a Codex
+# variant this is registered through Harbor's native config.agent.skills so
+# the skill lands in $HOME/.agents/skills and Codex auto-discovers it — NOT in
+# the /app cwd (which Codex never scans). See ADR-012.
+[[skill]]
+path = "../../../../.claude/skills/nasde-dev"

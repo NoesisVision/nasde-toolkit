@@ -94,6 +94,36 @@ skills and `[[skill]]` by-reference (ADR-009) via `stage_skill_dir`. Migrating
 it onto `config.agent.skills` would be a larger, riskier change with no
 behavioral payoff. Scope is kept to the actual bug.
 
+### All three skill paths, not just the snapshot
+
+A skill reaches an agent three ways: the variant **snapshot**
+(`agents_skills/`, `gemini_skills/`), **`[[skill]]` by-reference** in
+`variant.toml`, and a **`[nasde.plugin]`**'s own `skills/`. The first revision
+of this decision fixed only the snapshot path; the latter two still went
+through `stage_skill_dir`'s hardcoded `/app/.claude/skills/` and so were broken
+for Codex/Gemini in exactly the same way.
+
+All three are now routed natively for Codex/Gemini. `[[skill]]`/plugin skills
+are resolved to skill *directories* by `collect_referenced_skill_dirs` /
+`collect_plugin_skill_dirs` (the dir-list counterparts of the unchanged
+Claude-only `stage_referenced_skills` / `register_plugin_skills`), threaded as
+`extra_skill_dirs` and **unioned** with the snapshot dirs inside
+`_refresh_agent_skills`. The union is tracked by the single
+`_nasde_derived_skills` marker, so stale-drop and hand-authored preservation
+work across both sources. For a Claude agent `extra_skill_dirs` is dropped at
+merge time (those skills already ride `sandbox_files`, so feeding the native
+list too would double-inject). Because Harbor's `resolve_skills` keys skills by
+basename (last-wins), nasde warns when two derived dirs share a basename so the
+loser does not silently vanish.
+
+**Coverage note (honest).** The `[[skill]]` path is verified end-to-end on a
+live agent (see Consequences). The `[nasde.plugin]` path shares the same channel
+from `extra_skill_dirs` onward, but there is no example benchmark with a
+`[nasde.plugin]` to run it e2e — so it is covered by an **integration test** that
+drives the real `docker.ensure_task_plugin` staging → `collect_plugin_skill_dirs`
+→ harbor_config (no Docker build), plus unit tests on the resolver. Full
+live-agent e2e for a plugin is a follow-up for when a plugin benchmark exists.
+
 ### Frontmatter guardrail
 
 Codex's loader is strict: a `SKILL.md` that does not **start** with a `---`
@@ -123,8 +153,11 @@ comments moved below the closing `---`.
     its native mechanism, not by reading the file.
 - Skill×model matrix results for Codex/Gemini collected under the old behavior
   are invalid (skill-as-document, not skill-as-native) and must be re-run.
-- `sandbox_files` no longer carries skill files for Codex/Gemini; it carries
-  only `AGENTS.md` / `GEMINI.md` (and, for Claude, the unchanged skill files).
+- For Codex/Gemini, skills (snapshot, `[[skill]]`, and plugin) are all carried
+  by `config.agent.skills`; the agent's effective `sandbox_files` is just
+  `AGENTS.md` / `GEMINI.md`. The Claude `sandbox_files` skill map is still built
+  unconditionally (so Claude stays byte-identical and tested) but a Codex/Gemini
+  agent never consumes it.
 - The brittle `_expand_skill_targets` workaround in `ConfigurableGemini` (which
   hardcoded `/root/.gemini/skills/`) is removed — Harbor's native command uses
   the shell-expanded `$HOME`, correct for non-root users too.
@@ -132,9 +165,13 @@ comments moved below the closing `---`.
 ## References
 
 - `runner._collect_native_skill_dirs`, `runner._refresh_agent_skills`,
-  `runner._agent_type_from_import_path`
+  `runner._agent_type_from_import_path`, `runner._referenced_skill_dirs_for_agent`,
+  `runner._warn_skill_basename_collisions`
+- `plugin_registration.collect_referenced_skill_dirs`,
+  `plugin_registration.collect_plugin_skill_dirs` (dir-list channel),
+  `stage_referenced_skills` / `register_plugin_skills` (unchanged Claude sink)
 - Harbor `agents/installed/codex.py::_build_register_skills_command`,
   `gemini_cli.py::_build_register_skills_command`, `trial.py` skill upload
 - `openai/codex` `core-skills/src/loader.rs` (native discovery roots)
-- [ADR-009](009-plugin-and-skill-by-reference.md) (the Claude skill path this
-  decision deliberately leaves untouched)
+- [ADR-009](009-plugin-and-skill-by-reference.md) (the `[[skill]]` / plugin
+  mechanism whose Claude sink this decision leaves untouched)

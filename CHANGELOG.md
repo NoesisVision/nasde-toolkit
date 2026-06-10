@@ -104,6 +104,23 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   max_turns` in `nasde.toml`. ([#54])
 
 ### Fixed
+- **`[[skill]]` by-reference and `[nasde.plugin]` skills now register natively for Codex/Gemini ([ADR-012](docs/adr/012-native-codex-gemini-skill-injection.md)).**
+  PR #65 fixed the *snapshot* path (`agents_skills/`, `gemini_skills/`) but left
+  the two other ways a skill reaches an agent — `[[skill]]` by-reference in
+  `variant.toml` and a `[nasde.plugin]`'s own `skills/` — still hardcoding
+  `/app/.claude/skills/` via `stage_skill_dir`. Correct for Claude (cwd discovery
+  root), but for a **Codex/Gemini** variant the skill landed where the CLI never
+  scans, so it was never natively registered (the same silent "skill-as-document"
+  failure). Both paths now resolve to skill *directories*
+  (`collect_referenced_skill_dirs` / `collect_plugin_skill_dirs`) routed through
+  Harbor's native `config.agent.skills` for Codex/Gemini, unioned with the
+  snapshot dirs under one `_nasde_derived_skills` marker (stale-drop +
+  hand-authored preservation work across both sources); Claude keeps its
+  unchanged `sandbox_files` path. The frontmatter warning now also fires on this
+  path, and a new warning flags two derived skill dirs sharing a basename (Harbor
+  registers only the last). New example variants `codex-nasde-dev-with-arch` and
+  `gemini-nasde-dev-with-arch` exercise `[[skill]]` by-reference on a non-Claude
+  agent. ([#67])
 - **Codex/Gemini skills are now natively registered ([ADR-012](docs/adr/012-native-codex-gemini-skill-injection.md)).**
   Codex and Gemini auto-discover skills only from a HOME-scoped directory
   (`$HOME/.agents/skills`, `~/.gemini/skills`), never from a `.agents/skills` /
@@ -522,4 +539,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#59]: https://github.com/NoesisVision/nasde-toolkit/pull/59
 [#61]: https://github.com/NoesisVision/nasde-toolkit/pull/61
 [#65]: https://github.com/NoesisVision/nasde-toolkit/pull/65
+[#67]: https://github.com/NoesisVision/nasde-toolkit/pull/67
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

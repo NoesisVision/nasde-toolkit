@@ -139,13 +139,18 @@ def collect_referenced_skill_dirs(
     ``/app`` cwd, so they take this dir list through Harbor's native
     ``config.agent.skills`` mechanism. Claude keeps using
     :func:`stage_referenced_skills`. See ADR-012.
+
+    Paths are fully ``resolve()``d so they compare equal to the snapshot dirs
+    from ``runner._collect_native_skill_dirs`` — the union/dedup, stale-drop and
+    basename-collision logic in ``_refresh_agent_skills`` key on string equality,
+    which would break on a symlinked ``/tmp`` (macOS) or a ``ref`` worktree path.
     """
     dirs: list[Path] = []
     for entry in _read_skill_entries(variant_dir):
         resolved = _resolve_skill_source(variant_dir, entry["path"], entry.get("ref", ""), worktree_factory)
         if not (resolved / "SKILL.md").exists():
             raise RuntimeError(f"[[skill]] '{resolved}' has no SKILL.md")
-        dirs.append(resolved)
+        dirs.append(resolved.resolve())
     return dirs
 
 
@@ -155,13 +160,14 @@ def collect_plugin_skill_dirs(staged: StagedPlugin) -> list[Path]:
     The dir-list counterpart of :func:`register_plugin_skills`, for the same
     reason as :func:`collect_referenced_skill_dirs`: Codex/Gemini take these
     dirs through Harbor's native ``config.agent.skills`` rather than a
-    cwd ``sandbox_files`` mapping.
+    cwd ``sandbox_files`` mapping. Paths are ``resolve()``d for the same
+    string-equality reason as :func:`collect_referenced_skill_dirs`.
     """
     skills_root = staged.staged_dir / "skills"
     if not skills_root.is_dir():
         return []
     return [
-        skill_dir
+        skill_dir.resolve()
         for skill_dir in sorted(skills_root.iterdir())
         if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists()
     ]

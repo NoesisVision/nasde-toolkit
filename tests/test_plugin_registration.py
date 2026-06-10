@@ -391,6 +391,35 @@ def test_collect_referenced_skill_dirs_no_entries_is_empty(tmp_path: Path) -> No
     assert collect_referenced_skill_dirs(variant_dir, create_ref_worktree) == []
 
 
+def test_collect_referenced_skill_dirs_returns_canonical_path(tmp_path: Path) -> None:
+    """Returned dirs must be fully resolved (no symlink, no `..`) so they
+    string-compare equal to runner._collect_native_skill_dirs' resolved snapshot
+    dirs — otherwise dedup / stale-drop / basename-collision break on a
+    symlinked /tmp (macOS) or a ref worktree path. See ADR-012."""
+    src_skills = tmp_path / "src" / "skills"
+    src_skills.mkdir(parents=True)
+    skill = _make_skill(src_skills, "analyze-conversation")
+
+    variant_dir = tmp_path / "variants" / "with-skill"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "variant.toml").write_text(
+        'agent = "codex"\nmodel = "m"\n\n[[skill]]\npath = "../../src/skills/analyze-conversation"\n'
+    )
+
+    dirs = collect_referenced_skill_dirs(variant_dir, create_ref_worktree)
+
+    assert dirs == [d.resolve() for d in dirs]
+    assert dirs == [skill.resolve()]
+
+
+def test_collect_plugin_skill_dirs_returns_canonical_path(tmp_path: Path) -> None:
+    staged = _staged_plugin(tmp_path)
+
+    dirs = collect_plugin_skill_dirs(staged)
+
+    assert dirs == [d.resolve() for d in dirs]
+
+
 def test_collect_referenced_skill_dirs_missing_skill_md_raises(tmp_path: Path) -> None:
     bad = tmp_path / "src" / "not-a-skill"
     bad.mkdir(parents=True)

@@ -142,9 +142,11 @@ def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> tupl
       ``/app`` cwd the sandbox map targets). The claude-vs-native choice is made
       per agent at merge time in ``_refresh_agent_skills``. See ADR-012.
 
-    The ``[[skill]]`` array is resolved twice (once per channel) but each
-    resolution is cheap; a ``ref`` worktree is created by both, deduplicated by
-    ``create_ref_worktree``'s own caching.
+    The ``[[skill]]`` array is resolved twice (once per channel — the Claude
+    ``stage_referenced_skills`` and the native ``collect_referenced_skill_dirs``).
+    A ``ref`` worktree is created by each call; all worktrees live in
+    ``_active_worktrees`` until ``cleanup_worktrees()`` runs in the ``finally``
+    after the job, well after Harbor has uploaded the skill dirs.
 
     Plugin skills go to a single variant-wide ``/app/.claude/skills/`` path,
     so heterogeneous ``[nasde.plugin]`` across tasks in one project would

@@ -14,9 +14,12 @@ export default defineConfig({
 		starlight({
 			title: 'NASDE Toolkit',
 			logo: {
-				src: './src/assets/nasde-toolkit-logo.png',
+				src: './src/assets/noesis-logo.png',
 				alt: 'NASDE Toolkit',
-				replacesTitle: true,
+			},
+			customCss: ['./src/styles/custom.css'],
+			components: {
+				SocialIcons: './src/components/HeaderNav.astro',
 			},
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/NoesisVision/nasde-toolkit' },

@@ -482,7 +482,7 @@ def test_collect_native_skill_dirs_warns_on_leading_comment_frontmatter(
     dirs = _collect_native_skill_dirs(variant_dir, "codex")
 
     assert dirs == [str(skill.resolve())]
-    assert "missing YAML frontmatter" in capsys.readouterr().out
+    assert "missing YAML frontmatter" in " ".join(capsys.readouterr().out.split())
 
 
 def test_collect_native_skill_dirs_no_warning_on_clean_frontmatter(
@@ -493,7 +493,7 @@ def test_collect_native_skill_dirs_no_warning_on_clean_frontmatter(
 
     _collect_native_skill_dirs(variant_dir, "codex")
 
-    assert "missing YAML frontmatter" not in capsys.readouterr().out
+    assert "missing YAML frontmatter" not in " ".join(capsys.readouterr().out.split())
 
 
 def test_refresh_keys_skills_per_agent_in_mixed_config(tmp_path: Path) -> None:
@@ -616,7 +616,7 @@ def test_extra_skill_dirs_warns_on_basename_collision(tmp_path: Path, capsys: py
 
     _ensure_harbor_config(variant_dir, "v", {}, [str(collide)])
 
-    out = capsys.readouterr().out
+    out = " ".join(capsys.readouterr().out.split())
     assert "share the basename" in out
     assert "tactical-ddd" in out
 
@@ -630,4 +630,4 @@ def test_extra_skill_dirs_warns_on_malformed_frontmatter(tmp_path: Path, capsys:
 
     _ensure_harbor_config(variant_dir, "v", {}, [str(bad)])
 
-    assert "missing YAML frontmatter" in capsys.readouterr().out
+    assert "missing YAML frontmatter" in " ".join(capsys.readouterr().out.split())

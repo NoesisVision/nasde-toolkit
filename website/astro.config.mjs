@@ -33,15 +33,24 @@ export default defineConfig({
 					items: [
 						{ label: 'Overview', slug: 'getting-started/overview' },
 						{ label: 'Quick Start', slug: 'getting-started/quick-start' },
+						{ label: 'Reading Your Results', slug: 'getting-started/reading-results' },
 					],
 				},
 				{
 					label: 'Concepts',
 					items: [
 						{ label: 'How It Works', slug: 'concepts/how-it-works' },
+						{ label: 'Key Terms', slug: 'concepts/key-terms' },
 						{ label: 'A Real Task (DDD example)', slug: 'concepts/real-task-example' },
 						{ label: 'Token & Cost', slug: 'concepts/token-cost' },
 						{ label: 'Calibrating the Rubric', slug: 'concepts/calibration' },
+					],
+				},
+				{
+					label: 'Creating Benchmarks',
+					items: [
+						{ label: 'Anatomy of a Benchmark', slug: 'creating-benchmarks/anatomy' },
+						{ label: 'Assessment Criteria & Dimensions', slug: 'creating-benchmarks/assessment-criteria' },
 					],
 				},
 				{
@@ -59,6 +68,7 @@ export default defineConfig({
 						{ label: 'Plugins & Skills', slug: 'guides/plugins-and-skills' },
 						{ label: 'Use Cases (end-to-end)', slug: 'guides/use-cases' },
 						{ label: 'Benchmark Results', slug: 'guides/benchmark-results' },
+						{ label: 'Troubleshooting & FAQ', slug: 'guides/troubleshooting' },
 					],
 				},
 			],

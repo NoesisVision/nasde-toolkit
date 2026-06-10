@@ -14,9 +14,22 @@ NASDE records the raw quality, token, and cost signals you need to compare agent
 
 These appear in three places: the `nasde run` summary prints a per-`(agent, model, effort)` table (trials, score, tokens, $cost — with an inter-trial `±std` on cost and tokens once a group has 2+ trials, a bare value at n=1); `assessment_summary.json` carries them per trial; and `results-export` copies them into `metrics.json`.
 
-## Comparing models is a Pareto front, not a single ratio
+## Quality vs. cost: the Pareto frontier
 
-NASDE deliberately does *not* fold quality and cost into one "efficiency" number — a quality-per-dollar ratio has an arbitrary zero (a score of 0 means an empty rubric, which no real run reaches), so the same data can re-order which model "wins" just by shifting where you put that zero. Instead, the raw quality/cost/token signals are compared as a **Pareto front** (quality vs cost, quality vs tokens), which keeps the full two-axis picture and doesn't depend on an arbitrary origin. The Pareto comparison lives in the `nasde-benchmark-runner` skill.
+This is the comparison that actually drives a model choice. NASDE measures quality and cost **independently** so you can see the *trade-off* — which model gives you the best quality for your budget — instead of collapsing it into one number that hides the picture.
+
+Why not a single "efficiency" ratio (quality per dollar)? Because that ratio has an arbitrary zero — a score of 0 means an empty rubric, which no real run reaches — so the same data can re-order which model "wins" just by shifting where you put that zero. The trade-off is shift-invariant; a single ratio is not.
+
+So NASDE plots the raw signals as a **Pareto frontier** (quality vs. cost, and quality vs. tokens). Models on the frontier are the best available trade-offs; a model above it is overpaying for its quality, one below it is buying cheap quality. *You* pick the point on the frontier that matches your budget and quality bar.
+
+<!-- TODO(image): pareto.png — a 2-D scatter, quality (normalized score, Y) vs. cost in USD (X), with 4–5 model points (e.g. Claude Sonnet/Opus, Codex, Gemini) and the Pareto frontier drawn as a line. Generate from real run data via the nasde-benchmark-runner skill's scripts/pareto.py and drop into website/src/assets/benchmark/pareto.png, then add:
+![Quality vs cost Pareto frontier across models](../../../assets/benchmark/pareto.png) -->
+
+:::note[Chart coming]
+A worked quality-vs-cost Pareto chart will live here. For now, the token and time charts in [Benchmark Results](/nasde-toolkit/guides/benchmark-results/) show the raw cost signals per configuration.
+:::
+
+The Pareto comparison and the chart generator live in the `nasde-benchmark-runner` skill.
 
 ## A mean is never reported bare
 

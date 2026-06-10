@@ -1,7 +1,15 @@
 ---
 title: Overview
-description: What NASDE is, what you use it for, and the four-step loop it automates.
+description: Why NASDE exists, what it does, what it is and isn't, and the four-step loop it automates.
 ---
+
+## Why NASDE? — the problem
+
+You changed your agent's skill, its `CLAUDE.md`, or its MCP setup. **Is the agent actually better now — or does it just feel that way?**
+
+Everyone working with AI coding agents hits this wall. Skill changes are a leap of faith: maybe the new prompt improves refactoring but quietly breaks the agent's tests. A passing CI check tells you the code *works*; it doesn't tell you whether the agent's output got *better* on the things you care about — architecture, test quality, clarity — or which of two agents does it better on *your* code.
+
+NASDE turns that gut feeling into a **repeatable measurement** you can run on your own machine with a Claude Code or Codex subscription. Define a task you already know the answer to, run different agent configurations against it, and get multi-dimensional scores you can compare and trust.
 
 ## What NASDE does — in four steps
 
@@ -42,6 +50,21 @@ The value shows up the moment you compare configurations. Here are four agent se
 | `codex-guided` (same skill) | 50% | 11.5 | 6.0 | **47.4** |
 
 The same "DDD guidance" skill helps Claude a little (+3.5) and *badly* hurts Codex (−22) — an insight that's invisible without per-dimension assessment, and exactly what NASDE is built to surface. See [A Real Task](/nasde-toolkit/concepts/real-task-example/) for the full breakdown and [Benchmark Results](/nasde-toolkit/guides/benchmark-results/) for more.
+
+## What NASDE is — and is not
+
+It helps to be clear about the boundaries before you invest:
+
+**NASDE is:**
+- A way to **measure and compare agent configurations** (skills, `CLAUDE.md`, MCP, model, reasoning effort) on tasks you define.
+- A **local, offline-friendly** tool — runs on your machine via Docker, billed through your existing `claude` / `codex` / `gemini` subscription or API key.
+- A framework for **building your own benchmarks** from real work (e.g. your git history), with multi-dimensional LLM-as-a-Judge scoring.
+
+**NASDE is not:**
+- **A replacement for your CI or test suite.** The rough `test.sh` is a pass/fail gate, not a full test harness — it answers "did it work?", and the reviewer answers "how good is it?". Neither replaces your real tests.
+- **A production monitor.** It scores agents on benchmark tasks in a sandbox, not live traffic.
+- **A judge of the "one true model."** It surfaces trade-offs (quality vs. cost, per-dimension strengths) — *you* decide what wins for your budget and priorities.
+- **Zero-setup or zero-cost.** It needs Docker and an agent you're authenticated to; each run spends real tokens.
 
 ## What do I use it for?
 

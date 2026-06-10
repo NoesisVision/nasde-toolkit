@@ -1,9 +1,13 @@
 ---
 title: Running & Configuring Runs
-description: The operational side of a run — building from a local repo, scaling on cloud sandboxes, configuring the reviewer agent, and exporting results.
+description: The operational side of a run — building from a local repo, scaling on cloud sandboxes, configuring both the agent under test and the reviewer, and exporting results.
 ---
 
-This guide covers the operational lifecycle of a run, in the order you typically hit it: point it at your code, scale it out, tune the reviewer, and keep the results.
+This guide covers the operational lifecycle of a run, in the order you typically hit it: point it at your code, scale it out, configure the two agents (the one under test and the reviewer), and keep the results.
+
+:::tip[Two agents, configured the same way]
+A NASDE run involves **two** coding agents: the **agent under test** (the one whose configuration you're measuring) and the **reviewer agent** (the LLM-as-a-Judge that scores the result). Both are configurable along the same axes — instructions, skills, MCP servers, model, reasoning effort. The two sections below mirror each other deliberately.
+:::
 
 ## Running on a local repo
 
@@ -55,9 +59,39 @@ harbor_env = "daytona"
 
 See the [Harbor documentation](https://harborframework.com/docs/cloud) for detailed provider configuration.
 
+## Configuring the agent under test
+
+The agent under test is the one whose configuration you're measuring — and **that configuration is the whole point of a benchmark**. A variant bundles everything that defines one agent setup. (For the exact file format, see [Configuration → variant.toml](/nasde-toolkit/reference/configuration/#varianttoml).)
+
+### Instructions (CLAUDE.md / AGENTS.md / GEMINI.md)
+
+The single most important knob: the system instructions you inject into the agent. Each family reads its own file, dropped into the variant directory and injected into the sandbox:
+
+- Claude Code → `CLAUDE.md` → `/app/CLAUDE.md`
+- Codex → `AGENTS.md` → `/app/AGENTS.md`
+- Gemini CLI → `GEMINI.md` → `/app/GEMINI.md`
+
+This is how you test "baseline vs. with my custom prompt" — two variants, same task, different instruction file.
+
+### Skills
+
+Give the agent Claude Code skills two ways: drop them under `variants/<v>/skills/<name>/` (copied in whole, including `references/`), or reference a skill from its source path with a `[[skill]]` entry in `variant.toml` (no copy — staged from the source at an optional git `ref`). Codex and Gemini skills live under `agents_skills/` and `gemini_skills/`. See [Plugins & Skills](/nasde-toolkit/guides/plugins-and-skills/) for the full workflow.
+
+### MCP servers
+
+Wire MCP servers the agent can call during the task. The cleanest path is a `[nasde.plugin]` declaration in `task.toml`, which ships a plugin's skills **and** its MCP server into the sandbox in one line — see [Benchmarking a plugin](/nasde-toolkit/guides/plugins-and-skills/#benchmarking-a-plugin-nasdeplugin).
+
+### Reasoning effort
+
+Set how hard the agent thinks with `reasoning_effort` in `variant.toml`, or override per run with `nasde run --effort`. Family defaults are *not* comparable, so set it deliberately when comparing agents — see [Configuration → Reasoning effort](/nasde-toolkit/reference/configuration/#reasoning-effort).
+
+### Variant scoping
+
+Restrict a variant to specific tasks with `tasks = [...]` in `variant.toml` — useful when a skill is tuned to one repo's conventions and would mislead elsewhere. See [Scoping a variant](/nasde-toolkit/guides/plugins-and-skills/#scoping-a-variant-to-specific-tasks-tasks).
+
 ## Configuring the reviewer agent
 
-The reviewer agent (assessment evaluator) is configurable via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-4-7` with read-only tools (`Read`, `Glob`, `Grep`).
+The reviewer agent (assessment evaluator) is the mirror image of the agent under test: same axes (model, skills, MCP, system prompt), configured via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-4-7` with read-only tools (`Read`, `Glob`, `Grep`).
 
 ### Backend and model
 

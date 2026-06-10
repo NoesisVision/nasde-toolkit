@@ -5,6 +5,16 @@ description: The benchmark project layout and every configuration file — nasde
 
 A benchmark is a directory of plain files. This page covers the layout and the three configuration files: `nasde.toml` (project), `variant.toml` (per agent configuration), and `task.toml` (per task).
 
+## Quick reference: configuring a variant
+
+For the impatient — a variant under test is a directory under `variants/<name>/` with:
+
+- **`variant.toml`** *(required)* — agent type (`claude` / `codex` / `gemini`), model, optional `reasoning_effort`, optional `tasks` scope, optional `[[skill]]` references.
+- **`CLAUDE.md`** / **`AGENTS.md`** / **`GEMINI.md`** — the agent's instructions (one file, matching the family).
+- **`skills/`** *(optional)* — Claude Code skills copied in whole (Codex: `agents_skills/`, Gemini: `gemini_skills/`).
+
+That's the whole agent-under-test surface. The walkthrough — what each knob is *for* — is in [Configuring the agent under test](/nasde-toolkit/guides/running-benchmarks/#configuring-the-agent-under-test); the formats are below.
+
 ## Project layout
 
 ```
@@ -43,6 +53,24 @@ my-benchmark/
 ```
 
 Each agent family injects its instructions differently: Claude Code variants get `CLAUDE.md` → `/app/CLAUDE.md`, Codex variants `AGENTS.md` → `/app/AGENTS.md`, Gemini variants `GEMINI.md` → `/app/GEMINI.md`. Codex/Gemini skills live under `agents_skills/` and `gemini_skills/` respectively.
+
+### What each task file does
+
+Each file in a task feeds a different stage of the run:
+
+```mermaid
+flowchart LR
+    I["instruction.md"] --> AG["Agent under test"]
+    E["environment/<br/>Dockerfile"] --> AG
+    AG --> T["tests/test.sh"] --> R["Reward 0/1"]
+    AG --> RV["Reviewer agent"]
+    AC["assessment_criteria.md<br/>+ assessment_dimensions.json"] --> RV
+    RV --> S["Per-dimension scores"]
+
+    style RV fill:#c0392b,color:#fff
+```
+
+See [Anatomy of a Benchmark](/nasde-toolkit/creating-benchmarks/anatomy/) for the conceptual walkthrough.
 
 ## `nasde.toml`
 

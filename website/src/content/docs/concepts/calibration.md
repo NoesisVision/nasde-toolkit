@@ -7,6 +7,23 @@ description: Close the loop between the LLM judge and your own judgment — publ
 
 The reviewer agent scores trials against a rubric (`assessment_criteria.md` per task, `assessment_dimensions.json` benchmark-wide) — but an LLM judge is an imperfect grader, and the way it reads your rubric can drift from how *you* would grade the code. Before you trust a benchmark, you want to eyeball the actual diffs next to the scores and tighten the rubric wherever the judge and your own judgment disagree. `nasde calibrate` turns that into a loop you run in your normal review tool: GitHub or GitLab.
 
+```mermaid
+flowchart LR
+    A["nasde calibrate publish"] --> B["PR / MR<br/>diff + scores"]
+    B --> C["You review &<br/>comment inline"]
+    C --> D["nasde calibrate<br/>pull-comments"]
+    D --> E["Skill diagnoses<br/>the rubric gap"]
+    E --> F["Edit<br/>assessment_criteria.md"]
+    F --> G["nasde eval<br/>(re-score)"]
+    G --> H{"Judge agrees<br/>now?"}
+    H -->|"no"| A
+    H -->|"yes"| I["Rubric<br/>trusted ✓"]
+
+    style I fill:#1c7a8e,color:#fff
+```
+
+It's a **measure → diagnose → fix → re-measure** loop — the same shape that makes any rubric trustworthy. The steps below walk it once.
+
 ## Set up the sink repo
 
 ```toml

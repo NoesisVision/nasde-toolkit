@@ -79,6 +79,12 @@ The reviewer scores each dimension on whatever scale you chose, with written rea
 
 When the judge's scores feel off, you can align it with your own judgment — see [Calibrating the Rubric](/nasde-toolkit/concepts/calibration/).
 
+Per-dimension scoring is what catches the things a single pass/fail number would hide. A radar makes it concrete — the same workspace can score high on one dimension and low on another:
+
+![Per-dimension scores for one DDD task, shown as a radar across four agent configurations](../../../assets/benchmark/radar_weather.png)
+
+That spread (strong on architecture, weak on test quality, say) is the signal you lose the moment you collapse everything into one average. See [A Real Task](/nasde-toolkit/concepts/real-task-example/) and [Benchmark Results](/nasde-toolkit/guides/benchmark-results/) for the full picture.
+
 ## 6. Results — logged locally, optionally tracked
 
 Every trial writes its artifacts to a local `jobs/` directory: the scores, per-dimension reasoning, [token & cost economics](/nasde-toolkit/concepts/token-cost/), the code diff, and the trajectory. The `nasde run` summary prints a per-configuration table (score, tokens, cost). With `--with-opik` the scores also flow to an [Opik](https://github.com/comet-ml/opik) dashboard for browsing and comparison across runs, and [`nasde results-export`](/nasde-toolkit/guides/running-benchmarks/) copies the analytic essence out of `jobs/` into any plain directory you want to keep.

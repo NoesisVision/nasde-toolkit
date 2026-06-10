@@ -63,11 +63,9 @@
 	font-size: 0.85em;
 }
 
-/* The Previous/Next pager link titles default to a large size; tone them down
-   so they sit closer to the "Previous"/"Next" labels above them. */
-.pagination-links a {
+/* The Previous/Next pager link titles (.link-title) default to ~1.5rem, which
+   reads louder than the page's own body text. Tone them down to body size. */
+.pagination-links a .link-title {
 	font-size: var(--sl-text-base);
-}
-.pagination-links a > span {
-	font-size: var(--sl-text-h5);
+	font-weight: 600;
 }

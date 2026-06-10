@@ -116,6 +116,14 @@ list too would double-inject). Because Harbor's `resolve_skills` keys skills by
 basename (last-wins), nasde warns when two derived dirs share a basename so the
 loser does not silently vanish.
 
+**Coverage note (honest).** The `[[skill]]` path is verified end-to-end on a
+live agent (see Consequences). The `[nasde.plugin]` path shares the same channel
+from `extra_skill_dirs` onward, but there is no example benchmark with a
+`[nasde.plugin]` to run it e2e — so it is covered by an **integration test** that
+drives the real `docker.ensure_task_plugin` staging → `collect_plugin_skill_dirs`
+→ harbor_config (no Docker build), plus unit tests on the resolver. Full
+live-agent e2e for a plugin is a follow-up for when a plugin benchmark exists.
+
 ### Frontmatter guardrail
 
 Codex's loader is strict: a `SKILL.md` that does not **start** with a `---`

@@ -336,10 +336,14 @@ variants/gemini-baseline/
 
 > **Codex/Gemini skills are registered natively** (Harbor `config.agent.skills`),
 > not via `sandbox_files` — these CLIs auto-discover skills only from a
-> HOME-scoped dir, never from a `/app` cwd dir. Each `SKILL.md` **must start with
-> a `---` YAML frontmatter line**: Codex's loader rejects a file that opens with
-> anything else (`missing YAML frontmatter delimited by ---`) and silently skips
-> the skill. Put any provenance comment *below* the closing `---`. See
+> HOME-scoped dir, never from a `/app` cwd dir. This applies to **all** ways a
+> skill is supplied to a Codex/Gemini variant: the `agents_skills/` /
+> `gemini_skills/` snapshot above, a `[[skill]]` by-reference entry in
+> `variant.toml`, and a `[nasde.plugin]`'s own `skills/`. Each `SKILL.md`
+> **must start with a `---` YAML frontmatter line**: Codex's loader rejects a
+> file that opens with anything else (`missing YAML frontmatter delimited by
+> ---`) and silently skips the skill. Put any provenance comment *below* the
+> closing `---`. See
 > [ADR-012](../../../docs/adr/012-native-codex-gemini-skill-injection.md).
 
 If no `harbor_config.json` exists, `nasde` auto-generates one from `variant.toml`. To customize (e.g., add MCP servers), create it explicitly:

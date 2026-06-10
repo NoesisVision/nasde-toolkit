@@ -28,6 +28,8 @@ from nasde_toolkit.docker import (
     ensure_task_plugin,
 )
 from nasde_toolkit.plugin_registration import (
+    collect_plugin_skill_dirs,
+    collect_referenced_skill_dirs,
     inject_mcp_server,
     register_plugin_skills,
     stage_referenced_skills,
@@ -74,9 +76,9 @@ async def run_benchmark(
 
     variant_dir = resolve_variant_dir(config.project_dir, variant)
 
-    extra_sandbox_files = _prepare_task_environments(config, variant_dir)
+    extra_sandbox_files, extra_skill_dirs = _prepare_task_environments(config, variant_dir)
 
-    harbor_config_path = _ensure_harbor_config(variant_dir, variant, extra_sandbox_files)
+    harbor_config_path = _ensure_harbor_config(variant_dir, variant, extra_sandbox_files, extra_skill_dirs)
 
     _ensure_auth(_read_agent_import_path(harbor_config_path))
 
@@ -121,15 +123,28 @@ async def run_benchmark(
 # ---------------------------------------------------------------------------
 
 
-def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> dict[str, str]:
+def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> tuple[dict[str, str], list[str]]:
     """Generate per-task Docker environments and collect agent skill files.
 
     Per task: auto-generate the source Dockerfile/compose ([nasde.source]),
     then stage the [nasde.plugin] tree into the build context, register the
     plugin's own skills, and inject its MCP server into the task's task.toml.
-    Then add the variant's referenced [[skill]] dirs. Returns the extra
-    ``{container_path: host_file}`` entries to merge into the variant's
-    harbor_config.json sandbox_files.
+    Then add the variant's referenced [[skill]] dirs.
+
+    Returns ``(extra_sandbox_files, extra_skill_dirs)``:
+
+    - ``extra_sandbox_files`` — the ``{container_path: host_file}`` map for the
+      **Claude** carrier (``/app/.claude/skills/...``), built unconditionally so
+      Claude stays byte-identical and tested.
+    - ``extra_skill_dirs`` — the same plugin / ``[[skill]]`` skill directories
+      as a host-path list, fed to **Codex/Gemini** through Harbor's native
+      ``config.agent.skills`` (those CLIs scan only a HOME-scoped dir, never the
+      ``/app`` cwd the sandbox map targets). The claude-vs-native choice is made
+      per agent at merge time in ``_refresh_agent_skills``. See ADR-012.
+
+    The ``[[skill]]`` array is resolved twice (once per channel) but each
+    resolution is cheap; a ``ref`` worktree is created by both, deduplicated by
+    ``create_ref_worktree``'s own caching.
 
     Plugin skills go to a single variant-wide ``/app/.claude/skills/`` path,
     so heterogeneous ``[nasde.plugin]`` across tasks in one project would
@@ -140,6 +155,7 @@ def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> dict
     _require_homogeneous_plugins(config)
 
     extra_sandbox_files: dict[str, str] = {}
+    extra_skill_dirs: list[str] = []
 
     for task in config.tasks:
         if task.source is not None:
@@ -152,10 +168,12 @@ def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> dict
                 has_source=task.source is not None,
             )
             register_plugin_skills(staged, extra_sandbox_files)
+            extra_skill_dirs.extend(str(d) for d in collect_plugin_skill_dirs(staged))
             inject_mcp_server(task.path, staged)
 
     stage_referenced_skills(variant_dir, extra_sandbox_files, create_ref_worktree)
-    return extra_sandbox_files
+    extra_skill_dirs.extend(str(d) for d in collect_referenced_skill_dirs(variant_dir, create_ref_worktree))
+    return extra_sandbox_files, extra_skill_dirs
 
 
 def _require_homogeneous_plugins(config: ProjectConfig) -> None:
@@ -535,6 +553,7 @@ def _ensure_harbor_config(
     variant_dir: Path,
     variant: str,
     extra_sandbox_files: dict[str, str],
+    extra_skill_dirs: list[str] | None = None,
 ) -> Path:
     """Generate harbor_config.json if absent, then refresh sandbox_files.
 
@@ -544,12 +563,16 @@ def _ensure_harbor_config(
     ADR-009). This is unconditional so removed/renamed ``[[skill]]`` or
     ``[nasde.plugin]`` entries between runs do not linger as stale mappings
     pointing at now-deleted worktree paths.
+
+    ``extra_skill_dirs`` carries the same plugin / ``[[skill]]`` directories as
+    a host-path list for the Codex/Gemini native channel (``config.agent.skills``);
+    Claude ignores it (its copies ride ``extra_sandbox_files``). See ADR-012.
     """
     harbor_config_path = variant_dir / "harbor_config.json"
     if not harbor_config_path.exists():
         _generate_harbor_config(variant_dir, variant)
 
-    _refresh_sandbox_files(harbor_config_path, variant_dir, extra_sandbox_files)
+    _refresh_sandbox_files(harbor_config_path, variant_dir, extra_sandbox_files, extra_skill_dirs or [])
     return harbor_config_path
 
 
@@ -583,6 +606,7 @@ def _refresh_sandbox_files(
     harbor_config_path: Path,
     variant_dir: Path,
     extra: dict[str, str],
+    extra_skill_dirs: list[str] | None = None,
 ) -> None:
     """Rebuild each agent's sandbox_files, preserving hand-written entries.
 
@@ -609,7 +633,7 @@ def _refresh_sandbox_files(
     config = json.loads(harbor_config_path.read_text())
     agent_type = load_variant_agent_type(variant_dir)
     for agent in config.get("agents", []):
-        _refresh_agent_sandbox_files(agent, variant_dir, agent_type, extra)
+        _refresh_agent_sandbox_files(agent, variant_dir, agent_type, extra, extra_skill_dirs or [])
     harbor_config_path.write_text(json.dumps(config, indent=2))
 
 
@@ -618,6 +642,7 @@ def _refresh_agent_sandbox_files(
     variant_dir: Path,
     agent_type: str,
     extra: dict[str, str],
+    extra_skill_dirs: list[str],
 ) -> None:
     kwargs = agent.setdefault("kwargs", {})
     current = kwargs.get("sandbox_files", {}) or {}
@@ -635,32 +660,98 @@ def _refresh_agent_sandbox_files(
 
     kwargs["sandbox_files"] = {**extra, **authored, **handwritten}
     agent["_nasde_derived_keys"] = sorted(extra.keys())
-    _refresh_agent_skills(agent, variant_dir, agent_type)
+    _refresh_agent_skills(agent, variant_dir, agent_type, extra_skill_dirs)
 
 
-def _refresh_agent_skills(agent: dict, variant_dir: Path, agent_type: str) -> None:
+def _refresh_agent_skills(
+    agent: dict,
+    variant_dir: Path,
+    agent_type: str,
+    extra_skill_dirs: list[str] | None = None,
+) -> None:
     """Rebuild the agent's ``skills`` list, preserving hand-authored entries.
 
-    nasde owns the entries derived from the variant's ``agents_skills/`` /
-    ``gemini_skills/`` subdirs (tracked via ``_nasde_derived_skills``). A
-    removed skill dir disappears from the list on the next run, exactly like a
-    removed ``[[skill]]`` drops from ``sandbox_files``. Any other entry was put
-    in ``harbor_config.json`` by hand and is kept untouched, so an author who
-    wires Harbor-native ``skills`` themselves is never clobbered.
+    nasde owns the entries derived from **two** sources, both routed through
+    Harbor's native ``config.agent.skills`` for Codex/Gemini:
+
+    1. the variant's ``agents_skills/`` / ``gemini_skills/`` snapshot subdirs
+       (``_collect_native_skill_dirs``), and
+    2. ``[[skill]]`` by-reference + ``[nasde.plugin]`` skills resolved this run
+       (``extra_skill_dirs``), which for Claude instead ride ``sandbox_files``.
+
+    The union is tracked via a single ``_nasde_derived_skills`` marker, so a
+    removed skill from *either* source drops on the next run while a
+    hand-authored ``skills`` entry is preserved. Any entry that is neither
+    derived this run nor was nasde-derived last run was put in
+    ``harbor_config.json`` by hand and is kept untouched.
 
     The skill subdir is keyed on *this agent's own* type, read back from its
     ``import_path`` (falling back to the variant's declared type). A variant is
     one agent type by contract, but a hand-written multi-agent config can mix
-    types — keying per agent keeps each one reading the right subdir instead of
-    the variant's first declared type.
+    types — keying per agent keeps each one reading the right subdir. For a
+    Claude agent ``extra_skill_dirs`` is intentionally dropped: those skills are
+    already carried in ``sandbox_files`` to ``/app/.claude/skills`` (and would
+    double-inject otherwise). See ADR-012.
     """
     effective_type = _agent_type_from_import_path(agent.get("import_path")) or agent_type
-    derived = _collect_native_skill_dirs(variant_dir, effective_type)
+    snapshot = _collect_native_skill_dirs(variant_dir, effective_type)
+    referenced = _referenced_skill_dirs_for_agent(effective_type, extra_skill_dirs or [])
+    derived = _dedup_preserving_order(snapshot + referenced)
+
+    _warn_skill_basename_collisions(str(agent.get("name", "<unnamed>")), derived)
+
     prev_derived = set(agent.get("_nasde_derived_skills", []) or [])
     current = agent.get("skills", []) or []
     handwritten = [s for s in current if s not in prev_derived and s not in derived]
     agent["skills"] = derived + handwritten
     agent["_nasde_derived_skills"] = sorted(derived)
+
+
+def _referenced_skill_dirs_for_agent(effective_type: str, extra_skill_dirs: list[str]) -> list[str]:
+    """``[[skill]]``/plugin dirs for the native channel — empty for Claude.
+
+    Claude's referenced/plugin skills already ride ``sandbox_files`` to its
+    cwd ``/app/.claude/skills`` discovery root, so feeding them here too would
+    double-inject. Codex/Gemini get the dir list and warn on bad frontmatter.
+    """
+    if effective_type == "claude":
+        return []
+    for skill_dir in extra_skill_dirs:
+        skill_md = Path(skill_dir) / "SKILL.md"
+        if skill_md.exists():
+            _warn_if_skill_frontmatter_malformed(skill_md, effective_type)
+    return extra_skill_dirs
+
+
+def _dedup_preserving_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def _warn_skill_basename_collisions(agent_name: str, skill_dirs: list[str]) -> None:
+    """Warn when two derived skill dirs share a basename (Harbor last-wins).
+
+    Harbor's ``resolve_skills`` keys skills by ``dir.name`` and the last one
+    wins, so a snapshot ``agents_skills/foo`` and a referenced ``.../foo`` with
+    the same basename silently collapse to one in the container. Surface it so
+    the loser doesn't vanish unnoticed.
+    """
+    by_name: dict[str, list[str]] = {}
+    for skill_dir in skill_dirs:
+        by_name.setdefault(Path(skill_dir).name, []).append(skill_dir)
+    for name, dirs in sorted(by_name.items()):
+        if len(dirs) > 1:
+            joined = "\n  ".join(dirs)
+            console.print(
+                f"[yellow]WARNING ({agent_name}): {len(dirs)} skill dirs share the basename "
+                f"'{name}' — Harbor registers only the last (the others vanish):\n  {joined}\n"
+                "  → rename one skill dir so each has a unique name.[/yellow]"
+            )
 
 
 def _agent_type_from_import_path(import_path: str | None) -> str | None:

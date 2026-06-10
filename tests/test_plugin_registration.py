@@ -11,6 +11,8 @@ import pytest
 
 from nasde_toolkit.docker import StagedPlugin, cleanup_worktrees, create_ref_worktree
 from nasde_toolkit.plugin_registration import (
+    collect_plugin_skill_dirs,
+    collect_referenced_skill_dirs,
     inject_mcp_server,
     register_plugin_skills,
     stage_referenced_skills,
@@ -359,6 +361,97 @@ def test_stage_referenced_skills_no_entries_is_noop(tmp_path: Path) -> None:
     stage_referenced_skills(variant_dir, sandbox, create_ref_worktree)
 
     assert sandbox == {}
+
+
+# --- collect_referenced_skill_dirs / collect_plugin_skill_dirs (ADR-012) ---
+# Dir-list counterparts feeding the Codex/Gemini native config.agent.skills path.
+
+
+def test_collect_referenced_skill_dirs_returns_dirs_not_sandbox(tmp_path: Path) -> None:
+    src_skills = tmp_path / "src" / "skills"
+    src_skills.mkdir(parents=True)
+    skill = _make_skill(src_skills, "analyze-conversation")
+
+    variant_dir = tmp_path / "variants" / "with-skill"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "variant.toml").write_text(
+        'agent = "codex"\nmodel = "m"\n\n[[skill]]\npath = "../../src/skills/analyze-conversation"\n'
+    )
+
+    dirs = collect_referenced_skill_dirs(variant_dir, create_ref_worktree)
+
+    assert dirs == [skill.resolve()]
+
+
+def test_collect_referenced_skill_dirs_no_entries_is_empty(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "vanilla"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "variant.toml").write_text('agent = "codex"\nmodel = "m"\n')
+
+    assert collect_referenced_skill_dirs(variant_dir, create_ref_worktree) == []
+
+
+def test_collect_referenced_skill_dirs_missing_skill_md_raises(tmp_path: Path) -> None:
+    bad = tmp_path / "src" / "not-a-skill"
+    bad.mkdir(parents=True)
+    variant_dir = tmp_path / "variants" / "v"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "variant.toml").write_text(
+        'agent = "codex"\nmodel = "m"\n\n[[skill]]\npath = "../../src/not-a-skill"\n'
+    )
+
+    with pytest.raises(RuntimeError, match="no SKILL.md"):
+        collect_referenced_skill_dirs(variant_dir, create_ref_worktree)
+
+
+def test_collect_referenced_skill_dirs_ref_uses_snapshot(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    skills = repo / "src" / "skills"
+    skills.mkdir(parents=True)
+    _make_skill(skills, "analyze-conversation")
+    subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, capture_output=True, check=True)
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    (skills / "analyze-conversation" / "SKILL.md").write_text("---\nname: analyze-conversation\n---\nCHANGED")
+    subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", "later"], cwd=repo, capture_output=True, check=True)
+
+    variant_dir = tmp_path / "variants" / "with-skill"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "variant.toml").write_text(
+        'agent = "codex"\nmodel = "m"\n\n'
+        "[[skill]]\n"
+        f'path = "../../repo/src/skills/analyze-conversation"\nref = "{commit}"\n'
+    )
+
+    try:
+        dirs = collect_referenced_skill_dirs(variant_dir, create_ref_worktree)
+        assert len(dirs) == 1
+        assert "CHANGED" not in (dirs[0] / "SKILL.md").read_text()
+    finally:
+        cleanup_worktrees()
+
+
+def test_collect_plugin_skill_dirs_returns_each_skill(tmp_path: Path) -> None:
+    staged = _staged_plugin(tmp_path)
+
+    dirs = collect_plugin_skill_dirs(staged)
+
+    assert dirs == [staged.staged_dir / "skills" / "analyze-conversation"]
+
+
+def test_collect_plugin_skill_dirs_noop_without_skills(tmp_path: Path) -> None:
+    staged_dir = tmp_path / "_nasde-plugin"
+    (staged_dir / ".claude-plugin").mkdir(parents=True)
+    (staged_dir / ".claude-plugin" / "plugin.json").write_text("{}")
+    staged = StagedPlugin(staged_dir=staged_dir, install_root="/opt/x", plugin_name="x", env={})
+
+    assert collect_plugin_skill_dirs(staged) == []
 
 
 def test_stage_referenced_skills_ref_uses_snapshot(tmp_path: Path) -> None:

@@ -11,11 +11,17 @@ Code agent discovers it, and one of them also needs to wire an MCP server:
 2. The ``[[skill]]`` array in variant.toml references a skill from a source
    path instead of copying it into ``variants/<v>/skills/``.
 
-Both feed :func:`stage_skill_dir`, which expands a skill directory into the
-flat ``{container_path: host_file}`` mapping ConfigurableClaude uploads
-(it only uploads regular files, mirroring ``_collect_codex_skills``). The
-plugin path additionally calls :func:`inject_mcp_server` to register the
-plugin's MCP server in the task's Harbor config.
+For **Claude** both feed :func:`stage_skill_dir`, which expands a skill
+directory into the flat ``{container_path: host_file}`` mapping
+ConfigurableClaude uploads to ``/app/.claude/skills`` (Claude's cwd discovery
+root). The plugin path additionally calls :func:`inject_mcp_server` to register
+the plugin's MCP server in the task's Harbor config.
+
+For **Codex/Gemini** the same skill *directories* are resolved by
+:func:`collect_referenced_skill_dirs` / :func:`collect_plugin_skill_dirs` and
+fed to Harbor's native ``config.agent.skills`` instead — those CLIs scan only a
+HOME-scoped dir (``$HOME/.agents/skills``, ``~/.gemini/skills``), never the
+``/app`` cwd the sandbox map targets. See ADR-012.
 """
 
 from __future__ import annotations
@@ -117,6 +123,48 @@ def stage_referenced_skills(
             raise RuntimeError(f"[[skill]] '{resolved}' has no SKILL.md")
         stage_skill_dir(resolved, sandbox_files)
         console.print(f"  [dim]Registered referenced skill '{resolved.name}'[/dim]")
+
+
+def collect_referenced_skill_dirs(
+    variant_dir: Path,
+    worktree_factory: WorktreeFactory,
+) -> list[Path]:
+    """Resolve the ``[[skill]]`` array to a list of whole skill directories.
+
+    Same resolution as :func:`stage_referenced_skills` (each entry's ``path``
+    relative to the variant dir, optional ``ref`` read from a temporary git
+    worktree) but returns the resolved *directories* instead of flattening them
+    into a ``sandbox_files`` map under ``/app/.claude/skills``. Codex and Gemini
+    auto-discover skills only from a HOME-scoped dir, never from the agent's
+    ``/app`` cwd, so they take this dir list through Harbor's native
+    ``config.agent.skills`` mechanism. Claude keeps using
+    :func:`stage_referenced_skills`. See ADR-012.
+    """
+    dirs: list[Path] = []
+    for entry in _read_skill_entries(variant_dir):
+        resolved = _resolve_skill_source(variant_dir, entry["path"], entry.get("ref", ""), worktree_factory)
+        if not (resolved / "SKILL.md").exists():
+            raise RuntimeError(f"[[skill]] '{resolved}' has no SKILL.md")
+        dirs.append(resolved)
+    return dirs
+
+
+def collect_plugin_skill_dirs(staged: StagedPlugin) -> list[Path]:
+    """Resolve a shipped plugin's own ``skills/`` to a list of skill dirs.
+
+    The dir-list counterpart of :func:`register_plugin_skills`, for the same
+    reason as :func:`collect_referenced_skill_dirs`: Codex/Gemini take these
+    dirs through Harbor's native ``config.agent.skills`` rather than a
+    cwd ``sandbox_files`` mapping.
+    """
+    skills_root = staged.staged_dir / "skills"
+    if not skills_root.is_dir():
+        return []
+    return [
+        skill_dir
+        for skill_dir in sorted(skills_root.iterdir())
+        if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists()
+    ]
 
 
 def inject_mcp_server(task_dir: Path, staged: StagedPlugin) -> None:

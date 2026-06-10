@@ -520,3 +520,114 @@ def test_refresh_keys_skills_per_agent_in_mixed_config(tmp_path: Path) -> None:
 
     assert _skills(harbor_path, agent_index=0) == [str(codex_skill.resolve())]
     assert _skills(harbor_path, agent_index=1) == [str(gemini_skill.resolve())]
+
+
+# ---------------------------------------------------------------------------
+# extra_skill_dirs — [[skill]] / [nasde.plugin] native channel (ADR-012)
+# ---------------------------------------------------------------------------
+#
+# For Codex/Gemini these dirs flow into agent["skills"] (Harbor native), NOT
+# into /app/.claude/skills sandbox_files. For Claude they are dropped here
+# (they already ride sandbox_files via stage_referenced_skills/register).
+
+
+def _standalone_skill(parent: Path, name: str) -> Path:
+    skill = parent / name
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\nbody")
+    return skill
+
+
+def test_extra_skill_dirs_go_to_native_skills_for_codex(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    assert _skills(harbor_path) == [str(referenced)]
+
+
+def test_extra_skill_dirs_dropped_for_claude(tmp_path: Path) -> None:
+    """Claude's [[skill]]/plugin skills ride sandbox_files (stage_skill_dir),
+    so the native channel must stay empty — feeding it here would double-inject."""
+    variant_dir = _bare_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    assert _skills(harbor_path) == []
+
+
+def test_extra_skill_dirs_union_with_snapshot(tmp_path: Path) -> None:
+    """snapshot (agents_skills/) ∪ [[skill]]/plugin (extra_skill_dirs) — both
+    land in agent.skills, tracked by one _nasde_derived_skills marker."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    snapshot = _make_native_skill(variant_dir, "agents_skills", "snap-skill")
+    referenced = _standalone_skill(tmp_path / "src", "ref-skill")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    assert set(_skills(harbor_path)) == {str(snapshot.resolve()), str(referenced)}
+
+
+def test_extra_skill_dirs_stale_drop_between_runs(tmp_path: Path) -> None:
+    """A [[skill]] removed between runs drops from agent.skills next run."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+    assert _skills(harbor_path) == [str(referenced)]
+
+    _ensure_harbor_config(variant_dir, "v", {}, [])
+    assert _skills(harbor_path) == []
+
+
+def test_extra_skill_dirs_preserves_handwritten(tmp_path: Path) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+    config = json.loads(harbor_path.read_text())
+    config["agents"][0]["skills"] = ["/host/hand/authored-skill"]
+    harbor_path.write_text(json.dumps(config))
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    skills = _skills(harbor_path)
+    assert str(referenced) in skills
+    assert "/host/hand/authored-skill" in skills
+
+
+def test_extra_skill_dirs_warns_on_basename_collision(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """snapshot agents_skills/foo and referenced .../foo share a basename —
+    Harbor registers only the last (last-wins). Warn so the loser isn't lost."""
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+    collide = _standalone_skill(tmp_path / "elsewhere", "tactical-ddd")
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(collide)])
+
+    out = capsys.readouterr().out
+    assert "share the basename" in out
+    assert "tactical-ddd" in out
+
+
+def test_extra_skill_dirs_warns_on_malformed_frontmatter(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    variant_dir = _codex_variant(tmp_path / "variants" / "v")
+    bad = tmp_path / "src" / "tactical-ddd"
+    bad.mkdir(parents=True)
+    (bad / "SKILL.md").write_text("<!-- Source: x -->\n---\nname: tactical-ddd\n---\nbody")
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(bad)])
+
+    assert "missing YAML frontmatter" in capsys.readouterr().out

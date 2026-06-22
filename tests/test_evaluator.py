@@ -278,6 +278,8 @@ def test_assessment_summary_includes_economics(tmp_path: Path) -> None:
     # sonnet $3/$15: 1M*3 + 0.06M*15 = 3.9
     assert summary.cost_usd == pytest.approx(3.9)
     assert summary.pricing_as_of == "2026-06-08"
+    assert not hasattr(summary, "cost_efficiency")  # removed: arbitrary zero → use Pareto front
+    assert not hasattr(summary, "token_efficiency")
 
 
 def _model_block(name: str, input_per_1m: float, output_per_1m: float) -> str:
@@ -319,8 +321,6 @@ def test_evaluator_three_layer_compose_e2e(tmp_path: Path, monkeypatch: pytest.M
     assert summary is not None
     assert summary.model_name == "azure-gpt5"
     assert summary.cost_usd == pytest.approx(1_000_000 / 1e6 * 0.5 + 60_000 / 1e6 * 1.0)
-    assert not hasattr(summary, "cost_efficiency")  # removed: arbitrary zero → use Pareto front
-    assert not hasattr(summary, "token_efficiency")
 
 
 def test_assessment_summary_economics_null_without_trajectory(tmp_path: Path) -> None:

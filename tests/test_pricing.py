@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from nasde_toolkit import pricing as pricing_module
 from nasde_toolkit.pricing import (
     compute_cost_usd,
     load_pricing,
@@ -26,13 +25,6 @@ def _model_block(name: str, input_per_1m: float, output_per_1m: float, source: s
     if source is not None:
         block += f'source = "{source}"\n'
     return block
-
-
-@pytest.fixture
-def empty_user_layer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    user_file = tmp_path / "user-home" / ".nasde" / "pricing.toml"
-    monkeypatch.setattr(pricing_module, "_user_pricing_path", lambda: user_file)
-    return user_file
 
 
 def test_load_bundled_pricing_has_matrix_models() -> None:

@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from nasde_toolkit import pricing as pricing_module
 from nasde_toolkit.results_exporter import (
     _capture_patch,
     _classify_path,
@@ -324,13 +323,6 @@ def test_export_legacy_bare_idempotent(tmp_path: Path) -> None:
 
     out = dest / "2026-06-03__legacy-job__demo-task__bare2"
     assert out.name in second.skipped
-
-
-@pytest.fixture
-def empty_user_layer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    user_file = tmp_path / "user-home" / ".nasde" / "pricing.toml"
-    monkeypatch.setattr(pricing_module, "_user_pricing_path", lambda: user_file)
-    return user_file
 
 
 def test_export_picks_up_project_pricing_override(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:

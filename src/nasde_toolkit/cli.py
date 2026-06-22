@@ -483,7 +483,7 @@ def migrate_evals_command(
     from nasde_toolkit.config import load_project_config
     from nasde_toolkit.eval_migration import migrate_job_evals
 
-    load_project_config(project_dir.resolve())
+    config = load_project_config(project_dir.resolve())
 
     from nasde_toolkit.banner import print_banner
 
@@ -495,7 +495,7 @@ def migrate_evals_command(
         )
     )
 
-    outcomes = migrate_job_evals(path.resolve(), dry_run=dry_run)
+    outcomes = migrate_job_evals(path.resolve(), dry_run=dry_run, project_dir=config.project_dir)
 
     from rich.table import Table
 

@@ -36,7 +36,7 @@ from nasde_toolkit.git_platform_backends.git_ops import (
     push_feature_branch,
 )
 from nasde_toolkit.git_platform_backends.protocol import GitPlatformBackend, PrRef, ReviewComment
-from nasde_toolkit.pricing import load_pricing_layered
+from nasde_toolkit.pricing import ModelPrice, load_pricing_layered
 from nasde_toolkit.results_exporter import (
     _build_metrics,
     _capture_patch,
@@ -89,11 +89,12 @@ def publish_trials(
     """Publish the given job/trial paths as PRs/MRs on the sink repo."""
     backend = _preflight(repo, repo_url, platform_override)
     trials = _expand_to_trials(paths)
+    pricing = load_pricing_layered(project_root)
     summary = PublishSummary()
     for index, (_, trial_dir) in enumerate(trials):
         if index > 0:
             time.sleep(throttle_sec)
-        _publish_one_trial(trial_dir, backend, repo, repo_url, base_branch, project_root, summary)
+        _publish_one_trial(trial_dir, backend, repo, repo_url, base_branch, project_root, pricing, summary)
     _print_publish_summary(summary, repo)
     return summary
 
@@ -138,6 +139,7 @@ def _publish_one_trial(
     repo_url: str,
     base_branch: str,
     project_root: Path | None,
+    pricing: dict[str, ModelPrice],
     summary: PublishSummary,
 ) -> None:
     label = trial_dir.name
@@ -149,7 +151,7 @@ def _publish_one_trial(
         if existing is not None:
             _record_skip(summary, label, base, feature, existing)
             return
-        created = _open_pr_for_trial(trial_dir, backend, repo, repo_url, base, feature, project_root)
+        created = _open_pr_for_trial(trial_dir, backend, repo, repo_url, base, feature, project_root, pricing)
         summary.published.append(PublishedTrial(label, base, feature, created.number, created.url, created=True))
         console.print(f"  [green]published: {label} → {created.url}[/green]")
     except Exception as error:
@@ -165,9 +167,10 @@ def _open_pr_for_trial(
     base: str,
     feature: str,
     project_root: Path | None,
+    pricing: dict[str, ModelPrice],
 ) -> PrRef:
     workspace = trial_dir / "artifacts" / "workspace"
-    metrics = _build_metrics(trial_dir, load_pricing_layered(project_root))
+    metrics = _build_metrics(trial_dir, pricing)
     summary = _summarize_trial(trial_dir)
     title = _pr_title(trial_dir, summary)
     body = _render_pr_body(summary, metrics)

@@ -46,7 +46,7 @@ pip install nasde-toolkit
 # Latest unreleased changes from main (for testing PRs and dev builds)
 uv tool install git+https://github.com/NoesisVision/nasde-toolkit.git --python 3.13
 
-# Local clone (for developing NASDE itself)
+# Local clone (for developing Nasde itself)
 git clone git@github.com:NoesisVision/nasde-toolkit.git
 cd nasde-toolkit
 uv sync
@@ -60,7 +60,7 @@ pipx upgrade nasde-toolkit          # if installed via pipx
 pip install --upgrade nasde-toolkit # if installed via pip
 ```
 
-`nasde` checks PyPI for newer releases on startup and prints a one-line notice on stderr when an upgrade is available (severity-tinted: patch / minor / major). Disable with `NASDE_NO_UPDATE_CHECK=1` or `CI=true`.
+`nasde` checks PyPI for newer releases on startup and prints a one-line notice on stderr when an upgrade is available (severity-tinted: patch / minor / major). Disable with `Nasde_NO_UPDATE_CHECK=1` or `CI=true`.
 
 After installation, only `nasde` appears on PATH. Harbor and Opik are bundled as core dependencies. The reviewer agent spawns your already-installed `claude` or `codex` CLI as a subprocess (not bundled), so it reuses whatever authentication you've set up interactively. Check the installed version with `nasde --version`.
 
@@ -73,14 +73,14 @@ nasde install-skills
 This copies the bundled `nasde-benchmark-*` skills into `~/.claude/skills/` so they're available in every Claude Code session. Use `--scope project` to install into the current project's `.claude/skills/` instead, or `--force` to overwrite after a `nasde` upgrade.
 
 :::note
-The authoring helpers are Claude Code skills. Codex and Gemini users can still run NASDE from the CLI — the skills just speed up *creating* benchmarks; they are not required to *run* them.
+The authoring helpers are Claude Code skills. Codex and Gemini users can still run Nasde from the CLI — the skills just speed up *creating* benchmarks; they are not required to *run* them.
 :::
 
 ## Build your first benchmark from git history
 
 Open your own project in Claude Code and say something like:
 
-> *"Create a NASDE benchmark with a single task, based on a recent piece of work from this repo — a commit, a range of commits, or a merged PR."*
+> *"Create a Nasde benchmark with a single task, based on a recent piece of work from this repo — a commit, a range of commits, or a merged PR."*
 
 Start with **one task**. Point the skill at whatever unit of work feels self-contained in your workflow — a single commit, a range, a merged MR/PR, or an issue that was closed by a set of commits. The `nasde-benchmark-from-history` skill proposes a good candidate, and generates one task directory with `instruction.md`, a Dockerfile, `test.sh`, and a starter `assessment_criteria.md`. You review each file before it's written.
 

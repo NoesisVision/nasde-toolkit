@@ -58,6 +58,6 @@ A separate study took a public DDD skill (the `tactical-ddd` skill from `ntcodin
 ## More benchmarks in the repo
 
 - **Refactoring katas (Java + Python)** — four classic refactorings scored on behavior preservation, clarity, technique, scope discipline. *Takeaway:* a candidate "refactoring skill" didn't move the score — shipping it would have been based on vibes.
-- **Project-specific skill validation (NASDE's own repo)** — one task pulled from NASDE's git history; four skill combinations tested. *Takeaway:* the testing-discipline skill alone raised pass rate from 67% → 100%; the "full-stack, everything-on" variant scored *worse* than vanilla.
+- **Project-specific skill validation (Nasde's own repo)** — one task pulled from Nasde's git history; four skill combinations tested. *Takeaway:* the testing-discipline skill alone raised pass rate from 67% → 100%; the "full-stack, everything-on" variant scored *worse* than vanilla.
 
 See **[Benchmark Results](/nasde-toolkit/guides/benchmark-results/)** for the full tables and methodology, and **[Use Cases](/nasde-toolkit/guides/use-cases/)** for the end-to-end walkthrough of building a benchmark like these yourself.

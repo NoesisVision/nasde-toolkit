@@ -1,9 +1,9 @@
 ---
 title: How It Works
-description: The two kinds of scoring in NASDE and the full evaluation pipeline, stage by stage — from task definition through the reviewer agent to logged results.
+description: The two kinds of scoring in Nasde and the full evaluation pipeline, stage by stage — from task definition through the reviewer agent to logged results.
 ---
 
-The question that trips most people up is *how* NASDE scores a run. The short answer: there are **two independent kinds of scoring**, and they answer different questions. The rest of this page explains both, then walks the whole pipeline stage by stage.
+The question that trips most people up is *how* Nasde scores a run. The short answer: there are **two independent kinds of scoring**, and they answer different questions. The rest of this page explains both, then walks the whole pipeline stage by stage.
 
 ## Two independent kinds of scoring
 
@@ -26,7 +26,7 @@ flowchart LR
     style E fill:#c0392b,color:#fff
 ```
 
-One `nasde run` command drives this whole chain. Stage 1 (the agent doing the work in a sandbox) comes from [Harbor](https://www.harborframework.com/); the optional tracking stage at the end uses [Opik](https://github.com/comet-ml/opik). NASDE is the glue that connects them, adds the reviewer stage in between, and gives you the CLI, the benchmark project layout, and the [authoring skills](/nasde-toolkit/getting-started/quick-start/).
+One `nasde run` command drives this whole chain. Stage 1 (the agent doing the work in a sandbox) comes from [Harbor](https://www.harborframework.com/); the optional tracking stage at the end uses [Opik](https://github.com/comet-ml/opik). Nasde is the glue that connects them, adds the reviewer stage in between, and gives you the CLI, the benchmark project layout, and the [authoring skills](/nasde-toolkit/getting-started/quick-start/).
 
 ## 1. The task — what you define
 
@@ -41,12 +41,12 @@ You don't have to write all of these by hand — the [authoring skills](/nasde-t
 
 ## 2. The agent solves it — in an isolated sandbox
 
-NASDE hands the task to the coding agent under test (Claude Code, Codex, or Gemini CLI) running inside a fresh, isolated container — locally on Docker by default, or on a [cloud sandbox provider](/nasde-toolkit/guides/running-benchmarks/) for horizontal scale. Isolation matters for two reasons:
+Nasde hands the task to the coding agent under test (Claude Code, Codex, or Gemini CLI) running inside a fresh, isolated container — locally on Docker by default, or on a [cloud sandbox provider](/nasde-toolkit/guides/running-benchmarks/) for horizontal scale. Isolation matters for two reasons:
 
 - **Safety** — the agent can `rm -rf`, install arbitrary packages, or loop your test suite without touching your machine.
 - **Fairness** — every trial starts from the same clean state, so a score difference reflects the *configuration* (the `CLAUDE.md`, the skill, the MCP server, the model, the reasoning effort), not leftover state from a previous run.
 
-What varies between runs is exactly one thing: the **variant** — the agent configuration you're testing. That's how NASDE turns "did my skill help?" into a controlled experiment. See [Configuration → variant.toml](/nasde-toolkit/reference/configuration/) for what a variant can change.
+What varies between runs is exactly one thing: the **variant** — the agent configuration you're testing. That's how Nasde turns "did my skill help?" into a controlled experiment. See [Configuration → variant.toml](/nasde-toolkit/reference/configuration/) for what a variant can change.
 
 ## 3. Rough tests — a deterministic pass/fail
 
@@ -60,7 +60,7 @@ This is the standard verifier pattern used by [Harbor](https://www.harborframewo
 
 ## 4. The reviewer agent — reading the actual work
 
-This is the stage NASDE adds, and it's why the pipeline exists. A **second coding agent** (`claude` or `codex`) is pointed at the produced workspace and navigates it with real tools — `Read`, `Glob`, `Grep`, optionally MCP analysis servers — reading only what each dimension needs rather than stuffing the whole repo into a prompt. That's what keeps the review tractable on large codebases. It can also read the agent's full **trajectory** (tool calls, tokens, timing), so your criteria can judge the *process*, not just the final files.
+This is the stage Nasde adds, and it's why the pipeline exists. A **second coding agent** (`claude` or `codex`) is pointed at the produced workspace and navigates it with real tools — `Read`, `Glob`, `Grep`, optionally MCP analysis servers — reading only what each dimension needs rather than stuffing the whole repo into a prompt. That's what keeps the review tractable on large codebases. It can also read the agent's full **trajectory** (tool calls, tokens, timing), so your criteria can judge the *process*, not just the final files.
 
 The reviewer's reference point is **two files you write** when creating the benchmark:
 
@@ -75,7 +75,7 @@ You decide how strict the criteria are — spell out a ground-truth structure, e
 
 The reviewer scores each dimension on whatever scale you chose, with written reasoning for each. One local `nasde run` handles all of it — no separate LLM-as-a-judge stack required.
 
-**The reviewer runs more than once.** An LLM judge is non-deterministic — score the same workspace twice and you can get 0.61 then 0.71. So by default NASDE evaluates each trial **3 times** (`eval_repetitions`, set in `nasde.toml [evaluation]` or with `--eval-repetitions`) and reports the **mean** rather than any single run. Each evaluation is kept as its own `assessment_eval_<N>.json`; a derived `assessment_summary.json` holds the per-dimension mean, standard deviation, and range. Means are computed only within a single judge model **and a single rubric** — a Claude review and a Codex review are different benchmarks, and so is a review run after you edited `assessment_dimensions.json` (the rubric is fingerprinted, so changing a dimension, its `max_score`, or even its description starts a fresh cluster rather than silently mixing incomparable scores). After editing the rubric, just re-run `nasde eval` — the new evaluations form their own cluster automatically.
+**The reviewer runs more than once.** An LLM judge is non-deterministic — score the same workspace twice and you can get 0.61 then 0.71. So by default Nasde evaluates each trial **3 times** (`eval_repetitions`, set in `nasde.toml [evaluation]` or with `--eval-repetitions`) and reports the **mean** rather than any single run. Each evaluation is kept as its own `assessment_eval_<N>.json`; a derived `assessment_summary.json` holds the per-dimension mean, standard deviation, and range. Means are computed only within a single judge model **and a single rubric** — a Claude review and a Codex review are different benchmarks, and so is a review run after you edited `assessment_dimensions.json` (the rubric is fingerprinted, so changing a dimension, its `max_score`, or even its description starts a fresh cluster rather than silently mixing incomparable scores). After editing the rubric, just re-run `nasde eval` — the new evaluations form their own cluster automatically.
 
 When the judge's scores feel off, you can align it with your own judgment — see [Calibrating the Rubric](/nasde-toolkit/concepts/calibration/).
 

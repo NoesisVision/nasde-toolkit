@@ -3,7 +3,7 @@ title: Assessment Criteria & Dimensions
 description: How to write the rubric the reviewer scores against — define dimensions, set independent scales, and write score ladders that capture what "good" means to you.
 ---
 
-The rubric is where NASDE's value lives. The rough `test.sh` answers "did it work?"; the rubric answers "how *good* is it?" — and you're the one who decides what good means. This page is how you write it.
+The rubric is where Nasde's value lives. The rough `test.sh` answers "did it work?"; the rubric answers "how *good* is it?" — and you're the one who decides what good means. This page is how you write it.
 
 The rubric is two files:
 
@@ -67,5 +67,5 @@ Whatever you choose, write it so a careful human reviewer would score the same w
 ## Tips
 
 - **Score the process, not just the output.** With `include_trajectory` enabled, the reviewer can read the agent's tool-call trace — so a dimension can reward verification discipline or penalize thrashing. See [Configuring the reviewer agent](/nasde-toolkit/guides/running-benchmarks/#configuring-the-reviewer-agent).
-- **Edit, then re-score, never silently mix.** Changing a dimension or its `max_score` makes a different benchmark; NASDE fingerprints the rubric so old and new scores never average together. Just re-run `nasde eval`.
+- **Edit, then re-score, never silently mix.** Changing a dimension or its `max_score` makes a different benchmark; Nasde fingerprints the rubric so old and new scores never average together. Just re-run `nasde eval`.
 - **Start with one task.** Get the rubric right on a single task before scaling — a good ladder is reusable; a vague one multiplies noise.

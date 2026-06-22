@@ -1,9 +1,9 @@
 ---
 title: Key Terms
-description: A glossary of the NASDE vocabulary — variant, trial, job, rubric, dimension, reviewer, trajectory, and the tools it builds on.
+description: A glossary of the Nasde vocabulary — variant, trial, job, rubric, dimension, reviewer, trajectory, and the tools it builds on.
 ---
 
-NASDE has its own vocabulary. If a word in the docs is unfamiliar, it's probably here.
+Nasde has its own vocabulary. If a word in the docs is unfamiliar, it's probably here.
 
 ## The benchmark you author
 
@@ -50,10 +50,10 @@ NASDE has its own vocabulary. If a word in the docs is unfamiliar, it's probably
 **Sandbox**
 : The isolated container the agent works in. It can't touch your machine, and every trial starts from the same clean state.
 
-## The tools NASDE builds on
+## The tools Nasde builds on
 
 **Harbor**
-: The framework that runs the agent in a sandbox (Stage 1). NASDE uses its Python API directly. [harborframework.com](https://www.harborframework.com/)
+: The framework that runs the agent in a sandbox (Stage 1). Nasde uses its Python API directly. [harborframework.com](https://www.harborframework.com/)
 
 **Opik**
 : The optional experiment tracker scores flow to with `--with-opik`. [Opik by Comet](https://github.com/comet-ml/opik)

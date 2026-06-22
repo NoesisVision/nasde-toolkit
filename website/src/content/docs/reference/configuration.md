@@ -21,6 +21,7 @@ That's the whole agent-under-test surface. The walkthrough — what each knob is
 my-benchmark/
   nasde.toml                  # Project configuration
   assessment_dimensions.json   # Scoring dimensions (shared across tasks)
+  pricing.toml                # Optional: per-project model price overrides (project > ~/.nasde > bundled)
   tasks/
     feature-a/
       task.toml                # Task config (Harbor sections + [nasde.source] / [nasde.plugin])

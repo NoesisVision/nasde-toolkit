@@ -36,6 +36,7 @@ from nasde_toolkit.git_platform_backends.git_ops import (
     push_feature_branch,
 )
 from nasde_toolkit.git_platform_backends.protocol import GitPlatformBackend, PrRef, ReviewComment
+from nasde_toolkit.pricing import load_pricing_layered
 from nasde_toolkit.results_exporter import (
     _build_metrics,
     _capture_patch,
@@ -166,7 +167,7 @@ def _open_pr_for_trial(
     project_root: Path | None,
 ) -> PrRef:
     workspace = trial_dir / "artifacts" / "workspace"
-    metrics = _build_metrics(trial_dir)
+    metrics = _build_metrics(trial_dir, load_pricing_layered(project_root))
     summary = _summarize_trial(trial_dir)
     title = _pr_title(trial_dir, summary)
     body = _render_pr_body(summary, metrics)

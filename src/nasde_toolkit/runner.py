@@ -1069,9 +1069,11 @@ async def _run_job_with_streaming_eval(
 ) -> None:
     """Run Harbor job with assessment eval starting per trial as they complete."""
     from nasde_toolkit.evaluator import evaluate_and_record_trial
+    from nasde_toolkit.pricing import load_pricing_layered
 
     project_name = config.reporting.project_name or config.name
     eval_semaphore = asyncio.Semaphore(max_concurrent_eval)
+    pricing = load_pricing_layered(config.project_dir)
     assessment_tasks: list[asyncio.Task] = []
 
     async def _on_trial_complete(event: object) -> None:
@@ -1084,6 +1086,7 @@ async def _run_job_with_streaming_eval(
                 with_opik=with_opik,
                 semaphore=eval_semaphore,
                 eval_config=config.evaluation,
+                pricing=pricing,
             )
         )
         assessment_tasks.append(task)

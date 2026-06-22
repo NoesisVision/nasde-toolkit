@@ -18,28 +18,31 @@ from nasde_toolkit.evaluator import (
     _next_eval_index,
     _write_assessment_summary,
 )
+from nasde_toolkit.pricing import ModelPrice, load_pricing_layered
 
 console = Console()
 
 
 def migrate_job_evals(path: Path, dry_run: bool = False) -> dict[str, int]:
     outcomes = {"migrated": 0, "summarized": 0, "noop": 0}
+    pricing = load_pricing_layered()
     for trial_dir in _find_trial_dirs(path):
-        outcome = migrate_trial_evals(trial_dir, dry_run=dry_run)
+        outcome = migrate_trial_evals(trial_dir, pricing, dry_run=dry_run)
         outcomes[outcome] += 1
     return outcomes
 
 
-def migrate_trial_evals(trial_dir: Path, dry_run: bool = False) -> str:
+def migrate_trial_evals(trial_dir: Path, pricing: dict[str, ModelPrice] | None = None, dry_run: bool = False) -> str:
     bare = trial_dir / "assessment_eval.json"
     numbered = _numbered_eval_files(trial_dir)
 
     if not bare.exists() and not numbered:
         return "noop"
 
+    pricing = pricing if pricing is not None else load_pricing_layered()
     changed = _normalize_raw_files(trial_dir, bare, numbered, dry_run)
     if not dry_run:
-        _write_assessment_summary(trial_dir)
+        _write_assessment_summary(trial_dir, pricing)
     if changed:
         return "migrated"
     return "summarized"

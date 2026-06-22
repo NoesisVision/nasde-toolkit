@@ -62,8 +62,26 @@ source = "https://…"
 
 A model that isn't in the catalog still gets token metrics — only its `cost_usd` is left blank (with a warning), never a wrong number.
 
-:::note[Editing the catalog]
-The catalog is **bundled into the package**, so editing it depends on how you installed Nasde. From a source checkout (`uv sync`) you can edit `src/nasde_toolkit/pricing.toml` directly. After a PyPI install (`uv tool install` / pipx) the file lives inside an isolated environment and any edit is overwritten on the next upgrade — so for now, adding a model or correcting a rate means contributing it upstream or running from source. A per-project / per-user pricing override is a planned improvement.
+### Overriding rates — drop a `pricing.toml`
+
+The bundled catalog is the **floor**. To correct a rate or add a model, drop your own `pricing.toml` at one of two locations — Nasde finds it by name, no config setting:
+
+- **`<project>/pricing.toml`** — per-project, sits next to `nasde.toml`. Highest precedence.
+- **`~/.nasde/pricing.toml`** — per-user, applies to every project on the machine.
+
+The precedence is **project > user > bundled**, merged **per model**: each override file lists *only* the models you want to change or add, and every other model falls through to the layer below. Overriding one model leaves the rest of the catalog intact. (A model entry is replaced whole — fields you omit take their defaults, they aren't inherited from the bundled entry.) When an override is applied, Nasde prints a line saying so. Both `nasde run` and `nasde results-export` read the same layered catalog, so a trial's cost is identical whether you see it in the run summary or a later export.
+
+```toml
+# ~/.nasde/pricing.toml — your enterprise rate for one model; the rest stays bundled
+[models."claude-opus-4-8"]
+input_per_1m = 4.0
+output_per_1m = 12.0
+as_of = "2026-06-22"
+source = "internal contract"
+```
+
+:::note[Editing the bundled catalog directly]
+You can still edit the bundled `src/nasde_toolkit/pricing.toml` from a source checkout (`uv sync`). After a PyPI install (`uv tool install` / pipx) the bundled file lives inside an isolated environment and is overwritten on upgrade — so prefer a `pricing.toml` override (above), which survives upgrades, or contribute the rate upstream.
 :::
 
 :::caution[Confirm rates before quoting costs]

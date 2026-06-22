@@ -433,7 +433,7 @@ def results_export_command(
     from nasde_toolkit.config import load_project_config
     from nasde_toolkit.results_exporter import export_results
 
-    load_project_config(project_dir.resolve())
+    config = load_project_config(project_dir.resolve())
 
     from nasde_toolkit.banner import print_banner
 
@@ -445,7 +445,7 @@ def results_export_command(
         )
     )
 
-    export_results([p.resolve() for p in paths], to.resolve())
+    export_results([p.resolve() for p in paths], to.resolve(), project_dir=config.project_dir)
 
 
 @app.command(name="migrate-evals", hidden=True)

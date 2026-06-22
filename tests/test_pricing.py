@@ -122,9 +122,7 @@ def test_layered_whole_entry_replacement(tmp_path: Path, empty_user_layer: Path)
 
 def test_layered_three_layers_compose(tmp_path: Path, empty_user_layer: Path) -> None:
     empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
-    empty_user_layer.write_text(
-        _model_block("claude-opus-4-8", 4.0, 1.0) + _model_block("azure-gpt5", 1.0, 2.0)
-    )
+    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0) + _model_block("azure-gpt5", 1.0, 2.0))
     _write_pricing(
         tmp_path,
         _model_block("claude-sonnet-4-6", 2.0, 1.0)

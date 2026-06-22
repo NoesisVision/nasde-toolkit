@@ -54,6 +54,6 @@ This pulls your comments back. The `nasde-benchmark-calibration` skill then line
 
 ## Things worth knowing
 
-- **The platform is auto-detected from the repo URL** — `github.com` uses the `gh` CLI, GitLab uses `glab`. You need the matching CLI installed and logged in (`gh auth login` / `glab auth login`); NASDE never handles your token. A self-hosted GitLab host that isn't obviously "gitlab" can be forced with `[calibration] platform = "gitlab"`.
+- **The platform is auto-detected from the repo URL** — `github.com` uses the `gh` CLI, GitLab uses `glab`. You need the matching CLI installed and logged in (`gh auth login` / `glab auth login`); Nasde never handles your token. A self-hosted GitLab host that isn't obviously "gitlab" can be forced with `[calibration] platform = "gitlab"`.
 - **Re-running is idempotent** — a trial whose **open** PR/MR already exists is skipped, so you can publish more trials into the same sink without duplicates. Once you close a calibration round, the same trials can be re-published into a fresh round (a closed PR no longer blocks).
-- **The sink repo must already exist** — NASDE pushes branches and opens PRs but does not create repositories. One base branch is seeded per `(repo, commit)` and shared by all that source's trials.
+- **The sink repo must already exist** — Nasde pushes branches and opens PRs but does not create repositories. One base branch is seeded per `(repo, commit)` and shared by all that source's trials.

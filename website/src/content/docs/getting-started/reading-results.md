@@ -7,11 +7,11 @@ Your first `nasde run` finishes and prints a table, then writes a pile of files.
 
 ## What a run looks like
 
-When you start a run, NASDE echoes the configuration so you know exactly what's about to execute — agent, variant, model, attempts, whether Opik and assessment are on:
+When you start a run, Nasde echoes the configuration so you know exactly what's about to execute — agent, variant, model, attempts, whether Opik and assessment are on:
 
 ![The nasde run startup banner showing agent, variant, model, attempts, and tracking configuration](../../../assets/benchmark/nasde-run-summary.png)
 
-As trials complete, progress streams in; at the end NASDE prints a **per-configuration summary table** — one row per `(agent, model, reasoning effort)` group. Read it like this:
+As trials complete, progress streams in; at the end Nasde prints a **per-configuration summary table** — one row per `(agent, model, reasoning effort)` group. Read it like this:
 
 - **Trials** — how many times that configuration ran (set by `--attempts` / `-n`). The sample size behind the mean.
 - **Score** — the normalized quality (0–1) as `mean ±std`. The `±std` is the spread *between attempts* (the agent writes different code each run). A single attempt shows `mean (n=1)` rather than a fake `±0.00`.

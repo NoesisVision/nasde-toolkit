@@ -39,15 +39,15 @@ The **whole** skill directory (including `references/`) is staged into the sandb
 
 ## How skills reach each agent
 
-Each agent family auto-discovers skills from a different place, so NASDE delivers them where the CLI actually looks (you don't manage this — but it's worth knowing where your skill files end up):
+Each agent family auto-discovers skills from a different place, so Nasde delivers them where the CLI actually looks (you don't manage this — but it's worth knowing where your skill files end up):
 
 - **Claude Code** discovers from the project, so its skills land in `/app/.claude/skills/`.
-- **Codex** and **Gemini** auto-discover skills only from a HOME-scoped directory — `$HOME/.agents/skills/` for Codex, `~/.gemini/skills/` for Gemini. NASDE routes Codex/Gemini skills there through the agent's native skill-injection (not into the project directory, where the CLI would never scan them). See [ADR-012](https://github.com/NoesisVision/nasde-toolkit/blob/main/docs/adr/012-native-codex-gemini-skill-injection.md).
+- **Codex** and **Gemini** auto-discover skills only from a HOME-scoped directory — `$HOME/.agents/skills/` for Codex, `~/.gemini/skills/` for Gemini. Nasde routes Codex/Gemini skills there through the agent's native skill-injection (not into the project directory, where the CLI would never scan them). See [ADR-012](https://github.com/NoesisVision/nasde-toolkit/blob/main/docs/adr/012-native-codex-gemini-skill-injection.md).
 
 This applies to all three skill sources for Codex/Gemini: a variant's `agents_skills/` / `gemini_skills/` snapshot, a `[[skill]]` reference, and a `[nasde.plugin]`'s own skills.
 
 :::caution[Codex/Gemini skills must start with `---` frontmatter]
-Codex's loader is strict: a `SKILL.md` that does **not start** with a `---` YAML frontmatter line is silently rejected and the skill is never registered. A common trap is a leading comment (e.g. `<!-- Source: ... -->`) *above* the frontmatter — move it below the closing `---`. NASDE warns at run time when a skill's `SKILL.md` doesn't open with `---`, so the gotcha surfaces instead of the skill mysteriously doing nothing. (Claude is more lenient, but starting every `SKILL.md` with frontmatter is the safe habit.)
+Codex's loader is strict: a `SKILL.md` that does **not start** with a `---` YAML frontmatter line is silently rejected and the skill is never registered. A common trap is a leading comment (e.g. `<!-- Source: ... -->`) *above* the frontmatter — move it below the closing `---`. Nasde warns at run time when a skill's `SKILL.md` doesn't open with `---`, so the gotcha surfaces instead of the skill mysteriously doing nothing. (Claude is more lenient, but starting every `SKILL.md` with frontmatter is the safe habit.)
 :::
 
 ## Scoping a variant to specific tasks (`tasks`)

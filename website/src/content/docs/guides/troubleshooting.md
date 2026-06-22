@@ -11,7 +11,7 @@ Most first-run problems fall into a handful of buckets. Here's how to recognize 
 The sandbox needs Docker running. Start Docker Desktop (or your daemon) and re-run. If you'd rather not run containers locally, use a [cloud sandbox provider](/nasde-toolkit/guides/running-benchmarks/#cloud-sandbox-providers) with `--harbor-env daytona`.
 
 ### Authentication errors / empty API key
-NASDE uses whatever you're already logged into. If a run fails with an auth or empty-key error:
+Nasde uses whatever you're already logged into. If a run fails with an auth or empty-key error:
 - **Claude**: `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` from `claude` login.
 - **Codex**: `CODEX_API_KEY`, or `codex login` for the ChatGPT subscription (an API key always wins over OAuth when both are set).
 - **Gemini**: `GEMINI_API_KEY` / `GOOGLE_API_KEY`, or `gemini login`.
@@ -37,7 +37,7 @@ Harbor reinstalls the agent CLI per trial, which can trip provider rate limits a
 A single trial (one agent solving one task) is typically a few minutes to ~30 minutes, dominated by how long the agent takes on the task (set by the task's `[agent] timeout_sec`, default 1800s) plus the reviewer pass. Total wall-clock multiplies by **variants × tasks × attempts** (`--attempts` / `-n`, the independent agent runs per task) — and each trial is then reviewed `--eval-repetitions` times. So start with one task and one variant.
 
 ### How much does it cost?
-Each trial spends real tokens on the agent; each trial is then reviewed several times (`--eval-repetitions`, default 3), so the reviewer cost multiplies too. NASDE records the exact token and USD cost per trial — see [Token & Cost](/nasde-toolkit/concepts/token-cost/). On a Claude Max or ChatGPT Plus subscription, casual benchmarking is covered by your plan; heavy parallel runs may hit subscription windows.
+Each trial spends real tokens on the agent; each trial is then reviewed several times (`--eval-repetitions`, default 3), so the reviewer cost multiplies too. Nasde records the exact token and USD cost per trial — see [Token & Cost](/nasde-toolkit/concepts/token-cost/). On a Claude Max or ChatGPT Plus subscription, casual benchmarking is covered by your plan; heavy parallel runs may hit subscription windows.
 
 ### How many attempts do I need?
 Two different knobs, two different noise sources:
@@ -51,11 +51,11 @@ If two configs differ by less than their combined spread, run more attempts befo
 **Do I need an API key, or is a subscription enough?**
 A subscription is enough to get going — runs reuse your `claude` / `codex` / `gemini` CLI login. API keys work too when you have them.
 
-**Does NASDE run the agents interactively?**
+**Does Nasde run the agents interactively?**
 No — it drives them **non-interactively** (`claude -p`, `codex exec`, the Gemini CLI equivalent), scripting them rather than chatting. An interactive mode is **planned** but not available yet.
 
 **Does running it programmatically affect my Claude plan?**
-NASDE's non-interactive use counts as *programmatic* use of Claude. Anthropic has announced that **from June 15, 2026, paid Claude plans include a dedicated monthly credit for programmatic usage** (covering `claude -p`, the Agent SDK, and Claude Code GitHub Actions), so running NASDE on a paid plan is supported. Check [Anthropic's current terms](https://www.anthropic.com/) for the credit and limits on your plan.
+Nasde's non-interactive use counts as *programmatic* use of Claude. Anthropic has announced that **from June 15, 2026, paid Claude plans include a dedicated monthly credit for programmatic usage** (covering `claude -p`, the Agent SDK, and Claude Code GitHub Actions), so running Nasde on a paid plan is supported. Check [Anthropic's current terms](https://www.anthropic.com/) for the credit and limits on your plan.
 
 **Can I run this without Docker?**
 Yes — point `--harbor-env` at a [cloud sandbox provider](/nasde-toolkit/guides/running-benchmarks/#cloud-sandbox-providers). The reviewer (Stage 2) always runs locally on the host regardless.
@@ -67,4 +67,4 @@ No. Trials run in a local (or your-cloud) sandbox; results stay in `jobs/`. Only
 Yes — that's the norm. The agent under test is set per variant; the reviewer is set under `[evaluation]`. See [Running & Configuring Runs](/nasde-toolkit/guides/running-benchmarks/).
 
 **I edited my rubric — do old and new scores mix?**
-No. NASDE fingerprints the rubric, so changing a dimension, its `max_score`, or its description starts a fresh scoring cluster. Just re-run `nasde eval`.
+No. Nasde fingerprints the rubric, so changing a dimension, its `max_score`, or its description starts a fresh scoring cluster. Just re-run `nasde eval`.

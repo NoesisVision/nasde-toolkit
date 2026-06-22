@@ -6,7 +6,7 @@ description: The operational side of a run — building from a local repo, scali
 This guide covers the operational lifecycle of a run, in the order you typically hit it: point it at your code, scale it out, configure the two agents (the one under test and the reviewer), and keep the results.
 
 :::tip[Two agents, configured the same way]
-A NASDE run involves **two** coding agents: the **agent under test** (the one whose configuration you're measuring) and the **reviewer agent** (the LLM-as-a-Judge that scores the result). Both are configurable along the same axes — instructions, skills, MCP servers, model, reasoning effort. The two sections below mirror each other deliberately.
+A Nasde run involves **two** coding agents: the **agent under test** (the one whose configuration you're measuring) and the **reviewer agent** (the LLM-as-a-Judge that scores the result). Both are configurable along the same axes — instructions, skills, MCP servers, model, reasoning effort. The two sections below mirror each other deliberately.
 :::
 
 ## Running on a local repo
@@ -19,7 +19,7 @@ git = "../.."
 ref = "abc1234"
 ```
 
-NASDE auto-generates the Docker environment — no custom `Dockerfile` needed. See [`examples/nasde-dev-skill/`](https://github.com/NoesisVision/nasde-toolkit/tree/main/examples/nasde-dev-skill) for a complete example that tests nasde-toolkit itself. The full `[nasde.source]` reference is in [Configuration](/nasde-toolkit/reference/configuration/#local-repo-source-nasdesource).
+Nasde auto-generates the Docker environment — no custom `Dockerfile` needed. See [`examples/nasde-dev-skill/`](https://github.com/NoesisVision/nasde-toolkit/tree/main/examples/nasde-dev-skill) for a complete example that tests nasde-toolkit itself. The full `[nasde.source]` reference is in [Configuration](/nasde-toolkit/reference/configuration/#local-repo-source-nasdesource).
 
 ## Cloud sandbox providers
 
@@ -166,7 +166,7 @@ By default a run's output lives only in the local, gitignored `jobs/` directory 
 nasde results-export jobs/2026-03-13__14-30-00 --to ~/Dropbox/nasde-results -C my-benchmark
 ```
 
-The destination is any path you like — an iCloud or Dropbox folder, an external drive, or a git repo you commit yourself. NASDE just writes files there; it never talks to a cloud provider, so there's nothing to authenticate. Each trial becomes one flat folder `<job>__<trial>/` containing:
+The destination is any path you like — an iCloud or Dropbox folder, an external drive, or a git repo you commit yourself. Nasde just writes files there; it never talks to a cloud provider, so there's nothing to authenticate. Each trial becomes one flat folder `<job>__<trial>/` containing:
 
 - `metrics.json` — self-contained summary: timing, model, variant, task, reward, reasoning effort, **token usage + USD cost** (see [Token & Cost](/nasde-toolkit/concepts/token-cost/))
 - `assessment_eval_*.json` — the reviewer's per-dimension scores and reasoning (one file per repetition)
@@ -175,4 +175,4 @@ The destination is any path you like — an iCloud or Dropbox folder, an externa
 - `changes.patch` — exactly what the agent changed (a code diff, not the multi-GB workspace)
 - `verifier_stdout.txt`, `reward.txt` — the rough-test output
 
-You can pass several paths at once, mixing whole jobs and individual trials — NASDE figures out which is which. Re-running is safe: it merges (copying any evaluations added since the last export) and never re-touches the immutable trajectory or patch.
+You can pass several paths at once, mixing whole jobs and individual trials — Nasde figures out which is which. Re-running is safe: it merges (copying any evaluations added since the last export) and never re-touches the immutable trajectory or patch.

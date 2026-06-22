@@ -13,7 +13,7 @@ description: Three end-to-end walkthroughs — evaluating your own agent config,
 
 You've tuned how Claude Code operates in your codebase, but you have no way to measure whether the full configuration actually helps. Built-in eval tools like Skill Creator can test individual skills in isolation, but they can't tell you whether your skills work well *together*, how your `CLAUDE.md` interacts with MCP server configurations, or how the same task set performs across different coding agents. Skill changes are a leap of faith — maybe the new prompt improves refactoring but breaks the agent's ability to write tests. Without structured evaluation of the complete configuration, you can't tell what's improving and what's regressing.
 
-### What NASDE enables
+### What Nasde enables
 
 You turn real problems from your team's history into repeatable benchmark tasks, then run different agent configurations against them — not just individual skills, but the full combination of `CLAUDE.md`, skills, and MCP servers. You can also compare results across different coding agents (Claude Code, Codex, Cursor, etc.) on the same task set. Results are multi-dimensional scores — not just "did it work?" but "how well did it work across code quality, architecture, testing, and whatever else matters to you." Once the task set is established, it becomes a regression suite: re-run it every time the configuration changes.
 
@@ -132,12 +132,12 @@ The task files are committed to the benchmark project repo — they're stable, v
 
 ### Current constraints
 
-- NASDE supports local git repos and public remote repos. Private remote repos require local clones (not a practical limitation — you already have them).
+- Nasde supports local git repos and public remote repos. Private remote repos require local clones (not a practical limitation — you already have them).
 - Task creation from git history is manual when using `nasde-benchmark-creator` alone. The **`nasde-benchmark-from-history`** skill automates this — see below.
 
 ### Skill: nasde-benchmark-from-history
 
-NASDE includes a dedicated skill that accelerates Phase 1 by mining git history for benchmark candidates. Instead of manually browsing PRs and writing task files from scratch, you point the skill at a commit range and it does the heavy lifting.
+Nasde includes a dedicated skill that accelerates Phase 1 by mining git history for benchmark candidates. Instead of manually browsing PRs and writing task files from scratch, you point the skill at a commit range and it does the heavy lifting.
 
 **How to use it:** Open your repository in Claude Code and describe what you want — e.g., *"create benchmark tasks from the last 20 commits on main"* or *"turn PRs #45, #52, and #61 into evaluation tasks."* The skill activates automatically.
 
@@ -149,7 +149,7 @@ NASDE includes a dedicated skill that accelerates Phase 1 by mining git history 
 
 **What it won't do:** It doesn't generate instructions that leak the actual solution. The instruction describes the *problem to solve* (derived from the commit message and PR description), not the *implementation* (the diff). The agent must arrive at a solution independently.
 
-**Relationship to other skills:** `nasde-benchmark-from-history` is an alternative entry point into the benchmark creation workflow. Where `nasde-benchmark-creator` starts from scratch ("what do you want to evaluate?"), `nasde-benchmark-from-history` starts from evidence ("here's what your team already solved"). Both produce the same NASDE task structure.
+**Relationship to other skills:** `nasde-benchmark-from-history` is an alternative entry point into the benchmark creation workflow. Where `nasde-benchmark-creator` starts from scratch ("what do you want to evaluate?"), `nasde-benchmark-from-history` starts from evidence ("here's what your team already solved"). Both produce the same Nasde task structure.
 
 See the full skill reference: [`.claude/skills/nasde-benchmark-from-history/SKILL.md`](https://github.com/NoesisVision/nasde-toolkit/blob/main/.claude/skills/nasde-benchmark-from-history/SKILL.md)
 
@@ -165,7 +165,7 @@ See the full skill reference: [`.claude/skills/nasde-benchmark-from-history/SKIL
 
 You've tested your skill on a handful of repos and it works. But you have no structured way to validate that it generalizes. Does it handle Python as well as TypeScript? Large monorepos as well as small libraries? Projects with extensive tests as well as those with none? Without a diverse, repeatable test suite, you're shipping based on anecdotes.
 
-### What NASDE enables
+### What Nasde enables
 
 A benchmark that spans multiple repositories, languages, and problem types. Define the test suite once, re-run it whenever the skill changes. Each run gives you per-task, per-dimension scores — so you can see exactly where the skill shines and where it struggles.
 
@@ -261,7 +261,7 @@ As you discover edge cases (the skill fails on monorepos, or struggles with code
 
 ### Skill: nasde-benchmark-from-public-repos
 
-NASDE includes a dedicated skill for curating diverse benchmark suites from public repositories. Instead of manually searching GitHub and scaffolding Dockerfiles for each language, you describe your skill and the tool guides the curation process.
+Nasde includes a dedicated skill for curating diverse benchmark suites from public repositories. Instead of manually searching GitHub and scaffolding Dockerfiles for each language, you describe your skill and the tool guides the curation process.
 
 **How to use it:** Open your benchmark project in Claude Code and describe the skill you're building — e.g., *"I'm building a refactoring skill that should work across Python, TypeScript, Go, and Rust."* The skill activates automatically.
 
@@ -289,7 +289,7 @@ A plugin/skill author whose plugin under test bundles skills **and** an MCP serv
 
 Before `[nasde.plugin]`, exercising a plugin meant paying a triple tax: vendor a frozen snapshot of the entire plugin tree into the benchmark, hand-write a Dockerfile `COPY`, hand-write `[environment.mcp_servers]` with an env-export wrapper, **and** copy the plugin's skills into each variant. The snapshot drifted from the live plugin and had to be refreshed by a documented manual procedure. A benchmark testing just one skill still had to copy that skill (and its `references/`) into `variants/<v>/skills/`.
 
-### What NASDE enables
+### What Nasde enables
 
 **Whole plugin, one declaration.** In `task.toml`:
 

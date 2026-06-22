@@ -1,6 +1,6 @@
 ---
 title: Anatomy of a Benchmark
-description: What a NASDE benchmark is made of — tasks, variants, dimensions — and how the files fit together before you ever run it.
+description: What a Nasde benchmark is made of — tasks, variants, dimensions — and how the files fit together before you ever run it.
 ---
 
 Before you let a skill scaffold one for you, it helps to understand what a benchmark *is*. It's a directory of plain files with three moving parts: **tasks** (the problems), **variants** (the agent configurations you compare), and **dimensions** (the axes you score on).

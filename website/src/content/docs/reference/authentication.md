@@ -1,12 +1,12 @@
 ---
 title: Authentication & Opik
-description: How NASDE auto-detects credentials per agent — Claude Code, OpenAI Codex, Gemini CLI — plus Opik tracing setup and how to verify results landed.
+description: How Nasde auto-detects credentials per agent — Claude Code, OpenAI Codex, Gemini CLI — plus Opik tracing setup and how to verify results landed.
 ---
 
-NASDE auto-detects the required credentials based on the variant's agent type.
+Nasde auto-detects the required credentials based on the variant's agent type.
 
 :::note[Programmatic use]
-NASDE drives the agents **non-interactively** (`claude -p`, `codex exec`, and the Gemini CLI equivalent), so it counts as *programmatic* use of those tools. For Claude specifically, Anthropic has announced that **from June 15, 2026, paid plans include a dedicated monthly credit for programmatic usage** — covering `claude -p`, the Claude Agent SDK, and Claude Code GitHub Actions. Running NASDE on a paid Claude subscription is therefore supported; check [Anthropic's current terms](https://www.anthropic.com/) for the credit and limits on your plan.
+Nasde drives the agents **non-interactively** (`claude -p`, `codex exec`, and the Gemini CLI equivalent), so it counts as *programmatic* use of those tools. For Claude specifically, Anthropic has announced that **from June 15, 2026, paid plans include a dedicated monthly credit for programmatic usage** — covering `claude -p`, the Claude Agent SDK, and Claude Code GitHub Actions. Running Nasde on a paid Claude subscription is therefore supported; check [Anthropic's current terms](https://www.anthropic.com/) for the credit and limits on your plan.
 :::
 
 ## Claude Code
@@ -36,7 +36,7 @@ source scripts/export_codex_oauth_token.sh # validate tokens are present
 uv run nasde run --variant codex-vanilla -C my-benchmark
 ```
 
-When no API key is set, NASDE auto-detects the presence of `~/.codex/auth.json` (created by `codex login`) and opts into uploading it to the sandbox (it sets `CODEX_FORCE_AUTH_JSON=true`; Harbor does the actual upload). No env vars needed.
+When no API key is set, Nasde auto-detects the presence of `~/.codex/auth.json` (created by `codex login`) and opts into uploading it to the sandbox (it sets `CODEX_FORCE_AUTH_JSON=true`; Harbor does the actual upload). No env vars needed.
 
 **Option 2: API key** — billed per-token through your OpenAI Platform account.
 
@@ -65,7 +65,7 @@ export GOOGLE_API_KEY=your-key
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 ```
 
-These are the env vars NASDE checks for the API-key path (alongside `GEMINI_API_KEY`).
+These are the env vars Nasde checks for the API-key path (alongside `GEMINI_API_KEY`).
 
 **Option 3: OAuth (Google account)** — uses your Gemini subscription credits.
 
@@ -75,7 +75,7 @@ source scripts/export_gemini_oauth_token.sh   # validate tokens are present
 uv run nasde run --variant gemini-baseline -C my-benchmark
 ```
 
-NASDE auto-detects `~/.gemini/oauth_creds.json` and injects the credentials into the sandbox. No env vars needed.
+Nasde auto-detects `~/.gemini/oauth_creds.json` and injects the credentials into the sandbox. No env vars needed.
 
 API key env vars (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`) always take priority over OAuth when present.
 

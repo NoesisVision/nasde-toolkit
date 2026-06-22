@@ -1,4 +1,4 @@
-/* NASDE Toolkit docs — Noesis teal brand theme.
+/* Nasde Toolkit docs — Noesis teal brand theme.
    Replaces Starlight's default purple accent with the teal/cyan from the
    Noesis logo, keeping the docs visually consistent with noesis-docs. */
 
@@ -46,7 +46,7 @@
 }
 
 /* Hero logo on the splash landing — round the corners and add a soft card
-   so the light-background NASDE artwork doesn't clash with dark mode. */
+   so the light-background Nasde artwork doesn't clash with dark mode. */
 .hero > img,
 .hero .hero-html img {
 	border-radius: 1rem;

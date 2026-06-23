@@ -13,6 +13,7 @@ from nasde_toolkit.runner import (
     _fmt_score,
     _fmt_tokens,
     _job_dir_from_config,
+    _models_used_in_job,
     _print_job_summary,
     _sample_std,
     _short_label,
@@ -236,3 +237,22 @@ def test_print_job_summary_renders_economics_for_own_job(
     out = _flat(capsys.readouterr().out)
     assert "Results by agent/model" in out
     assert "no assessment_summary.json found" not in out
+
+
+def test_models_used_in_job_collects_distinct_models(tmp_path: Path) -> None:
+    job = tmp_path / "jobs" / "demo"
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.8, 1000, 1.0)
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.7, 1000, 1.0)
+    _write_trial(job, "t__c", "codex-vanilla", "gpt-5.4", 0.6, 1000, 1.0)
+
+    assert _models_used_in_job(job) == {"claude-sonnet-4-6", "gpt-5.4"}
+
+
+def test_models_used_in_job_skips_trials_without_summary(tmp_path: Path) -> None:
+    job = tmp_path / "jobs" / "demo"
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.8, 1000, 1.0)
+    bare = job / "t__nosummary"
+    bare.mkdir(parents=True)
+    bare.joinpath("result.json").write_text(json.dumps({"trial_name": "t__nosummary"}))
+
+    assert _models_used_in_job(job) == {"claude-sonnet-4-6"}

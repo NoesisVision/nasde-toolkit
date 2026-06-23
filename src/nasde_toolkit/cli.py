@@ -508,6 +508,42 @@ def migrate_evals_command(
 
 
 # ---------------------------------------------------------------------------
+# Pricing sub-app (nasde pricing ...)
+# ---------------------------------------------------------------------------
+
+pricing_app = typer.Typer(
+    name="pricing",
+    help="Inspect the effective model price catalog (project > ~/.nasde > bundled).",
+    no_args_is_help=True,
+)
+app.add_typer(pricing_app, name="pricing")
+
+
+@pricing_app.command(name="show")
+def pricing_show_command(
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project (its pricing.toml is the highest layer).",
+    ),
+    show_source: bool = typer.Option(
+        False,
+        "--show-source",
+        help="Add a Layer column showing which layer each rate comes from (debug).",
+    ),
+) -> None:
+    """Print the effective merged pricing catalog after layered overrides."""
+    from nasde_toolkit.config import load_project_config
+    from nasde_toolkit.pricing import effective_pricing_with_source
+    from nasde_toolkit.pricing_report import render_pricing_table
+
+    config = load_project_config(project_dir.resolve())
+    entries = effective_pricing_with_source(config.project_dir)
+    console.print(render_pricing_table(entries, show_source=show_source, title="Effective pricing"))
+
+
+# ---------------------------------------------------------------------------
 # Calibration sub-app (nasde calibrate ...)
 # ---------------------------------------------------------------------------
 

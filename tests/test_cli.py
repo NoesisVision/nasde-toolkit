@@ -216,3 +216,35 @@ def test_calibrate_publish_forwards_resolved_sink(mock_publish: object, tmp_path
     assert kwargs["repo"] == "NoesisVision/nasde-calibration"
     assert kwargs["repo_url"] == "git@github.com:NoesisVision/nasde-calibration.git"
     assert kwargs["platform_override"] == "github"
+
+
+def test_pricing_show_lists_bundled_models(tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n')
+
+    result = runner.invoke(app, ["pricing", "show", "-C", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "claude-sonnet-4-6" in result.output
+    assert "Effective pricing" in result.output
+
+
+def test_pricing_show_reflects_project_override(tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n')
+    (tmp_path / "pricing.toml").write_text('[models."claude-sonnet-4-6"]\ninput_per_1m = 42.0\noutput_per_1m = 99.0\n')
+
+    result = runner.invoke(app, ["pricing", "show", "-C", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "$42" in result.output
+
+
+def test_pricing_show_source_column(tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n')
+    (tmp_path / "pricing.toml").write_text('[models."azure-x"]\ninput_per_1m = 0.5\noutput_per_1m = 1.0\n')
+
+    result = runner.invoke(app, ["pricing", "show", "-C", str(tmp_path), "--show-source"])
+
+    assert result.exit_code == 0, result.output
+    assert "Layer" in result.output
+    assert "project" in result.output
+    assert "bundled" in result.output

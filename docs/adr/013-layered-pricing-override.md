@@ -78,6 +78,13 @@ bundled `_load_bundled_pricing` keeps its `lru_cache` (invariant), and
   invariant.
 - Determinism and the "confirm rates before quoting figures" caveat from ADR-011
   carry over — a wrong override produces wrong (but deterministic) costs.
+- The effective catalog is **inspectable**: `resolve_pricing_layers` /
+  `effective_pricing_with_source` expose which layer supplied each rate, surfaced
+  via `nasde pricing show [--show-source]`, a "Pricing used" table in the `nasde run`
+  summary, and a `pricing_used.json` in `results-export`. This makes the
+  transparency the convention promises actually verifiable — you can confirm a
+  three-layer override composed as intended, and an exported report is a
+  self-contained cost audit.
 
 ## References
 

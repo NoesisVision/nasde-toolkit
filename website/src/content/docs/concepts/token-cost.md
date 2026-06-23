@@ -80,6 +80,17 @@ as_of = "2026-06-22"
 source = "internal contract"
 ```
 
+### Verifying the effective catalog
+
+To see the merged result after your overrides, run:
+
+```bash
+nasde pricing show -C ./my-benchmark              # effective rates per model
+nasde pricing show -C ./my-benchmark --show-source  # + which layer each rate came from
+```
+
+For audit, every `nasde results-export` also writes a `pricing_used.json` next to the exported trials — the effective rate and source layer for each model that was priced in that batch — so a report is self-contained. The `nasde run` summary prints the same "Pricing used" table for the models in the run.
+
 :::note[Editing the bundled catalog directly]
 You can still edit the bundled `src/nasde_toolkit/pricing.toml` from a source checkout (`uv sync`). After a PyPI install (`uv tool install` / pipx) the bundled file lives inside an isolated environment and is overwritten on upgrade — so prefer a `pricing.toml` override (above), which survives upgrades, or contribute the rate upstream.
 :::

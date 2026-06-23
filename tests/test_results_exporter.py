@@ -359,6 +359,29 @@ def test_export_three_layer_compose_e2e(job_dir: Path, tmp_path: Path, empty_use
     assert metrics["cost_usd"] == pytest.approx(1_000_000 / 1e6 * 0.5 + 60_000 / 1e6 * 1.0)
 
 
+def test_export_writes_pricing_used_with_layer(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pricing.toml").write_text(_model_block("claude-sonnet-4-6", 0.5, 1.0))
+    dest = tmp_path / "export"
+
+    export_results([job_dir], dest, project_dir=project)
+    report = json.loads((dest / "pricing_used.json").read_text())
+
+    assert "claude-sonnet-4-6" in report
+    assert report["claude-sonnet-4-6"]["input_per_1m"] == 0.5
+    assert report["claude-sonnet-4-6"]["layer"] == "project"
+
+
+def test_export_pricing_used_layer_bundled(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
+    dest = tmp_path / "export"
+    export_results([job_dir], dest, project_dir=None)
+    report = json.loads((dest / "pricing_used.json").read_text())
+
+    assert report["claude-sonnet-4-6"]["layer"] == "bundled"
+    assert report["claude-sonnet-4-6"]["input_per_1m"] == 3.0
+
+
 def test_capture_patch_includes_non_ascii_untracked_filename(tmp_path: Path) -> None:
     workspace = tmp_path / "artifacts" / "workspace"
     workspace.mkdir(parents=True)

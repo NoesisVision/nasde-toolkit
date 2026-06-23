@@ -1104,7 +1104,7 @@ async def _run_job_with_streaming_eval(
         if assessment_tasks:
             console.print(f"[dim]Waiting for {len(assessment_tasks)} assessment evaluation(s)...[/dim]")
             await asyncio.gather(*assessment_tasks, return_exceptions=True)
-    _print_job_summary(result, _job_dir_from_config(merged_config))
+    _print_job_summary(result, _job_dir_from_config(merged_config), config.project_dir)
     console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
@@ -1144,7 +1144,7 @@ async def _run_job(
         os.chdir(saved_cwd)
 
 
-def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
+def _print_job_summary(result: JobResult, job_dir: Path | None = None, project_dir: Path | None = None) -> None:
     console.print()
     console.print("[bold]Job completed[/bold]")
     console.print(f"  Trials: {result.stats.n_completed_trials}")
@@ -1155,6 +1155,7 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
         if rows:
             _print_economics_table(rows)
             _print_label_legend(rows)
+            _print_pricing_used(job_dir, project_dir)
             _print_location_hints(job_dir)
         elif result.stats.evals:
             _warn_missing_economics(job_dir)
@@ -1162,6 +1163,35 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
     elif result.stats.evals:
         _print_eval_counts_table(result)
     console.print()
+
+
+def _print_pricing_used(job_dir: Path, project_dir: Path | None) -> None:
+    from nasde_toolkit.pricing import effective_pricing_with_source
+    from nasde_toolkit.pricing_report import render_pricing_table
+
+    used_models = _models_used_in_job(job_dir)
+    if not used_models:
+        return
+    effective = effective_pricing_with_source(project_dir)
+    entries = {model: effective[model] for model in used_models if model in effective}
+    if not entries:
+        return
+    console.print(render_pricing_table(entries, show_source=True, title="Pricing used (effective)"))
+
+
+def _models_used_in_job(job_dir: Path) -> set[str]:
+    from nasde_toolkit.evaluator import _collect_trial_dirs
+
+    models: set[str] = set()
+    for trial_dir in _collect_trial_dirs(job_dir):
+        summary_path = trial_dir / "assessment_summary.json"
+        if not summary_path.exists():
+            continue
+        summary = json.loads(summary_path.read_text())
+        model = summary.get("model_name")
+        if model:
+            models.add(model)
+    return models
 
 
 def _warn_missing_economics(job_dir: Path) -> None:

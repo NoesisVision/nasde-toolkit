@@ -32,6 +32,16 @@ class ModelPrice:
     source: str = ""
 
 
+@dataclass
+class PricingLayer:
+    """One layer of the convention-based pricing stack (bundled / user / project)."""
+
+    name: str
+    path: Path | None
+    present: bool
+    models: dict[str, ModelPrice]
+
+
 def compute_cost_usd(
     input_tokens: int,
     output_tokens: int,
@@ -47,6 +57,21 @@ def compute_cost_usd(
         )
         return None
     return input_tokens / 1_000_000 * price.input_per_1m + output_tokens / 1_000_000 * price.output_per_1m
+
+
+def effective_pricing_with_source(project_dir: Path | None = None) -> dict[str, tuple[ModelPrice, str]]:
+    """Merged catalog plus the name of the winning layer for each model.
+
+    Same per-model whole-entry merge as ``load_pricing_layered`` (bundled → user →
+    project, higher wins), but each value is paired with the layer that supplied it
+    (``"project"`` / ``"user"`` / ``"bundled"``). Source of truth for the source
+    column in ``nasde pricing show`` and ``pricing_used.json``.
+    """
+    resolved: dict[str, tuple[ModelPrice, str]] = {}
+    for layer in resolve_pricing_layers(project_dir):
+        for name, price in layer.models.items():
+            resolved[name] = (price, layer.name)
+    return resolved
 
 
 def load_pricing(path: str | Path | None = None) -> dict[str, ModelPrice]:
@@ -74,13 +99,11 @@ def load_pricing_layered(project_dir: Path | None = None) -> dict[str, ModelPric
     is inherited from the layer below. A missing project/user file is silently
     skipped — only the bundled floor is required. See ADR-013.
     """
-    merged = dict(load_pricing())
-    for override_path in _layered_override_paths(project_dir):
-        if not override_path.is_file():
-            continue
-        layer = load_pricing(override_path)
-        merged.update(layer)
-        console.print(f"  [dim]pricing: applied override {override_path} ({len(layer)} model(s))[/dim]")
+    merged: dict[str, ModelPrice] = {}
+    for layer in resolve_pricing_layers(project_dir):
+        merged.update(layer.models)
+        if layer.path is not None:
+            console.print(f"  [dim]pricing: applied override {layer.path} ({len(layer.models)} model(s))[/dim]")
     return merged
 
 
@@ -90,32 +113,48 @@ def pricing_as_of(model: str, pricing: dict[str, ModelPrice]) -> str | None:
     return price.as_of if price is not None else None
 
 
+def resolve_pricing_layers(project_dir: Path | None = None) -> list[PricingLayer]:
+    """The pricing stack from lowest precedence (bundled) to highest (project).
+
+    The bundled layer is always present; the user (``~/.nasde/pricing.toml``) and
+    project (``<project_dir>/pricing.toml``) layers appear only when their file
+    exists, each carrying just the models it declares. See ADR-013.
+    """
+    layers = [PricingLayer(name="bundled", path=None, present=True, models=dict(load_pricing()))]
+    layers.extend(_override_layers(project_dir))
+    return layers
+
+
 @lru_cache(maxsize=1)
 def _load_bundled_pricing() -> dict[str, ModelPrice]:
     return _pricing_from_raw(_read_pricing_toml(None))
 
 
-def _layered_override_paths(project_dir: Path | None) -> list[Path]:
-    paths = [_user_pricing_path()]
+def _override_layers(project_dir: Path | None) -> list[PricingLayer]:
+    layers = []
+    for name, path in _override_layer_paths(project_dir):
+        if not path.is_file():
+            continue
+        layers.append(PricingLayer(name=name, path=path, present=True, models=load_pricing(path)))
+    return layers
+
+
+def _override_layer_paths(project_dir: Path | None) -> list[tuple[str, Path]]:
+    named = [("user", _user_pricing_path())]
     if project_dir is not None:
-        paths.append(project_dir / "pricing.toml")
-    return _deduped_paths(paths)
+        named.append(("project", project_dir / "pricing.toml"))
+    return _deduped_named_paths(named)
 
 
 def _user_pricing_path() -> Path:
     return Path.home() / ".nasde" / "pricing.toml"
 
 
-def _deduped_paths(paths: list[Path]) -> list[Path]:
-    seen: set[Path] = set()
-    deduped: list[Path] = []
-    for path in paths:
-        resolved = path.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        deduped.append(path)
-    return deduped
+def _deduped_named_paths(named: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
+    by_resolved: dict[Path, tuple[str, Path]] = {}
+    for name, path in named:
+        by_resolved[path.resolve()] = (name, path)
+    return list(by_resolved.values())
 
 
 def _pricing_from_raw(raw: dict) -> dict[str, ModelPrice]:

@@ -8,9 +8,11 @@ import pytest
 
 from nasde_toolkit.pricing import (
     compute_cost_usd,
+    effective_pricing_with_source,
     load_pricing,
     load_pricing_layered,
     pricing_as_of,
+    resolve_pricing_layers,
 )
 
 
@@ -145,3 +147,39 @@ def test_layered_three_layers_whole_entry_on_overlap(tmp_path: Path, empty_user_
     merged = load_pricing_layered(tmp_path)
     assert merged["azure-gpt5"].input_per_1m == 0.5
     assert merged["azure-gpt5"].source == ""
+
+
+def test_resolve_layers_no_overrides_is_bundled_only(tmp_path: Path, empty_user_layer: Path) -> None:
+    layers = resolve_pricing_layers(tmp_path)
+    assert [layer.name for layer in layers] == ["bundled"]
+    assert layers[0].present is True
+    assert layers[0].path is None
+    assert set(layers[0].models) == set(load_pricing())
+
+
+def test_resolve_layers_three_present(tmp_path: Path, empty_user_layer: Path) -> None:
+    empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
+    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0))
+    _write_pricing(tmp_path, _model_block("my-model", 7.0, 8.0))
+    layers = {layer.name: layer for layer in resolve_pricing_layers(tmp_path)}
+    assert set(layers) == {"bundled", "user", "project"}
+    assert set(layers["user"].models) == {"claude-opus-4-8"}
+    assert set(layers["project"].models) == {"my-model"}
+    assert layers["project"].path == tmp_path / "pricing.toml"
+
+
+def test_effective_pricing_with_source_three_layers(tmp_path: Path, empty_user_layer: Path) -> None:
+    empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
+    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0) + _model_block("azure-gpt5", 1.0, 2.0))
+    _write_pricing(tmp_path, _model_block("azure-gpt5", 0.5, 1.0) + _model_block("enterprise-claude", 10.0, 20.0))
+    eff = effective_pricing_with_source(tmp_path)
+    assert eff["gpt-5.5"][1] == "bundled"
+    assert eff["claude-opus-4-8"][1] == "user"
+    assert eff["azure-gpt5"][1] == "project"
+    assert eff["azure-gpt5"][0].input_per_1m == 0.5
+    assert eff["enterprise-claude"][1] == "project"
+
+
+def test_load_pricing_layered_matches_effective_keys(tmp_path: Path, empty_user_layer: Path) -> None:
+    _write_pricing(tmp_path, _model_block("my-model", 7.0, 8.0))
+    assert set(load_pricing_layered(tmp_path)) == set(effective_pricing_with_source(tmp_path))

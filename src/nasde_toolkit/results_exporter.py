@@ -65,17 +65,18 @@ def _write_pricing_used(dest: Path, trial_dirs: list[Path], project_dir: Path | 
     if not used_models:
         return
     effective = effective_pricing_with_source(project_dir)
-    report = {
-        model: {
+    report = {}
+    for model in sorted(used_models):
+        entry = effective.get(model)
+        if entry is None:
+            continue
+        price, layer = entry
+        report[model] = {
             "input_per_1m": price.input_per_1m,
             "output_per_1m": price.output_per_1m,
             "as_of": price.as_of,
             "layer": layer,
         }
-        for model in sorted(used_models)
-        if (entry := effective.get(model)) is not None
-        for price, layer in [entry]
-    }
     if report:
         (dest / "pricing_used.json").write_text(json.dumps(report, indent=2))
 

@@ -35,4 +35,5 @@ def render_pricing_table(
 
 
 def _fmt_rate(rate: float) -> str:
-    return f"${rate:g}"
+    trimmed = f"{rate:.4f}".rstrip("0").rstrip(".")
+    return f"${trimmed or '0'}"

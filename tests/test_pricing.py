@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,12 @@ from nasde_toolkit.pricing import (
     pricing_as_of,
     resolve_pricing_layers,
 )
+
+
+def test_model_price_is_frozen() -> None:
+    price = load_pricing()["claude-sonnet-4-6"]
+    with pytest.raises(FrozenInstanceError):
+        price.input_per_1m = 0.01  # type: ignore[misc]
 
 
 def _write_pricing(directory: Path, body: str) -> Path:

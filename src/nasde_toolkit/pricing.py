@@ -21,9 +21,14 @@ from rich.console import Console
 console = Console()
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModelPrice:
-    """Catalog rate for one model (USD per 1M tokens)."""
+    """Catalog rate for one model (USD per 1M tokens).
+
+    Frozen: a rate is an immutable fact, and the bundled catalog is shared via an
+    lru_cache, so an in-place mutation would silently corrupt every later lookup
+    in the process. Build a new instance (``dataclasses.replace``) to adjust a rate.
+    """
 
     input_per_1m: float
     output_per_1m: float

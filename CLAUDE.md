@@ -57,6 +57,19 @@ nasde --version
 uv run pytest
 ```
 
+## Development workflow
+
+**A user-visible change is not done until `CHANGELOG.md` is updated.** When you
+finish a feature, fix, dependency bump, CVE pin, or any change a user would
+notice, add an entry under `## [Unreleased]` in `CHANGELOG.md` (in the right
+Keep-a-Changelog section — Added / Changed / Fixed / Removed / Security) with a
+`[#NN]` PR link-reference at the bottom — **as part of that change, not at
+release time.** Deferring it lets `[Unreleased]` silently drift behind merged
+PRs, so release notes ship incomplete. The full post-change checklist
+(quality gates, docs/skills/scaffold consistency, smoke + e2e) lives in the
+`nasde-dev` skill; releasing itself is in [docs/RELEASING.md](docs/RELEASING.md)
+(move `[Unreleased]` under the new version, then tag → publish).
+
 ## Code style
 
 1. PEP 8 with type hints on all public functions.

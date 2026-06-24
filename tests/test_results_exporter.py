@@ -15,6 +15,10 @@ from nasde_toolkit.results_exporter import (
 )
 
 
+def _model_block(name: str, input_per_1m: float, output_per_1m: float) -> str:
+    return f'[models."{name}"]\ninput_per_1m = {input_per_1m}\noutput_per_1m = {output_per_1m}\n'
+
+
 def _git(workspace: Path, *args: str) -> str:
     completed = subprocess.run(
         ["git", "-C", str(workspace), *args],
@@ -319,6 +323,63 @@ def test_export_legacy_bare_idempotent(tmp_path: Path) -> None:
 
     out = dest / "2026-06-03__legacy-job__demo-task__bare2"
     assert out.name in second.skipped
+
+
+def test_export_picks_up_project_pricing_override(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pricing.toml").write_text(_model_block("claude-sonnet-4-6", 30.0, 150.0))
+    dest = tmp_path / "export"
+
+    export_results([job_dir], dest, project_dir=project)
+    metrics = json.loads((dest / "2026-06-03__demo-job__demo-task__aaa111" / "metrics.json").read_text())
+
+    assert metrics["cost_usd"] == pytest.approx(1_000_000 / 1e6 * 30.0 + 60_000 / 1e6 * 150.0)
+
+
+def test_export_project_dir_none_uses_bundled(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
+    dest = tmp_path / "export"
+    export_results([job_dir], dest, project_dir=None)
+    metrics = json.loads((dest / "2026-06-03__demo-job__demo-task__aaa111" / "metrics.json").read_text())
+
+    assert metrics["cost_usd"] == pytest.approx(3.9)
+
+
+def test_export_three_layer_compose_e2e(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
+    empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
+    empty_user_layer.write_text(_model_block("claude-sonnet-4-6", 1.0, 2.0))
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pricing.toml").write_text(_model_block("claude-sonnet-4-6", 0.5, 1.0))
+    dest = tmp_path / "export"
+
+    export_results([job_dir], dest, project_dir=project)
+    metrics = json.loads((dest / "2026-06-03__demo-job__demo-task__aaa111" / "metrics.json").read_text())
+
+    assert metrics["cost_usd"] == pytest.approx(1_000_000 / 1e6 * 0.5 + 60_000 / 1e6 * 1.0)
+
+
+def test_export_writes_pricing_used_with_layer(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pricing.toml").write_text(_model_block("claude-sonnet-4-6", 0.5, 1.0))
+    dest = tmp_path / "export"
+
+    export_results([job_dir], dest, project_dir=project)
+    report = json.loads((dest / "pricing_used.json").read_text())
+
+    assert "claude-sonnet-4-6" in report
+    assert report["claude-sonnet-4-6"]["input_per_1m"] == 0.5
+    assert report["claude-sonnet-4-6"]["layer"] == "project"
+
+
+def test_export_pricing_used_layer_bundled(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
+    dest = tmp_path / "export"
+    export_results([job_dir], dest, project_dir=None)
+    report = json.loads((dest / "pricing_used.json").read_text())
+
+    assert report["claude-sonnet-4-6"]["layer"] == "bundled"
+    assert report["claude-sonnet-4-6"]["input_per_1m"] == 3.0
 
 
 def test_capture_patch_includes_non_ascii_untracked_filename(tmp_path: Path) -> None:

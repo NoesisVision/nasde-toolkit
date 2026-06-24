@@ -55,10 +55,18 @@ uv sync
 
 After any change to the evaluation pipeline, CLI flags, configuration schema, agent support, or sandbox/environment handling, update **all** of these:
 
+> **Definition of done — CHANGELOG first.** A feature/fix is NOT complete until it
+> has an entry under `## [Unreleased]` in `CHANGELOG.md`. Add it **as part of the
+> change** (same PR), never "at release time" — leaving it for later means the
+> Unreleased section silently drifts behind the merged PRs and release notes go
+> out wrong. This has happened (the section fell 5 PRs behind before v0.5.0). When
+> finishing any user-visible work, the last step before declaring done is: does
+> `[Unreleased]` describe it, in the right section, with a `[#NN]` link-ref?
+
 **Think DX-first:** For every new option or feature, ask "where will the user be when they need this?" and put the documentation there. A feature that exists only in CLAUDE.md is invisible to most users. Check every touchpoint:
 
 **Documentation:**
-- `CHANGELOG.md` — **add an entry under `## [Unreleased]`** (Added / Changed / Fixed) for any user-visible change: new CLI flag, config field, behavior change, dependency bump. Add the `[#NN]` PR link-reference at the bottom. Easy to forget — do it as part of the change, not at release time.
+- `CHANGELOG.md` — **add an entry under `## [Unreleased]`** in the right section (Added / Changed / Fixed / Removed / Security) for any user-visible change: new CLI flag, config field, behavior change, dependency bump, CVE pin, security fix. Add the `[#NN]` PR link-reference at the bottom. Easy to forget — do it as part of the change, not at release time. Format is [Keep a Changelog](https://keepachangelog.com/); see `docs/RELEASING.md`.
 - `README.md` — user-facing documentation (CLI options table, nasde.toml config reference, explanatory text). This is where most users look first.
 - `CLAUDE.md` — agent instructions (CLI reference, nasde.toml example, architecture decisions)
 - `ARCHITECTURE.md` — system architecture with mermaid diagrams (end-to-end flow, trial lifecycle, cloud sandbox providers, assessment evaluation)

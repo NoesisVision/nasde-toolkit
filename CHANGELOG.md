@@ -10,6 +10,23 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Added
+- **Convention-based layered price overrides ([ADR-013](docs/adr/013-layered-pricing-override.md)).** Model prices
+  are now overridable after install without touching the wheel: drop a
+  `pricing.toml` in your project root or at `~/.nasde/pricing.toml` and it is
+  auto-detected — no config key, mirroring `assessment_dimensions.json`. The three
+  layers merge **project > user > bundled**, per-model whole-entry (an override
+  lists only the models it changes/adds; omitted fields take their defaults, never
+  inherited from a lower layer — so `as_of`/`source` can't leak onto a new rate).
+  Both write paths thread `project_dir`, so a trial reports the same `cost_usd` in
+  the run summary and a later export. New `nasde pricing show [--show-source]`
+  prints the effective merged catalog with the layer each rate came from; the
+  `nasde run` summary prints a "Pricing used" table for the models in the run; and
+  `nasde results-export` writes a `pricing_used.json` (effective rate + layer per
+  priced model) for self-contained cost audit. `ModelPrice` is now frozen
+  (immutable rate, safe to share via the bundled cache). Malformed override files
+  fail fast with a clear message naming the file and cause (e.g. a decimal comma);
+  a model-name typo is caught via `--show-source` (the real model shows `bundled`,
+  not `project`). `nasde init` scaffolds a commented `pricing.toml.example`. ([#71])
 - **Token & cost metrics ([ADR-011](docs/adr/011-token-cost-metrics.md)).** Every trial now carries token usage
   and USD cost, derived from the agent's `agent/trajectory.json`
   `final_metrics` and a versioned price catalog (`pricing.toml`). **Cost is computed
@@ -73,6 +90,19 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   declared tasks (others SKIPPED); with a single `--variant`, requesting a task
   outside its scope aborts with a clear error. The scope wins over an explicit
   `--tasks` filter. Absent/empty → unscoped (the default). ([#54])
+- **`nasde results-export` + repeated-evaluation accumulation.** `nasde
+  results-export PATHS... --to DIR` copies the analytic essence of trial artifacts
+  (metrics, all `assessment_eval_*.json`, summary, trajectory, code patch, verifier
+  output) out of the gitignored `jobs/` tree into a flat per-trial layout on any
+  plain path (iCloud/Dropbox/a git repo — no cloud SDK); re-export merges in newly
+  added evals. Because the judge is non-deterministic, each trial is now evaluated
+  `eval_repetitions` times (default 3; `[evaluation] eval_repetitions`, or
+  `--eval-repetitions`), written **append-only** as `assessment_eval_<N>.json`
+  (never clobbered), with a derived `assessment_summary.json` holding per-cluster
+  mean/std aggregates — averaged only within one `(evaluator_model,
+  dimensions_fingerprint)` cluster, so a different judge model or a changed rubric
+  is never mixed in. Legacy single-eval jobs are normalized by the hidden
+  `nasde migrate-evals`. ([#57])
 
 ### Removed
 - **Scalar efficiency metrics `token_efficiency` / `cost_efficiency` ([ADR-011](docs/adr/011-token-cost-metrics.md)).**
@@ -86,6 +116,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   `cost_usd`, `pricing_as_of`, score) stay and are the source of truth.
 
 ### Changed
+- **Docs migrated to a Starlight site + rebranded `NASDE` → `Nasde`.** The README
+  long-form docs now live in an Astro/Starlight site under `website/`, deployed to
+  GitHub Pages; the README is a landing page. Prose uses the word-form **Nasde**
+  rather than the all-caps acronym. ([#64], [#69])
 - **Bump Harbor `0.6` → `0.13`.** Pulls 6 minor releases of upstream fixes and
   features (incl. network-policy config). A full API audit (diffing the 0.13.0
   wheel against 0.6.4 for every symbol nasde uses — `Job`/`JobConfig`,
@@ -104,6 +138,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   max_turns` in `nasde.toml`. ([#54])
 
 ### Fixed
+- **`nasde run` cost table resolves its own job dir from config, not the
+  globally-newest one.** With parallel runs, the summary previously picked the
+  newest `jobs/` directory by name — which could be a *different, concurrent*
+  run — and so showed the wrong (or an empty) cost table. The job dir is now
+  resolved from the run's own merged config. ([#62])
 - **`[[skill]]` by-reference and `[nasde.plugin]` skills now register natively for Codex/Gemini ([ADR-012](docs/adr/012-native-codex-gemini-skill-injection.md)).**
   PR #65 fixed the *snapshot* path (`agents_skills/`, `gemini_skills/`) but left
   the two other ways a skill reaches an agent — `[[skill]]` by-reference in
@@ -152,6 +191,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   Codex agents works out of the box again. ([#61])
 - **Bump `starlette` 1.0.0 → 1.1.0** (PYSEC-2026-161; transitive via
   harbor/fastapi/mcp). ([#54])
+
+### Security
+- **Pin transitive deps for the June-2026 CVE batch.** `pip-audit` flagged 13
+  advisories across 5 transitive packages (published after the last green main
+  run): `aiohttp>=3.14.1` (CVE-2026-54273..54280), `cryptography>=48.0.1`
+  (GHSA-537c-gmf6-5ccf), `python-multipart>=0.0.31` (CVE-2026-53540),
+  `pydantic-settings>=2.14.2` (GHSA-4xgf-cpjx-pc3j), and `starlette>=1.3.1`
+  (CVE-2026-54282 / CVE-2026-54283). Floors added in `pyproject.toml`; the CVE
+  audit gate is green again. ([#70])
 
 ## [0.4.0] — 2026-05-21
 
@@ -540,4 +588,10 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#61]: https://github.com/NoesisVision/nasde-toolkit/pull/61
 [#65]: https://github.com/NoesisVision/nasde-toolkit/pull/65
 [#67]: https://github.com/NoesisVision/nasde-toolkit/pull/67
+[#57]: https://github.com/NoesisVision/nasde-toolkit/pull/57
+[#62]: https://github.com/NoesisVision/nasde-toolkit/pull/62
+[#64]: https://github.com/NoesisVision/nasde-toolkit/pull/64
+[#69]: https://github.com/NoesisVision/nasde-toolkit/pull/69
+[#70]: https://github.com/NoesisVision/nasde-toolkit/pull/70
+[#71]: https://github.com/NoesisVision/nasde-toolkit/pull/71
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

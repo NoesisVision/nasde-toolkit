@@ -62,8 +62,102 @@ source = "https://…"
 
 A model that isn't in the catalog still gets token metrics — only its `cost_usd` is left blank (with a warning), never a wrong number.
 
-:::note[Editing the catalog]
-The catalog is **bundled into the package**, so editing it depends on how you installed Nasde. From a source checkout (`uv sync`) you can edit `src/nasde_toolkit/pricing.toml` directly. After a PyPI install (`uv tool install` / pipx) the file lives inside an isolated environment and any edit is overwritten on the next upgrade — so for now, adding a model or correcting a rate means contributing it upstream or running from source. A per-project / per-user pricing override is a planned improvement.
+### Overriding rates — drop a `pricing.toml`
+
+The bundled catalog is the **floor**. To correct a rate or add a model, drop your own `pricing.toml` at one of two locations — Nasde finds it by name, no config setting:
+
+- **`<project>/pricing.toml`** — per-project, sits next to `nasde.toml`. Highest precedence.
+- **`~/.nasde/pricing.toml`** — per-user, applies to every project on the machine.
+
+The precedence is **project > user > bundled**, merged **per model**: each override file lists *only* the models you want to change or add, and every other model falls through to the layer below. Overriding one model leaves the rest of the catalog intact. (A model entry is replaced whole — fields you omit take their defaults, they aren't inherited from the bundled entry.) When an override is applied, Nasde prints a line saying so. Both `nasde run` and `nasde results-export` read the same layered catalog, so a trial's cost is identical whether you see it in the run summary or a later export.
+
+```toml
+# ~/.nasde/pricing.toml — your enterprise rate for one model; the rest stays bundled
+[models."claude-opus-4-8"]
+input_per_1m = 4.0      # prices use a decimal point (4.0), not a comma
+output_per_1m = 12.0
+as_of = "2026-06-22"    # optional — when you confirmed this rate
+source = "internal contract"   # optional — where it came from
+```
+
+`nasde init` drops a fully-commented `pricing.toml.example` in a new project — copy it to `pricing.toml` and edit, rather than writing one from scratch.
+
+:::caution[The model name must match exactly]
+The key (`claude-opus-4-8` above) must match the `model` in your `variant.toml` — i.e. the `model_name` recorded in each trial. If it doesn't (a typo like `claude-opus-4.8`, or a model you don't actually run), the override is **silently ignored** and the trial keeps the bundled rate — no error. Confirm your override took effect with `--show-source` (below): your model should show layer `project`/`user`, not `bundled`.
+:::
+
+### Verifying the effective catalog
+
+After dropping an override, **always check it took effect** — run `pricing show` with `--show-source`:
+
+```bash
+nasde pricing show -C ./my-benchmark --show-source
+```
+
+With a project override of `claude-sonnet-4-6` (to $2.5 / $11), you'll see it win the `project` layer while everything else stays `bundled`:
+
+```
+                        Effective pricing
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━┩
+│ claude-opus-4-8   │      $5 │      $15 │ bundled │ 2026-06-08 │
+│ claude-sonnet-4-6 │    $2.5 │      $11 │ project │ 2026-06-24 │
+│ gpt-5.4           │    $2.5 │      $15 │ bundled │ 2026-06-08 │
+│ gpt-5.5           │      $5 │      $30 │ bundled │ 2026-06-08 │
+└───────────────────┴─────────┴──────────┴─────────┴────────────┘
+```
+
+#### Catching a silent miss (wrong model name)
+
+This is the failure mode to watch for. Suppose you typo'd the key as `claude-sonnet-4.6` (dot) instead of `claude-sonnet-4-6` (dashes). The override **loads fine — no error** — but it doesn't match the model you actually run, so it just sits there as an extra, unused row while the real model keeps the bundled rate:
+
+```
+┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
+│ claude-sonnet-4-6 │      $3 │      $15 │ bundled │ 2026-06-08 │   ← the model you run: NOT overridden
+│ claude-sonnet-4.6 │    $2.5 │      $11 │ project │ —          │   ← your typo: a dead, unused entry
+```
+
+The tell-tale: **the model you meant to override shows `bundled`, not `project`.** Fix the key to match the `model` in your `variant.toml` and re-run `pricing show`.
+
+#### Loud errors (malformed file)
+
+A broken override file never produces a wrong cost — it fails fast, naming the file and the cause. A decimal comma (`2,5` instead of `2.5`) is the classic one:
+
+```
+ERROR: could not load pricing override /path/to/my-benchmark/pricing.toml
+  invalid TOML — Expected newline or end of document after a statement (at line 2, column 17)
+  hint: prices use a decimal point (2.5), not a comma (2,5)
+```
+
+A missing required field gives:
+
+```
+ERROR: could not load pricing override /Users/you/.nasde/pricing.toml
+  a model is missing the required field 'output_per_1m'
+```
+
+(The path tells you which layer to fix — your project's `pricing.toml` vs the user-wide `~/.nasde/pricing.toml`.)
+
+#### Self-contained audit
+
+Every `nasde results-export` also writes a `pricing_used.json` next to the exported trials — the effective rate and source layer for each model priced in that batch:
+
+```json
+{
+  "claude-sonnet-4-6": {
+    "input_per_1m": 2.5,
+    "output_per_1m": 11.0,
+    "as_of": "2026-06-24",
+    "layer": "project"
+  }
+}
+```
+
+So a report carries its own pricing provenance. The `nasde run` summary prints the same "Pricing used" table for the models in the run.
+
+:::note[Editing the bundled catalog directly]
+You can still edit the bundled `src/nasde_toolkit/pricing.toml` from a source checkout (`uv sync`). After a PyPI install (`uv tool install` / pipx) the bundled file lives inside an isolated environment and is overwritten on upgrade — so prefer a `pricing.toml` override (above), which survives upgrades, or contribute the rate upstream.
 :::
 
 :::caution[Confirm rates before quoting costs]

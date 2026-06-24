@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from nasde_toolkit import pricing as pricing_module
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator import (
     DimensionScore,
@@ -28,6 +29,7 @@ from nasde_toolkit.evaluator import (
     _write_assessment_summary,
     _write_evaluation_result,
 )
+from nasde_toolkit.pricing import load_pricing, load_pricing_layered
 
 
 def _make_evaluation(
@@ -236,7 +238,7 @@ def test_write_assessment_summary_has_no_judge_reasoning_text(tmp_path: Path) ->
     _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
     _write_evaluation_result(tmp_path, _make_evaluation(0.7, dim_score=7))
 
-    summary = _write_assessment_summary(tmp_path)
+    summary = _write_assessment_summary(tmp_path, load_pricing())
     assert summary is not None
     raw = (tmp_path / "assessment_summary.json").read_text()
     assert '"reasoning":' not in raw  # verbose per-dimension judge reasoning is not dumped into the summary
@@ -269,7 +271,7 @@ def test_assessment_summary_includes_economics(tmp_path: Path) -> None:
     _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
     _write_evaluation_result(tmp_path, _make_evaluation(0.7, dim_score=7))
 
-    summary = _write_assessment_summary(tmp_path)
+    summary = _write_assessment_summary(tmp_path, load_pricing())
     assert summary is not None
     assert summary.model_name == "claude-sonnet-4-6"
     assert summary.token_usage["total_tokens"] == 1_060_000
@@ -280,10 +282,51 @@ def test_assessment_summary_includes_economics(tmp_path: Path) -> None:
     assert not hasattr(summary, "token_efficiency")
 
 
+def _model_block(name: str, input_per_1m: float, output_per_1m: float) -> str:
+    return f'[models."{name}"]\ninput_per_1m = {input_per_1m}\noutput_per_1m = {output_per_1m}\n'
+
+
+def test_evaluator_picks_up_project_pricing_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pricing_module, "_user_pricing_path", lambda: tmp_path / "no-user" / "pricing.toml")
+    trial = tmp_path / "trial"
+    trial.mkdir()
+    _seed_trajectory(trial)
+    _write_evaluation_result(trial, _make_evaluation(0.6, dim_score=6))
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pricing.toml").write_text(_model_block("claude-sonnet-4-6", 30.0, 150.0))
+
+    summary = _write_assessment_summary(trial, load_pricing_layered(project))
+    assert summary is not None
+    assert summary.cost_usd == pytest.approx(1_000_000 / 1e6 * 30.0 + 60_000 / 1e6 * 150.0)
+
+
+def test_evaluator_three_layer_compose_e2e(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    user_file = tmp_path / "user-home" / ".nasde" / "pricing.toml"
+    monkeypatch.setattr(pricing_module, "_user_pricing_path", lambda: user_file)
+    user_file.parent.mkdir(parents=True)
+    user_file.write_text(_model_block("azure-gpt5", 1.0, 2.0))
+    trial = tmp_path / "trial"
+    trial.mkdir()
+    _seed_trajectory(trial)
+    config = json.loads((trial / "config.json").read_text())
+    config["agent"]["model_name"] = "azure-gpt5"
+    (trial / "config.json").write_text(json.dumps(config))
+    _write_evaluation_result(trial, _make_evaluation(0.6, dim_score=6))
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pricing.toml").write_text(_model_block("azure-gpt5", 0.5, 1.0))
+
+    summary = _write_assessment_summary(trial, load_pricing_layered(project))
+    assert summary is not None
+    assert summary.model_name == "azure-gpt5"
+    assert summary.cost_usd == pytest.approx(1_000_000 / 1e6 * 0.5 + 60_000 / 1e6 * 1.0)
+
+
 def test_assessment_summary_economics_null_without_trajectory(tmp_path: Path) -> None:
     _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
 
-    summary = _write_assessment_summary(tmp_path)
+    summary = _write_assessment_summary(tmp_path, load_pricing())
     assert summary is not None
     assert summary.token_usage is None
     assert summary.cost_usd is None
@@ -295,7 +338,7 @@ def test_assessment_summary_stamps_reasoning_effort_from_config(tmp_path: Path) 
     )
     _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
 
-    summary = _write_assessment_summary(tmp_path)
+    summary = _write_assessment_summary(tmp_path, load_pricing())
     assert summary is not None
     assert summary.reasoning_effort == "xhigh"
 
@@ -306,7 +349,7 @@ def test_assessment_summary_reasoning_effort_empty_when_unset(tmp_path: Path) ->
     )
     _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
 
-    summary = _write_assessment_summary(tmp_path)
+    summary = _write_assessment_summary(tmp_path, load_pricing())
     assert summary is not None
     assert summary.reasoning_effort == ""  # no override → never synthesize a default
 
@@ -329,6 +372,7 @@ def test_eval_repetitions_writes_n_files(tmp_path: Path) -> None:
                 with_opik=False,
                 semaphore=asyncio.Semaphore(10),
                 eval_config=config,
+                pricing=load_pricing(),
             )
         )
 
@@ -355,6 +399,7 @@ def test_eval_repetitions_one_writes_single_file(tmp_path: Path) -> None:
                 with_opik=False,
                 semaphore=asyncio.Semaphore(10),
                 eval_config=config,
+                pricing=load_pricing(),
             )
         )
 
@@ -383,6 +428,7 @@ def test_evaluate_and_record_trial_writes_surviving_reps_on_partial_failure(tmp_
                 with_opik=False,
                 semaphore=asyncio.Semaphore(10),
                 eval_config=config,
+                pricing=load_pricing(),
             )
         )
 

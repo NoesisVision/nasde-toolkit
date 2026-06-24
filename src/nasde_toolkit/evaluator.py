@@ -20,7 +20,7 @@ from rich.console import Console
 
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator_backends import create_backend
-from nasde_toolkit.pricing import load_pricing
+from nasde_toolkit.pricing import ModelPrice, load_pricing_layered
 from nasde_toolkit.token_metrics import build_trial_economics
 
 console = Console()
@@ -142,6 +142,7 @@ async def evaluate_job(
 
     _warn_if_throttled(trial_dirs, max_concurrent, eval_config.eval_repetitions)
     semaphore = asyncio.Semaphore(max_concurrent)
+    pricing = load_pricing_layered(project_root)
     coros = [
         _evaluate_and_record_trial(
             td,
@@ -150,6 +151,7 @@ async def evaluate_job(
             with_opik,
             semaphore,
             eval_config,
+            pricing,
         )
         for td in trial_dirs
     ]
@@ -164,12 +166,14 @@ async def evaluate_and_record_trial(
     with_opik: bool,
     semaphore: asyncio.Semaphore,
     eval_config: EvaluationConfig | None = None,
+    pricing: dict[str, ModelPrice] | None = None,
 ) -> EvaluationResult | None:
     """Evaluate a single trial with semaphore-based concurrency control.
 
     Public wrapper used by runner.py for streaming (Level 2) assessment.
     """
     eval_config = eval_config or EvaluationConfig()
+    pricing = pricing if pricing is not None else load_pricing_layered(project_root)
     return await _evaluate_and_record_trial(
         trial_dir,
         project_root,
@@ -177,6 +181,7 @@ async def evaluate_and_record_trial(
         with_opik,
         semaphore,
         eval_config,
+        pricing,
     )
 
 
@@ -186,7 +191,8 @@ async def _evaluate_and_record_trial(
     project_name: str,
     with_opik: bool,
     semaphore: asyncio.Semaphore,
-    eval_config: EvaluationConfig | None = None,
+    eval_config: EvaluationConfig | None,
+    pricing: dict[str, ModelPrice],
 ) -> EvaluationResult | None:
     eval_config = eval_config or EvaluationConfig()
     console.print(f"\n[bold]Evaluating: {trial_dir.name} (x{eval_config.eval_repetitions})[/bold]")
@@ -196,7 +202,7 @@ async def _evaluate_and_record_trial(
             return None
         for evaluation in evaluations:
             _write_evaluation_result(trial_dir, evaluation)
-        summary = _write_assessment_summary(trial_dir)
+        summary = _write_assessment_summary(trial_dir, pricing)
         if with_opik and summary is not None:
             await asyncio.to_thread(_upload_to_opik, summary, project_name)
         return evaluations[-1]
@@ -674,12 +680,12 @@ def _next_eval_index(trial_dir: Path) -> int:
     return max(indices, default=0) + 1
 
 
-def _write_assessment_summary(trial_dir: Path) -> AssessmentSummary | None:
+def _write_assessment_summary(trial_dir: Path, pricing: dict[str, ModelPrice]) -> AssessmentSummary | None:
     evaluations = _load_raw_evaluations(trial_dir)
     if not evaluations:
         return None
     summary = _aggregate_evaluations(evaluations)
-    _enrich_with_economics(summary, trial_dir)
+    _enrich_with_economics(summary, trial_dir, pricing)
     output_path = trial_dir / "assessment_summary.json"
     with open(output_path, "w") as f:
         json.dump(asdict(summary), f, indent=2)
@@ -687,9 +693,9 @@ def _write_assessment_summary(trial_dir: Path) -> AssessmentSummary | None:
     return summary
 
 
-def _enrich_with_economics(summary: AssessmentSummary, trial_dir: Path) -> None:
+def _enrich_with_economics(summary: AssessmentSummary, trial_dir: Path, pricing: dict[str, ModelPrice]) -> None:
     model = _resolve_model_name(trial_dir)
-    economics = build_trial_economics(trial_dir, model, load_pricing())
+    economics = build_trial_economics(trial_dir, model, pricing)
     summary.model_name = economics["model_name"]
     summary.reasoning_effort = resolve_reasoning_effort(trial_dir)
     summary.token_usage = economics["token_usage"]

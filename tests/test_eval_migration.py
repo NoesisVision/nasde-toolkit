@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nasde_toolkit.eval_migration import migrate_trial_evals
+import pytest
+
+from nasde_toolkit.eval_migration import migrate_job_evals, migrate_trial_evals
 
 
 def _eval_payload(normalized_score: float, evaluator_model: str = "claude-opus-4-7") -> dict:
@@ -120,3 +122,39 @@ def test_migrate_mixed_models_yields_two_groups(tmp_path: Path) -> None:
     summary = json.loads((tmp_path / "assessment_summary.json").read_text())
     models = {g["evaluator_model"] for g in summary["groups"]}
     assert models == {"claude-opus-4-7", "codex-gpt-5"}
+
+
+def _seed_trajectory(trial_dir: Path) -> None:
+    (trial_dir / "config.json").write_text(
+        json.dumps({"agent": {"name": "demo-variant", "model_name": "claude-sonnet-4-6"}})
+    )
+    (trial_dir / "result.json").write_text(json.dumps({"trial_name": trial_dir.name}))
+    agent_dir = trial_dir / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "final_metrics": {
+                    "total_prompt_tokens": 1_000_000,
+                    "total_completion_tokens": 50_000,
+                    "extra": {"reasoning_output_tokens": 10_000},
+                }
+            }
+        )
+    )
+
+
+def test_migrate_job_evals_threads_project_pricing(tmp_path: Path) -> None:
+    job = tmp_path / "jobs" / "demo-job"
+    trial = job / "demo-task__aaa"
+    trial.mkdir(parents=True)
+    _seed_trajectory(trial)
+    _write(trial, "assessment_eval.json", _eval_payload(0.6))
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pricing.toml").write_text('[models."claude-sonnet-4-6"]\ninput_per_1m = 30.0\noutput_per_1m = 150.0\n')
+
+    migrate_job_evals(job, project_dir=project)
+
+    summary = json.loads((trial / "assessment_summary.json").read_text())
+    assert summary["cost_usd"] == pytest.approx(1_000_000 / 1e6 * 30.0 + 60_000 / 1e6 * 150.0)

@@ -433,7 +433,7 @@ def results_export_command(
     from nasde_toolkit.config import load_project_config
     from nasde_toolkit.results_exporter import export_results
 
-    load_project_config(project_dir.resolve())
+    config = load_project_config(project_dir.resolve())
 
     from nasde_toolkit.banner import print_banner
 
@@ -445,7 +445,7 @@ def results_export_command(
         )
     )
 
-    export_results([p.resolve() for p in paths], to.resolve())
+    export_results([p.resolve() for p in paths], to.resolve(), project_dir=config.project_dir)
 
 
 @app.command(name="migrate-evals", hidden=True)
@@ -483,7 +483,7 @@ def migrate_evals_command(
     from nasde_toolkit.config import load_project_config
     from nasde_toolkit.eval_migration import migrate_job_evals
 
-    load_project_config(project_dir.resolve())
+    config = load_project_config(project_dir.resolve())
 
     from nasde_toolkit.banner import print_banner
 
@@ -495,7 +495,7 @@ def migrate_evals_command(
         )
     )
 
-    outcomes = migrate_job_evals(path.resolve(), dry_run=dry_run)
+    outcomes = migrate_job_evals(path.resolve(), dry_run=dry_run, project_dir=config.project_dir)
 
     from rich.table import Table
 
@@ -505,6 +505,42 @@ def migrate_evals_command(
     for name, count in outcomes.items():
         table.add_row(name, str(count))
     console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# Pricing sub-app (nasde pricing ...)
+# ---------------------------------------------------------------------------
+
+pricing_app = typer.Typer(
+    name="pricing",
+    help="Inspect the effective model price catalog (project > ~/.nasde > bundled).",
+    no_args_is_help=True,
+)
+app.add_typer(pricing_app, name="pricing")
+
+
+@pricing_app.command(name="show")
+def pricing_show_command(
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-C",
+        help="Path to evaluation project (its pricing.toml is the highest layer).",
+    ),
+    show_source: bool = typer.Option(
+        False,
+        "--show-source",
+        help="Add a Layer column showing which layer each rate comes from (debug).",
+    ),
+) -> None:
+    """Print the effective merged pricing catalog after layered overrides."""
+    from nasde_toolkit.config import load_project_config
+    from nasde_toolkit.pricing import effective_pricing_with_source
+    from nasde_toolkit.pricing_report import render_pricing_table
+
+    config = load_project_config(project_dir.resolve())
+    entries = effective_pricing_with_source(config.project_dir)
+    console.print(render_pricing_table(entries, show_source=show_source, title="Effective pricing"))
 
 
 # ---------------------------------------------------------------------------

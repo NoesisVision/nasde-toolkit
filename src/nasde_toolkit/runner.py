@@ -1069,9 +1069,11 @@ async def _run_job_with_streaming_eval(
 ) -> None:
     """Run Harbor job with assessment eval starting per trial as they complete."""
     from nasde_toolkit.evaluator import evaluate_and_record_trial
+    from nasde_toolkit.pricing import load_pricing_layered
 
     project_name = config.reporting.project_name or config.name
     eval_semaphore = asyncio.Semaphore(max_concurrent_eval)
+    pricing = load_pricing_layered(config.project_dir)
     assessment_tasks: list[asyncio.Task] = []
 
     async def _on_trial_complete(event: object) -> None:
@@ -1084,6 +1086,7 @@ async def _run_job_with_streaming_eval(
                 with_opik=with_opik,
                 semaphore=eval_semaphore,
                 eval_config=config.evaluation,
+                pricing=pricing,
             )
         )
         assessment_tasks.append(task)
@@ -1101,7 +1104,7 @@ async def _run_job_with_streaming_eval(
         if assessment_tasks:
             console.print(f"[dim]Waiting for {len(assessment_tasks)} assessment evaluation(s)...[/dim]")
             await asyncio.gather(*assessment_tasks, return_exceptions=True)
-    _print_job_summary(result, _job_dir_from_config(merged_config))
+    _print_job_summary(result, _job_dir_from_config(merged_config), config.project_dir)
     console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
@@ -1141,7 +1144,7 @@ async def _run_job(
         os.chdir(saved_cwd)
 
 
-def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
+def _print_job_summary(result: JobResult, job_dir: Path | None = None, project_dir: Path | None = None) -> None:
     console.print()
     console.print("[bold]Job completed[/bold]")
     console.print(f"  Trials: {result.stats.n_completed_trials}")
@@ -1152,6 +1155,7 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
         if rows:
             _print_economics_table(rows)
             _print_label_legend(rows)
+            _print_pricing_used(rows, project_dir)
             _print_location_hints(job_dir)
         elif result.stats.evals:
             _warn_missing_economics(job_dir)
@@ -1159,6 +1163,20 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None) -> None:
     elif result.stats.evals:
         _print_eval_counts_table(result)
     console.print()
+
+
+def _print_pricing_used(rows: list[dict], project_dir: Path | None) -> None:
+    from nasde_toolkit.pricing import effective_pricing_with_source
+    from nasde_toolkit.pricing_report import render_pricing_table
+
+    used_models = {row["model"] for row in rows if row["model"]}
+    if not used_models:
+        return
+    effective = effective_pricing_with_source(project_dir)
+    entries = {model: effective[model] for model in used_models if model in effective}
+    if not entries:
+        return
+    console.print(render_pricing_table(entries, show_source=True, title="Pricing used (effective)"))
 
 
 def _warn_missing_economics(job_dir: Path) -> None:
@@ -1249,6 +1267,7 @@ def _finalize_economics_row(label: tuple[str, str, str], agg: dict) -> dict:
     return {
         "full_label": f"{agent} / {model}" if model else agent,
         "short_label": _short_label(agent, model),
+        "model": model,
         "reasoning_effort": effort,
         "trials": agg["trials"],
         "score": _mean(agg["scores"]),

@@ -24,7 +24,7 @@ from nasde_toolkit.evaluator import (
     _resolve_task_name,
     resolve_reasoning_effort,
 )
-from nasde_toolkit.pricing import load_pricing
+from nasde_toolkit.pricing import ModelPrice, load_pricing_layered
 from nasde_toolkit.token_metrics import build_trial_economics
 
 console = Console()
@@ -39,15 +39,46 @@ class ExportSummary:
     failed: list[str] = field(default_factory=list)
 
 
-def export_results(paths: list[Path], dest: Path, include_trajectory: bool = True) -> ExportSummary:
+def export_results(
+    paths: list[Path],
+    dest: Path,
+    include_trajectory: bool = True,
+    project_dir: Path | None = None,
+) -> ExportSummary:
     """Export trial artifacts from the given job and/or trial paths into dest."""
     dest.mkdir(parents=True, exist_ok=True)
     trials = _expand_to_trials(paths)
+    pricing = load_pricing_layered(project_dir)
     summary = ExportSummary()
     for job_name, trial_dir in trials:
-        _export_one_trial(job_name, trial_dir, dest, include_trajectory, summary)
+        _export_one_trial(job_name, trial_dir, dest, include_trajectory, summary, pricing)
+    _write_pricing_used(dest, [trial_dir for _, trial_dir in trials], project_dir)
     _print_summary(summary, dest)
     return summary
+
+
+def _write_pricing_used(dest: Path, trial_dirs: list[Path], project_dir: Path | None) -> None:
+    from nasde_toolkit.pricing import effective_pricing_with_source
+
+    used_models = {_resolve_model_name(td) for td in trial_dirs}
+    used_models.discard("")
+    if not used_models:
+        return
+    effective = effective_pricing_with_source(project_dir)
+    report = {}
+    for model in sorted(used_models):
+        entry = effective.get(model)
+        if entry is None:
+            continue
+        price, layer = entry
+        report[model] = {
+            "input_per_1m": price.input_per_1m,
+            "output_per_1m": price.output_per_1m,
+            "as_of": price.as_of,
+            "layer": layer,
+        }
+    if report:
+        (dest / "pricing_used.json").write_text(json.dumps(report, indent=2))
 
 
 def _expand_to_trials(paths: list[Path]) -> list[tuple[str, Path]]:
@@ -117,13 +148,14 @@ def _export_one_trial(
     dest: Path,
     include_trajectory: bool,
     summary: ExportSummary,
+    pricing: dict[str, ModelPrice],
 ) -> None:
     out_dir = dest / f"{job_name}__{trial_dir.name}"
     label = out_dir.name
     existed = out_dir.exists()
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
-        _write_metrics(trial_dir, out_dir)
+        _write_metrics(trial_dir, out_dir, pricing)
         copied = _copy_assessment_files(trial_dir, out_dir)
         _copy_verifier_files(trial_dir, out_dir)
         if include_trajectory and not (out_dir / "trajectory.json").exists():
@@ -144,16 +176,16 @@ def _export_one_trial(
         summary.skipped.append(label)
 
 
-def _write_metrics(trial_dir: Path, out_dir: Path) -> None:
-    metrics = _build_metrics(trial_dir)
+def _write_metrics(trial_dir: Path, out_dir: Path, pricing: dict[str, ModelPrice]) -> None:
+    metrics = _build_metrics(trial_dir, pricing)
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
 
-def _build_metrics(trial_dir: Path) -> dict:
+def _build_metrics(trial_dir: Path, pricing: dict[str, ModelPrice]) -> dict:
     result = _load_json(trial_dir / "result.json")
     model = _resolve_model_name(trial_dir)
     score_stats = _resolve_score_stats(trial_dir)
-    economics = build_trial_economics(trial_dir, model, load_pricing())
+    economics = build_trial_economics(trial_dir, model, pricing)
     return {
         "trial_name": result.get("trial_name", trial_dir.name),
         "task_name": _resolve_task_name(result),

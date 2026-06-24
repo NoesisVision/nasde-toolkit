@@ -236,3 +236,12 @@ def test_print_job_summary_renders_economics_for_own_job(
     out = _flat(capsys.readouterr().out)
     assert "Results by agent/model" in out
     assert "no assessment_summary.json found" not in out
+
+
+def test_economics_row_carries_model_name(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _write_trial(job, "t__a", "codex-vanilla", "gpt-5.4", 0.7, 1000, 1.0)
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.8, 1000, 1.0)
+
+    rows = _collect_economics_rows(job)
+    assert {row["model"] for row in rows} == {"gpt-5.4", "claude-sonnet-4-6"}

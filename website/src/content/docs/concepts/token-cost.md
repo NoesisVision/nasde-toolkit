@@ -88,18 +88,73 @@ The key (`claude-opus-4-8` above) must match the `model` in your `variant.toml` 
 
 ### Verifying the effective catalog
 
-To see the merged result after your overrides, run:
+After dropping an override, **always check it took effect** — run `pricing show` with `--show-source`:
 
 ```bash
-nasde pricing show -C ./my-benchmark              # effective rates per model
-nasde pricing show -C ./my-benchmark --show-source  # + which layer each rate came from
+nasde pricing show -C ./my-benchmark --show-source
 ```
 
-If an override doesn't seem to apply, this is the first thing to check: a model showing layer `bundled` when you expected `project` means the name in your `pricing.toml` doesn't match the model you ran.
+With a project override of `claude-sonnet-4-6` (to $2.5 / $11), you'll see it win the `project` layer while everything else stays `bundled`:
 
-A malformed override file (bad TOML, a missing `input_per_1m`/`output_per_1m`) fails fast with a clear message naming the file — it never silently produces a wrong cost.
+```
+                        Effective pricing
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━┩
+│ claude-opus-4-8   │      $5 │      $15 │ bundled │ 2026-06-08 │
+│ claude-sonnet-4-6 │    $2.5 │      $11 │ project │ 2026-06-24 │
+│ gpt-5.4           │    $2.5 │      $15 │ bundled │ 2026-06-08 │
+│ gpt-5.5           │      $5 │      $30 │ bundled │ 2026-06-08 │
+└───────────────────┴─────────┴──────────┴─────────┴────────────┘
+```
 
-For audit, every `nasde results-export` also writes a `pricing_used.json` next to the exported trials — the effective rate and source layer for each model that was priced in that batch — so a report is self-contained. The `nasde run` summary prints the same "Pricing used" table for the models in the run.
+#### Catching a silent miss (wrong model name)
+
+This is the failure mode to watch for. Suppose you typo'd the key as `claude-sonnet-4.6` (dot) instead of `claude-sonnet-4-6` (dashes). The override **loads fine — no error** — but it doesn't match the model you actually run, so it just sits there as an extra, unused row while the real model keeps the bundled rate:
+
+```
+┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
+│ claude-sonnet-4-6 │      $3 │      $15 │ bundled │ 2026-06-08 │   ← the model you run: NOT overridden
+│ claude-sonnet-4.6 │    $2.5 │      $11 │ project │ —          │   ← your typo: a dead, unused entry
+```
+
+The tell-tale: **the model you meant to override shows `bundled`, not `project`.** Fix the key to match the `model` in your `variant.toml` and re-run `pricing show`.
+
+#### Loud errors (malformed file)
+
+A broken override file never produces a wrong cost — it fails fast, naming the file and the cause. A decimal comma (`2,5` instead of `2.5`) is the classic one:
+
+```
+ERROR: could not load pricing override /path/to/my-benchmark/pricing.toml
+  invalid TOML — Expected newline or end of document after a statement (at line 2, column 17)
+  hint: prices use a decimal point (2.5), not a comma (2,5)
+```
+
+A missing required field gives:
+
+```
+ERROR: could not load pricing override /Users/you/.nasde/pricing.toml
+  a model is missing the required field 'output_per_1m'
+```
+
+(The path tells you which layer to fix — your project's `pricing.toml` vs the user-wide `~/.nasde/pricing.toml`.)
+
+#### Self-contained audit
+
+Every `nasde results-export` also writes a `pricing_used.json` next to the exported trials — the effective rate and source layer for each model priced in that batch:
+
+```json
+{
+  "claude-sonnet-4-6": {
+    "input_per_1m": 2.5,
+    "output_per_1m": 11.0,
+    "as_of": "2026-06-24",
+    "layer": "project"
+  }
+}
+```
+
+So a report carries its own pricing provenance. The `nasde run` summary prints the same "Pricing used" table for the models in the run.
 
 :::note[Editing the bundled catalog directly]
 You can still edit the bundled `src/nasde_toolkit/pricing.toml` from a source checkout (`uv sync`). After a PyPI install (`uv tool install` / pipx) the bundled file lives inside an isolated environment and is overwritten on upgrade — so prefer a `pricing.toml` override (above), which survives upgrades, or contribute the rate upstream.

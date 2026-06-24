@@ -9,6 +9,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-24
+
 ### Added
 - **Convention-based layered price overrides ([ADR-013](docs/adr/013-layered-pricing-override.md)).** Model prices
   are now overridable after install without touching the wheel: drop a
@@ -552,7 +554,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.0...v0.3.2

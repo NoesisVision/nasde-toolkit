@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import as_file, files
 from pathlib import Path
+from typing import NoReturn
 
 from rich.console import Console
 
@@ -140,8 +141,26 @@ def _override_layers(project_dir: Path | None) -> list[PricingLayer]:
     for name, path in _override_layer_paths(project_dir):
         if not path.is_file():
             continue
-        layers.append(PricingLayer(name=name, path=path, present=True, models=load_pricing(path)))
+        layers.append(PricingLayer(name=name, path=path, present=True, models=_load_override_models(path)))
     return layers
+
+
+def _load_override_models(path: Path) -> dict[str, ModelPrice]:
+    try:
+        return load_pricing(path)
+    except tomllib.TOMLDecodeError as error:
+        _exit_bad_pricing(path, f"invalid TOML — {error}", hint="prices use a decimal point (2.5), not a comma (2,5)")
+    except KeyError as error:
+        field = str(error).strip("'\"")
+        _exit_bad_pricing(path, f"a model is missing the required field {field!r}")
+
+
+def _exit_bad_pricing(path: Path, reason: str, hint: str = "") -> NoReturn:
+    console.print(f"[red]ERROR: could not load pricing override {path}[/red]")
+    console.print(f"  [red]{reason}[/red]")
+    if hint:
+        console.print(f"  [yellow]hint: {hint}[/yellow]")
+    raise SystemExit(1)
 
 
 def _override_layer_paths(project_dir: Path | None) -> list[tuple[str, Path]]:

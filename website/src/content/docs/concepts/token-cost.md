@@ -74,11 +74,17 @@ The precedence is **project > user > bundled**, merged **per model**: each overr
 ```toml
 # ~/.nasde/pricing.toml — your enterprise rate for one model; the rest stays bundled
 [models."claude-opus-4-8"]
-input_per_1m = 4.0
+input_per_1m = 4.0      # prices use a decimal point (4.0), not a comma
 output_per_1m = 12.0
-as_of = "2026-06-22"
-source = "internal contract"
+as_of = "2026-06-22"    # optional — when you confirmed this rate
+source = "internal contract"   # optional — where it came from
 ```
+
+`nasde init` drops a fully-commented `pricing.toml.example` in a new project — copy it to `pricing.toml` and edit, rather than writing one from scratch.
+
+:::caution[The model name must match exactly]
+The key (`claude-opus-4-8` above) must match the `model` in your `variant.toml` — i.e. the `model_name` recorded in each trial. If it doesn't (a typo like `claude-opus-4.8`, or a model you don't actually run), the override is **silently ignored** and the trial keeps the bundled rate — no error. Confirm your override took effect with `--show-source` (below): your model should show layer `project`/`user`, not `bundled`.
+:::
 
 ### Verifying the effective catalog
 
@@ -88,6 +94,10 @@ To see the merged result after your overrides, run:
 nasde pricing show -C ./my-benchmark              # effective rates per model
 nasde pricing show -C ./my-benchmark --show-source  # + which layer each rate came from
 ```
+
+If an override doesn't seem to apply, this is the first thing to check: a model showing layer `bundled` when you expected `project` means the name in your `pricing.toml` doesn't match the model you ran.
+
+A malformed override file (bad TOML, a missing `input_per_1m`/`output_per_1m`) fails fast with a clear message naming the file — it never silently produces a wrong cost.
 
 For audit, every `nasde results-export` also writes a `pricing_used.json` next to the exported trials — the effective rate and source layer for each model that was priced in that batch — so a report is self-contained. The `nasde run` summary prints the same "Pricing used" table for the models in the run.
 

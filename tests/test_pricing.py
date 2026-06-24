@@ -23,6 +23,18 @@ def test_model_price_is_frozen() -> None:
         price.input_per_1m = 0.01  # type: ignore[misc]
 
 
+def test_layered_malformed_toml_exits_with_path(tmp_path: Path, empty_user_layer: Path) -> None:
+    (tmp_path / "pricing.toml").write_text('[models."m"]\ninput_per_1m = 2,5\noutput_per_1m = 1.0\n')
+    with pytest.raises(SystemExit):
+        load_pricing_layered(tmp_path)
+
+
+def test_layered_missing_required_field_exits(tmp_path: Path, empty_user_layer: Path) -> None:
+    (tmp_path / "pricing.toml").write_text('[models."m"]\ninput_per_1m = 2.5\n')
+    with pytest.raises(SystemExit):
+        load_pricing_layered(tmp_path)
+
+
 def _write_pricing(directory: Path, body: str) -> Path:
     path = directory / "pricing.toml"
     path.write_text(body)

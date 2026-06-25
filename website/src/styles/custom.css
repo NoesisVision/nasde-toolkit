@@ -1,9 +1,9 @@
-/* Nasde Toolkit docs — Noesis teal brand theme.
+/* Nasde Toolkit docs — NASDE teal brand theme.
    Replaces Starlight's default purple accent with the teal/cyan from the
-   Noesis logo, keeping the docs visually consistent with noesis-docs. */
+   NASDE logo, keeping the docs visually consistent with the product mark. */
 
 :root {
-	/* Dark theme accent (teal/cyan from the logo glow) */
+	/* Dark theme accent (teal/cyan from the NASDE mark) */
 	--sl-color-accent-low: #11353a;
 	--sl-color-accent: #2b92a8;
 	--sl-color-accent-high: #a7e3ed;
@@ -49,9 +49,17 @@
    so the light-background Nasde artwork doesn't clash with dark mode. */
 .hero > img,
 .hero .hero-html img {
+	display: block;
+	inline-size: 100%;
+	block-size: auto;
 	border-radius: 1rem;
 	background: var(--sl-color-gray-7, #f4f5f7);
 	box-shadow: 0 0 3rem rgba(43, 146, 168, 0.2);
+}
+
+.hero > .hero-html {
+	align-items: center;
+	justify-content: center;
 }
 
 /* Inline `code` inside headings renders at the full heading size by default,

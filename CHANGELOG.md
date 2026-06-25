@@ -9,6 +9,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Changed
+- Added the NASDE branding source assets and updated the README and
+  documentation website to use the new brand. ([#73])
+
 ## [0.5.0] — 2026-06-24
 
 ### Added
@@ -597,4 +601,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#69]: https://github.com/NoesisVision/nasde-toolkit/pull/69
 [#70]: https://github.com/NoesisVision/nasde-toolkit/pull/70
 [#71]: https://github.com/NoesisVision/nasde-toolkit/pull/71
+[#73]: https://github.com/NoesisVision/nasde-toolkit/pull/73
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

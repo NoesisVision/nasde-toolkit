@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://noesis.vision/nasde/"><img src="nasde-toolkit-logo.png" alt="NASDE Toolkit" width="400"></a>
+  <a href="https://noesis.vision/nasde/"><img src="branding/nasde-lockup-card.svg" alt="NASDE Toolkit" width="520"></a>
 
   <h3>Noesis Agentic Software Development Evals Toolkit</h3>
 

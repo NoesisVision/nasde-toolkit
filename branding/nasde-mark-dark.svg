@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 320 320">
+  <title id="title">Nasde mark for dark backgrounds</title>
+  <desc id="desc">Precision grid N monogram for Nasde, tuned for dark backgrounds.</desc>
+  <defs>
+    <linearGradient id="light" x1="73" y1="74" x2="210" y2="246" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="208" y1="74" x2="253" y2="246" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#44d0bd"/>
+      <stop offset="1" stop-color="#18a090"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="28" fill="#061827"/>
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M160 0v320" stroke="#dbeafe" stroke-width="4" stroke-dasharray="12 13" opacity="0.82"/>
+    <path d="M0 160h320" stroke="#dbeafe" stroke-width="4" stroke-dasharray="12 13" opacity="0.82"/>
+    <path d="M32 25h32M32 25v32" stroke="#28b8a4" stroke-width="5"/>
+    <path d="M288 25h-32M288 25v32" stroke="#28b8a4" stroke-width="5"/>
+    <path d="M32 295h32M32 295v-32" stroke="#28b8a4" stroke-width="5"/>
+    <path d="M288 295h-32M288 295v-32" stroke="#28b8a4" stroke-width="5"/>
+  </g>
+  <path d="M70 74h47l136 159v13h-47L70 87z" fill="url(#light)"/>
+  <path d="M70 102l47 55v89H70z" fill="url(#light)"/>
+  <path d="M206 74h47v144l-47-55z" fill="url(#teal)"/>
+</svg>

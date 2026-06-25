@@ -11,7 +11,7 @@
       <stop offset="1" stop-color="#127e73"/>
     </linearGradient>
   </defs>
-  <rect width="320" height="320" rx="36" fill="#f8fafc"/>
+  <rect width="320" height="320" fill="none"/>
   <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M160 0v320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>
     <path d="M0 160h320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>

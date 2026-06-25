@@ -1,7 +1,7 @@
 <div align="center">
   <a href="https://noesis.vision/nasde/"><img src="branding/nasde-lockup-card.svg" alt="NASDE Toolkit" width="520"></a>
 
-  <h3>Noesis Agentic Software Development Evals</h3>
+  <h3>Noesis Agentic Software Development Evals Toolkit</h3>
 
   <p>Measure how your whole AI coding setup performs — and what it costs in tokens and dollars across models and providers — so you can choose where to invest and when to switch.</p>
 

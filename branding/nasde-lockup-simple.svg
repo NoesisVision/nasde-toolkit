@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1062 360">
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="-47 6 1062 360">
   <title id="title">Nasde simple logo lockup</title>
   <desc id="desc">Nasde mark with wordmark.</desc>
   <defs>
@@ -11,7 +11,7 @@
       <stop offset="1" stop-color="#127e73"/>
     </linearGradient>
   </defs>
-  <rect width="1062" height="360" fill="none"/>
+  <rect x="-47" y="6" width="1062" height="360" fill="none"/>
   <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M207 30v320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>
     <path d="M47 190h320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>

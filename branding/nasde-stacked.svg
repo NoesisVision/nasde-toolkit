@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 680 680">
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="2.5 -84 680 680">
   <title id="title">Nasde stacked logo</title>
   <desc id="desc">Centered Nasde mark with wordmark and acronym expansion.</desc>
   <defs>
@@ -11,7 +11,7 @@
       <stop offset="1" stop-color="#127e73"/>
     </linearGradient>
   </defs>
-  <rect width="680" height="680" fill="none"/>
+  <rect x="2.5" y="-84" width="680" height="680" fill="none"/>
   <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M340 0v320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>
     <path d="M180 160h320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>

@@ -14,8 +14,8 @@ export default defineConfig({
 		starlight({
 			title: 'Nasde Toolkit Docs',
 			logo: {
-				src: './src/assets/noesis-logo.png',
-				alt: 'Noesis Vision',
+				src: './src/assets/nasde-mark.png',
+				alt: 'Nasde Toolkit',
 			},
 			favicon: '/favicon.png',
 			customCss: ['./src/styles/custom.css'],

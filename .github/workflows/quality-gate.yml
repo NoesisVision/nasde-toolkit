@@ -8,7 +8,14 @@ on:
   workflow_call:
 
 concurrency:
-  group: quality-${{ github.ref }}
+  # github.workflow is the CALLER's workflow name ("Quality Gate" on a direct
+  # push/PR, "Publish" when invoked via `uses:` from publish.yml). Keying the
+  # group on it keeps the publish-embedded gate out of the standalone gate's
+  # group, so the release push's gate isn't cancelled by the follow-up publish
+  # run (which renders as a red ✗ on main even though nothing failed).
+  # NOTE: this relies on each caller declaring an explicit `name:` — without one
+  # GitHub falls back to the file path and the group silently changes.
+  group: quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

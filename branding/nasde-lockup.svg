@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="-47 6 1062 410">
+  <title id="title">Nasde logo lockup</title>
+  <desc id="desc">Nasde mark with wordmark and acronym expansion.</desc>
+  <defs>
+    <linearGradient id="navy" x1="120" y1="129" x2="257" y2="301" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#08263b"/>
+      <stop offset="1" stop-color="#031523"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="255" y1="129" x2="300" y2="301" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#35aa99"/>
+      <stop offset="1" stop-color="#127e73"/>
+    </linearGradient>
+  </defs>
+  <rect x="-47" y="6" width="1062" height="410" fill="none"/>
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M207 55v320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>
+    <path d="M47 215h320" stroke="#071827" stroke-width="4" stroke-dasharray="12 13"/>
+    <path d="M79 80h32M79 80v32" stroke="#128677" stroke-width="5"/>
+    <path d="M335 80h-32M335 80v32" stroke="#128677" stroke-width="5"/>
+    <path d="M79 350h32M79 350v-32" stroke="#128677" stroke-width="5"/>
+    <path d="M335 350h-32M335 350v-32" stroke="#128677" stroke-width="5"/>
+  </g>
+  <path d="M117 129h47l136 159v13h-47L117 142z" fill="url(#navy)"/>
+  <path d="M117 157l47 55v89h-47z" fill="url(#navy)"/>
+  <path d="M253 129h47v144l-47-55z" fill="url(#teal)"/>
+  <g>
+    <text x="425" y="279" fill="#061827" font-family="Avenir Next, Inter, Helvetica Neue, Arial, sans-serif" font-size="156" font-weight="760" letter-spacing="0">Nasde</text>
+    <text x="428" y="329" fill="#263648" font-family="Avenir Next, Inter, Helvetica Neue, Arial, sans-serif" font-size="24" font-weight="500" letter-spacing="0">Noesis Agentic Software Development Evals</text>
+  </g>
+</svg>

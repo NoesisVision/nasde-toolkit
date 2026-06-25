@@ -10,8 +10,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Changed
-- Updated the public NASDE branding assets across the README and documentation
-  website. ([#73])
+- Added the NASDE branding source assets and updated the README and
+  documentation website to use the new brand. ([#73])
 
 ## [0.5.0] — 2026-06-24
 

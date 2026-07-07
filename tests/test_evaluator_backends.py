@@ -66,12 +66,14 @@ def test_claude_backend_validate_auth_succeeds_with_oauth(monkeypatch: pytest.Mo
     backend.validate_auth()
 
 
-def test_claude_backend_validate_auth_fails_without_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_claude_backend_validate_auth_tolerates_missing_env_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Keychain OAuth (subscription accounts) is invisible to the environment;
+    # validate_auth must not hard-fail — the subprocess fails loudly if the
+    # CLI truly has no auth.
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
     backend = ClaudeSubprocessBackend()
-    with pytest.raises(SystemExit):
-        backend.validate_auth()
+    backend.validate_auth()
 
 
 def test_claude_backend_builds_command(tmp_path: Path) -> None:

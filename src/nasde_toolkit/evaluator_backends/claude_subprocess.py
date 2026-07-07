@@ -62,11 +62,17 @@ class ClaudeSubprocessBackend:
         raise SystemExit(1)
 
     def validate_auth(self) -> None:
+        # No env credentials is NOT fatal: this backend deliberately omits
+        # --bare so the claude CLI can read OAuth tokens from the keychain
+        # (subscription accounts). If the CLI truly has no auth, the
+        # evaluation subprocess fails loudly on its first call.
         has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
         has_oauth = bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"))
         if not has_api_key and not has_oauth:
-            console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
-            raise SystemExit(1)
+            console.print(
+                "[dim]No ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN in the environment — "
+                "relying on the claude CLI's keychain OAuth.[/dim]"
+            )
 
     def _build_command_with_skills(
         self,

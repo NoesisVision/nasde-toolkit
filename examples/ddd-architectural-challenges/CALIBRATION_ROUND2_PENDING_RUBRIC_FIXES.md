@@ -12,13 +12,31 @@ working session's context is lost.
 One eval ≈ 12–21 min, ≈ 40% of a Max-5x 5h window → manual per-eval gating
 (`scratchpad/fable-one.sh <suffix>`), NO loops without the owner's go.
 
-| Trial | PR | Bucket | rep 1 | rep 2 | mean | per-dim (mf/re/tq) |
+| Trial | PR | Bucket | rep 1 | rep 2 | mean | per-dim means (mf/re/tq) |
 |---|---|:---:|:---:|:---:|:---:|---|
-| FjYQ3XQ | #21 | A | 0.59 | pending | — | 33/16/10 |
-| aGTFmDh | #16 | B | 0.59 | running | — | 26/22/11 |
-| qHCAtXV | #14 | B | 0.49 | 0.51 | 0.500 | 23-25/20/6 |
-| ZvSsnyg | #13 | C | 0.55 | 0.55 | 0.550 | 30/19/6 (identical reps) |
-| 4njch2w | #18 | D | 0.45 | 0.44 | 0.445 | 29-30/5/10, precheck cap 0.45 standby |
+| FjYQ3XQ | #21 | A | 0.59 | 0.61 | 0.600 | 34.0 / 16 / 10 |
+| aGTFmDh | #16 | B | 0.59 | 0.61 | 0.600 | 27.0 / 22 / 11 |
+| qHCAtXV | #14 | B | 0.49 | 0.51 | 0.500 | 24.0 / 20 / 6 |
+| ZvSsnyg | #13 | C | 0.55 | 0.55 | 0.550 | 30.0 / 19 / 6 (identical reps) |
+| 4njch2w | #18 | D | 0.45 | 0.44 | 0.445 | 29.5 / 5 / 10, precheck cap standby |
+
+**SUBSET COMPLETE (10/10). Formal check verdict (calibration_round2_check.py):**
+
+```
+[PASS] repeatability      worst std 1.41/50 = 2.8% of scale (v1 worst: 20%)
+[PASS] judge-model gap    n/a with one judge (passes trivially)
+[FAIL] human agreement    spearman 0.763 < 0.8; separation violated:
+                          #21 == #16 == 0.600 (A/B tie), #13 0.550 > #14 0.500 (C>B)
+[PASS] disjointness       worst |r| = 0.372 (mf~tq); mf~re -0.34, re~tq -0.30 (n=5!)
+[FAIL] #21 model_fit>=38  mean 34.0 (v2.1 simulation lifts it to 41)
+[PASS] #13 dethroned      rank 3, model_fit 30 <= 36
+[PASS] #18 cap+floor      normalized 0.445 <= 0.45, restraint 5 <= 8
+[  OK] anti-gaming guard  silent (max test_quality 11 < 18)
+```
+
+Both FAILs are exactly the two v2.0 defects the pending M1/M4/M5 edits address; the
+v2.1 simulation (below) restores strict reference order. Next per owner's decision:
+corroborate verdict patterns with a cheaper judge before applying any edit.
 
 Repeatability so far: all |Δ| within limits (worst: model_fit Δ2 on #14 — M7 verdict
 wobble). v1 comparison: same five scored 0.77/0.72/0.70/0.94/0.84 (order inverted in

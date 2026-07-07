@@ -7,6 +7,11 @@ from typing import Protocol, runtime_checkable
 
 from nasde_toolkit.config import EvaluationConfig
 
+# The agent's full diff (start state -> final workspace), materialized by the
+# evaluator into the trial directory so the judge can Read/Grep it. Backends
+# grant read access to the trial dir when this file is present.
+AGENT_DIFF_FILENAME = "agent_changes.diff"
+
 
 @runtime_checkable
 class EvaluatorBackend(Protocol):

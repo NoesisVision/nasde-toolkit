@@ -21,8 +21,10 @@ from rich.console import Console
 
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator_backends import create_backend
+from nasde_toolkit.evaluator_backends.protocol import AGENT_DIFF_FILENAME
 from nasde_toolkit.pricing import ModelPrice, load_pricing_layered
 from nasde_toolkit.token_metrics import build_trial_economics
+from nasde_toolkit.workspace_diff import capture_diffstat, capture_patch
 
 console = Console()
 
@@ -299,6 +301,7 @@ async def evaluate_trial(
     ground_truth = ground_truth_path.read_text() if ground_truth_path.exists() else ""
 
     precheck_raw = _run_precheck(task_dir, workspace_path)
+    agent_diff_path, agent_diffstat = _materialize_agent_diff(workspace_path, trial_dir)
 
     trajectory_path = _resolve_trajectory_path(trial_dir, eval_config)
     artifacts_dir = str(workspace_path) if eval_config.skills_dir else None
@@ -310,6 +313,8 @@ async def evaluate_trial(
         artifacts_dir,
         trajectory_path,
         precheck_raw,
+        agent_diff_path,
+        agent_diffstat,
     )
     console.print(f"  Task: {task_name}")
     console.print(f"  Workspace: {workspace_path}")
@@ -384,6 +389,25 @@ def resolve_dimensions_path(task_dir: Path) -> Path:
     if task_level.exists():
         return task_level
     return task_dir.parent.parent / "assessment_dimensions.json"
+
+
+def _materialize_agent_diff(workspace_path: Path, trial_dir: Path) -> tuple[str | None, str]:
+    """Write the agent's full diff next to the trial results and return (path, diffstat).
+
+    This is the judge's universal "what did the agent actually change" input —
+    the same reference point a human reviewer gets. The judge cannot run git
+    (Read/Glob/Grep only) and cannot see removals or out-of-feature edits in a
+    final-state snapshot, so the evaluator computes the diff on the host once
+    and hands it over as a file the judge can Read (paginated) and Grep. The
+    inline diffstat orients the judge; the file is the evidence source.
+    Returns (None, "") when the workspace has no git repo or nothing changed.
+    """
+    patch = capture_patch(workspace_path)
+    if not patch.strip():
+        return None, ""
+    diff_path = trial_dir / AGENT_DIFF_FILENAME
+    diff_path.write_text(patch, encoding="utf-8")
+    return str(diff_path), capture_diffstat(workspace_path)
 
 
 PRECHECK_TIMEOUT_SEC = 60
@@ -532,6 +556,8 @@ def _build_evaluator_prompt(
     artifacts_dir: str | None = None,
     trajectory_path: str | None = None,
     precheck: str = "",
+    agent_diff_path: str | None = None,
+    agent_diffstat: str = "",
 ) -> str:
     """Build the evaluation prompt with optional dimension constraints and ground truth."""
     scoring_guidance = _format_scoring_guidance(expected_dimensions)
@@ -539,6 +565,7 @@ def _build_evaluator_prompt(
     output_schema = _format_output_schema(expected_dimensions)
     dimension_count_rule = _format_dimension_count_rule(expected_dimensions)
     ground_truth_section = _format_ground_truth_section(ground_truth)
+    agent_diff_section = _format_agent_diff_section(agent_diff_path, agent_diffstat)
     precheck_section = _format_precheck_section(precheck)
     trajectory_section = _format_trajectory_section(trajectory_path)
 
@@ -569,7 +596,7 @@ that matches the description, not higher.
 <criteria>
 {criteria}
 </criteria>
-{ground_truth_section}{precheck_section}{trajectory_section}## How to evaluate
+{agent_diff_section}{ground_truth_section}{precheck_section}{trajectory_section}## How to evaluate
 
 1. Use `Glob` to discover all output files in the workspace.
 2. Use `Read` to examine the content of each output file.
@@ -657,6 +684,32 @@ decisions should lower the score.
 <ground_truth>
 {ground_truth}
 </ground_truth>
+"""
+
+
+def _format_agent_diff_section(agent_diff_path: str | None, agent_diffstat: str) -> str:
+    if not agent_diff_path:
+        return ""
+    return f"""
+## Agent diff — the authoritative record of what changed
+
+The workspace shows only the FINAL state; you cannot see what the agent
+modified, removed or added by reading files alone. The complete unified diff of
+the agent's work (start state → final workspace, including new files) is at:
+
+`{agent_diff_path}`
+
+Read it (use offset/limit pagination if large) and Grep it — e.g. lines
+starting with `-` show removed code, diff headers show every touched file.
+Any check about the agent's changes (modified pre-existing files, removed
+annotations, changed signatures, added artifacts) MUST be answered from this
+diff, not from impressions of the final state.
+
+Change summary (diffstat):
+
+```
+{agent_diffstat}
+```
 """
 
 

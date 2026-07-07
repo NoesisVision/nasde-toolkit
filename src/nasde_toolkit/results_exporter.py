@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -26,6 +25,7 @@ from nasde_toolkit.evaluator import (
 )
 from nasde_toolkit.pricing import ModelPrice, load_pricing_layered
 from nasde_toolkit.token_metrics import build_trial_economics
+from nasde_toolkit.workspace_diff import capture_patch
 
 console = Console()
 
@@ -291,55 +291,9 @@ def _write_patch(trial_dir: Path, out_dir: Path) -> None:
     (out_dir / "changes.patch").write_text(patch)
 
 
-def _capture_patch(workspace: Path) -> str:
-    if not (workspace / ".git").exists():
-        console.print(f"  [yellow]no git workspace in {workspace.parent.parent.name}; empty patch[/yellow]")
-        return ""
-    tracked = _run_git(workspace, ["diff", "HEAD"])
-    untracked = _capture_untracked(workspace)
-    return tracked + untracked
-
-
-def _capture_untracked(workspace: Path) -> str:
-    listing = _run_git_bytes(workspace, ["ls-files", "--others", "--exclude-standard", "-z"])
-    chunks: list[str] = []
-    for raw_path in listing.split(b"\x00"):
-        if raw_path:
-            relative_path = raw_path.decode("utf-8", "surrogateescape")
-            chunks.append(_diff_untracked_file(workspace, relative_path))
-    return "".join(chunks)
-
-
-def _diff_untracked_file(workspace: Path, relative_path: str) -> str:
-    return _run_git(
-        workspace,
-        ["diff", "--no-index", "--", "/dev/null", relative_path],
-        accept_diff_exit=True,
-    )
-
-
-def _run_git(workspace: Path, args: list[str], accept_diff_exit: bool = False) -> str:
-    completed = subprocess.run(
-        ["git", "-C", str(workspace), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0 and not (accept_diff_exit and completed.returncode == 1):
-        raise RuntimeError(f"git {' '.join(args)} failed in {workspace}: {completed.stderr.strip()}")
-    return completed.stdout
-
-
-def _run_git_bytes(workspace: Path, args: list[str]) -> bytes:
-    completed = subprocess.run(
-        ["git", "-C", str(workspace), *args],
-        capture_output=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        stderr = completed.stderr.decode("utf-8", "replace").strip()
-        raise RuntimeError(f"git {' '.join(args)} failed in {workspace}: {stderr}")
-    return completed.stdout
+# Patch capture moved to workspace_diff (shared with the evaluator's agent-diff
+# input); re-exported here under the historical name for existing importers.
+_capture_patch = capture_patch
 
 
 def _print_summary(summary: ExportSummary, dest: Path) -> None:

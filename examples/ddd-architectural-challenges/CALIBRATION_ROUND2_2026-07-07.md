@@ -58,19 +58,29 @@ around.
 
 **Toolkit changes (src/nasde_toolkit):**
 
+- **Agent diff as universal judge input.** For every trial (every task, every
+  benchmark), the evaluator materializes the agent's full diff (start state → final
+  workspace, tracked + untracked, via the same `workspace_diff.capture_patch` used for
+  `changes.patch`) into `<trial>/agent_changes.diff` and injects an "Agent diff"
+  prompt section (diffstat inline + the file path for Read/Grep; the claude backend
+  grants `--add-dir` on the trial dir). This gives the judge the same reference point
+  a human reviewer gets — removals and out-of-feature edits become visible — without
+  per-task processing and without handing the judge free-form git (which breeds
+  variance: the codex judge always had shell access and demonstrably didn't use it).
 - **Per-task dimensions.** `assessment_dimensions.json` placed next to a task's
   `assessment_criteria.md` now overrides the challenge-level file
   (`evaluator.resolve_dimensions_path`, used by both the evaluator and
   `calibrate publish`). Other tasks keep the shared 5-dimension file; a different
   dimensions file yields a different fingerprint, so v1/v2 evaluations are never mixed
   in one summary group.
-- **Deterministic precheck hook.** If a task ships `precheck.sh`, the evaluator runs it
-  against the trial workspace (`$1` = workspace path; HEAD = start state, agent work
-  uncommitted), validates its JSON, injects it into the judge prompt as
-  "Deterministic pre-check signals" (facts the judge must stay consistent with — the
-  judge has Read/Glob/Grep, no git), records it in `assessment_eval_*.json`, and
-  enforces an optional `normalized_score_cap`. Any precheck failure degrades to
-  "no precheck" with a warning.
+- **Deterministic precheck hook (optional policy layer).** If a task ships
+  `precheck.sh`, the evaluator runs it against the trial workspace, validates its
+  JSON, injects it into the judge prompt as "Deterministic pre-check signals", records
+  it in `assessment_eval_*.json`, and enforces an optional `normalized_score_cap`.
+  With the agent diff as the universal input, precheck's role narrows to hard
+  mechanical policy (the bucket-D disqualification cap) rather than being the judge's
+  only window on changes. Any precheck failure degrades to "no precheck" with a
+  warning.
 - **Reviewer bundle.** `calibrate publish` now also ships
   `ground_truth_decisions.json` under `.calibration/`.
 

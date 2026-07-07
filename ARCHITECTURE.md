@@ -184,6 +184,18 @@ flowchart TB
 
 ---
 
+### Agent diff — universal judge input
+
+For every trial, the evaluator materializes the agent's full diff (start state → final
+workspace: `git diff HEAD` + untracked files, via `workspace_diff.capture_patch` — the
+same capture used for `changes.patch` in exports) into `<trial>/agent_changes.diff`,
+and injects an "Agent diff" prompt section: the diffstat inline plus the file path for
+Read/Grep (the `ClaudeSubprocessBackend` grants `--add-dir` on the trial dir when the
+file is present). Rationale: the judge sees only the final state and — like a human
+reviewer without a diff — cannot see removals or out-of-feature edits; the diff is the
+universal, task-agnostic reference point for every "what did the agent change" check.
+Skipped gracefully when the workspace has no git repo or nothing changed.
+
 ### Per-task rubric inputs
 
 Three optional files next to a task's `assessment_criteria.md` refine its evaluation:
@@ -192,14 +204,15 @@ Three optional files next to a task's `assessment_criteria.md` refine its evalua
   (`resolve_dimensions_path`). A different dimensions file yields a different fingerprint, so
   evaluations under old and new dimensions are never mixed in one summary group.
 - `ground_truth_decisions.json` — reference decisions injected verbatim into the judge prompt.
-- `precheck.sh` — a deterministic pre-check the evaluator runs on the host before judging
-  (`bash precheck.sh <workspace-path>`; in the workspace, HEAD is the start state and the agent's
-  work is uncommitted). Its stdout must be one JSON object; it is injected into the judge prompt as
-  "Deterministic pre-check signals" (facts the judge — armed only with Read/Glob/Grep — must stay
-  consistent with), recorded in `assessment_eval_*.json` under `precheck`, and its optional
-  `normalized_score_cap` (0..1) is enforced on the trial's normalized score (cap application is
-  recorded, so a capped score is always explainable). Any precheck failure degrades to "no precheck"
-  with a warning. All three are also bundled into `.calibration/` by `nasde calibrate publish`.
+- `precheck.sh` — an optional deterministic policy layer on top of the agent diff: the evaluator
+  runs it on the host before judging (`bash precheck.sh <workspace-path>`). Its stdout must be one
+  JSON object; it is injected into the judge prompt as "Deterministic pre-check signals" (facts the
+  judge must stay consistent with), recorded in `assessment_eval_*.json` under `precheck`, and its
+  optional `normalized_score_cap` (0..1) is enforced on the trial's normalized score (cap
+  application is recorded, so a capped score is always explainable). Use it when a task wants hard,
+  mechanical enforcement (e.g. a disqualification cap) rather than judge interpretation of the diff.
+  Any precheck failure degrades to "no precheck" with a warning. All three are also bundled into
+  `.calibration/` by `nasde calibrate publish`.
 
 ## Evaluator configuration
 

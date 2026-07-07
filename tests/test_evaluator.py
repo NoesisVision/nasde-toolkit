@@ -24,6 +24,7 @@ from nasde_toolkit.evaluator import (
     _evaluate_and_record_trial,
     _evaluation_from_dict,
     _load_expected_dimensions,
+    _materialize_agent_diff,
     _next_eval_index,
     _parse_evaluation_response,
     _resolve_trajectory_path,
@@ -746,3 +747,83 @@ def test_prompt_no_precheck_section_by_default() -> None:
         expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
     )
     assert "pre-check" not in prompt.lower()
+
+
+# ---------------------------------------------------------------------------
+# Agent diff materialization
+# ---------------------------------------------------------------------------
+
+
+def _git_ws(workspace: Path, *args: str) -> None:
+    import subprocess
+
+    subprocess.run(
+        ["git", "-C", str(workspace), "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        check=True,
+        capture_output=True,
+    )
+
+
+def _make_workspace_with_agent_changes(tmp_path: Path) -> tuple[Path, Path]:
+    workspace = tmp_path / "artifacts" / "workspace"
+    workspace.mkdir(parents=True)
+    (workspace / "Existing.cs").write_text("[DddDomainService]\nclass Existing { }\n", encoding="utf-8")
+    _git_ws(workspace, "init", "-q")
+    _git_ws(workspace, "add", "-A")
+    _git_ws(workspace, "commit", "-qm", "base")
+    # agent's uncommitted work: modify a tracked file, add an untracked one
+    (workspace / "Existing.cs").write_text("class Existing { }\n", encoding="utf-8")
+    (workspace / "CLAUDE.md").write_text("You are a coding assistant.\n", encoding="utf-8")
+    trial_dir = tmp_path
+    return workspace, trial_dir
+
+
+def test_materialize_agent_diff_writes_tracked_and_untracked_changes(tmp_path: Path) -> None:
+    workspace, trial_dir = _make_workspace_with_agent_changes(tmp_path)
+    diff_path, diffstat = _materialize_agent_diff(workspace, trial_dir)
+    assert diff_path == str(trial_dir / "agent_changes.diff")
+    content = Path(diff_path).read_text(encoding="utf-8")
+    assert "-[DddDomainService]" in content
+    assert "CLAUDE.md" in content
+    assert "Existing.cs" in diffstat
+    assert "CLAUDE.md (new file)" in diffstat
+
+
+def test_materialize_agent_diff_no_git_returns_none(tmp_path: Path) -> None:
+    workspace = tmp_path / "artifacts" / "workspace"
+    workspace.mkdir(parents=True)
+    diff_path, diffstat = _materialize_agent_diff(workspace, tmp_path)
+    assert diff_path is None
+    assert diffstat == ""
+    assert not (tmp_path / "agent_changes.diff").exists()
+
+
+def test_materialize_agent_diff_clean_workspace_returns_none(tmp_path: Path) -> None:
+    workspace, trial_dir = _make_workspace_with_agent_changes(tmp_path)
+    _git_ws(workspace, "add", "-A")
+    _git_ws(workspace, "commit", "-qm", "agent work committed, tree clean")
+    diff_path, diffstat = _materialize_agent_diff(workspace, trial_dir)
+    assert diff_path is None
+    assert diffstat == ""
+
+
+def test_prompt_includes_agent_diff_section_when_provided() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+        agent_diff_path="/jobs/j1/trial/agent_changes.diff",
+        agent_diffstat=" Existing.cs | 1 -\n CLAUDE.md (new file)",
+    )
+    assert "## Agent diff" in prompt
+    assert "/jobs/j1/trial/agent_changes.diff" in prompt
+    assert "CLAUDE.md (new file)" in prompt
+
+
+def test_prompt_no_agent_diff_section_by_default() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+    )
+    assert "## Agent diff" not in prompt

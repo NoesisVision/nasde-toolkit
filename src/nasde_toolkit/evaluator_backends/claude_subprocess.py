@@ -12,6 +12,7 @@ from pathlib import Path
 from rich.console import Console
 
 from nasde_toolkit.config import EvaluationConfig
+from nasde_toolkit.evaluator_backends.protocol import AGENT_DIFF_FILENAME
 
 console = Console()
 
@@ -109,7 +110,10 @@ class ClaudeSubprocessBackend:
         allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
         cmd.extend(["--allowedTools", ",".join(allowed_tools)])
 
-        if eval_config.include_trajectory and trial_dir:
+        needs_trial_dir = trial_dir is not None and (
+            eval_config.include_trajectory or (trial_dir / AGENT_DIFF_FILENAME).exists()
+        )
+        if needs_trial_dir:
             cmd.extend(["--add-dir", str(trial_dir)])
 
         if eval_config.mcp_config:

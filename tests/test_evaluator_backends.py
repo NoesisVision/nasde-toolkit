@@ -110,6 +110,34 @@ def test_claude_backend_command_includes_add_dir_for_trajectory(tmp_path: Path) 
     assert str(trial_dir) in cmd
 
 
+def test_claude_backend_command_includes_add_dir_for_agent_diff(tmp_path: Path) -> None:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    (trial_dir / "agent_changes.diff").write_text("diff --git a/x b/x\n", encoding="utf-8")
+    backend = ClaudeSubprocessBackend()
+    cmd = backend._build_command(
+        workspace_path=tmp_path,
+        eval_config=EvaluationConfig(),
+        project_root=tmp_path.parent,
+        trial_dir=trial_dir,
+    )
+    assert "--add-dir" in cmd
+    assert str(trial_dir) in cmd
+
+
+def test_claude_backend_command_no_add_dir_without_trajectory_or_diff(tmp_path: Path) -> None:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    backend = ClaudeSubprocessBackend()
+    cmd = backend._build_command(
+        workspace_path=tmp_path,
+        eval_config=EvaluationConfig(),
+        project_root=tmp_path.parent,
+        trial_dir=trial_dir,
+    )
+    assert "--add-dir" not in cmd
+
+
 def test_claude_backend_command_includes_mcp_config(tmp_path: Path) -> None:
     mcp_file = tmp_path / "mcp.json"
     mcp_file.write_text("{}")

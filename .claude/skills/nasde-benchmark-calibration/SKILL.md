@@ -109,14 +109,16 @@ trial's `result.json` (`source`, `task_name`).
 
 Calibration can also restructure a single task's dimensions: an `assessment_dimensions.json`
 placed next to the task's `assessment_criteria.md` overrides the benchmark-wide file for that task
-only (different fingerprint — old and new evaluations are never mixed in one summary group). And when
-a divergence is about facts the judge cannot verify with Read/Glob/Grep (git-level restraint: files
-modified outside allowed touchpoints, removed annotations, signature rewrites, committed artifacts),
-prefer moving that check into the task's `precheck.sh` — the evaluator runs it, injects its JSON into
-the judge prompt as ground facts, and enforces its optional `normalized_score_cap`. See
-`examples/ddd-architectural-challenges/tasks/ddd-weather-discount/` for the reference calibrated task
-and `CALIBRATION_ROUND2_2026-07-07.md` for the loop's acceptance criteria (repeatability,
-judge-model agreement, human-ranking correlation, dimension disjointness, regression assertions).
+only (different fingerprint — old and new evaluations are never mixed in one summary group). For
+change-related checks, the evaluator already hands every judge the agent's full diff
+(`<trial>/agent_changes.diff` + inline diffstat) — rubrics should direct the judge to answer
+"what did the agent change" questions from that diff. When a task additionally needs hard mechanical
+enforcement (e.g. a disqualification score cap), ship a `precheck.sh` — the evaluator runs it,
+injects its JSON into the judge prompt as ground facts, and enforces its optional
+`normalized_score_cap`. See `examples/ddd-architectural-challenges/tasks/ddd-weather-discount/` for
+the reference calibrated task and `CALIBRATION_ROUND2_2026-07-07.md` for the loop's acceptance
+criteria (repeatability, judge-model agreement, human-ranking correlation, dimension disjointness,
+regression assertions).
 
 Show the user a concrete **diff of the rubric** — the specific threshold/description change that would
 have moved the judge toward the human's score — and **wait for approval before writing**. Never edit

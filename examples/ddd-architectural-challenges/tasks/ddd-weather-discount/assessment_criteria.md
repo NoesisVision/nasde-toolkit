@@ -14,9 +14,13 @@ Hard rules:
 - Do not reward or punish anything this rubric does not ask about. In particular, do
   NOT score based on whether a `Precipitation` value object exists — value-object
   liberality is not a check in this rubric.
-- When a "Deterministic pre-check signals" section is present in your prompt, its
-  facts override your own impression for the overlapping checks (R1–R4): stay
-  consistent with the signals and use Read only to collect the evidence quotes.
+- The "Agent diff" section of your prompt points at the full unified diff of the
+  agent's work (start state → final workspace). It is the authoritative record of
+  what the agent changed: answer every change-related check from the diff (Grep it —
+  removed lines start with `-`), not from impressions of the final state.
+- When a "Deterministic pre-check signals" section is also present, its facts override
+  your own impression for the overlapping checks (R1–R4): stay consistent with the
+  signals and use the diff and Read only to collect the evidence quotes.
 - Verify against the code, not against the agent's comments or naming.
 
 ## Base-model intent (read this before scoring)
@@ -133,14 +137,15 @@ This dimension scores respect for the author's pre-existing code. The allowed
 touchpoints for this feature are: `Sources/Sales/Sales.DeepModel/Pricing/OfferModifiers.cs`
 (new dependency + composition), `Sources/Monolith.Startup/DI/Modules/Sales.cs`
 (registration), and `.csproj` files (package references). Everything else pre-existing
-should be byte-identical. Checks R1–R4 are also computed mechanically — when the
-pre-check section is present, stay consistent with it.
+should be byte-identical. **Answer R1–R4 from the agent diff**: the diffstat lists
+every touched file; Grep the diff file for removed lines (`^-`). Checks R1–R4 may also
+arrive pre-computed in the pre-check section — stay consistent with it.
 
 **R1 (0–8) — Pre-existing files untouched beyond the touchpoints; no fabrication.**
-Verify by Reading: `Pricing/CalculatePrices.cs` (three-way tuple await, no weather
-dependency), `Pricing/OfferModifier.cs` (no extra classes unless justified),
-`Sales.Adapters/Integrations/RiskManagementInMemoryCalls.cs` (still throws
-`NotImplementedException`), `Monolith.Startup/Program.cs`.
+From the diffstat: which pre-existing files were modified, beyond the touchpoints?
+Confirm suspicious ones by Reading (e.g. `Sales.Adapters/Integrations/RiskManagementInMemoryCalls.cs`
+must still throw `NotImplementedException`; `Pricing/CalculatePrices.cs` must keep the
+three-way tuple await with no weather dependency).
 - FULL: only touchpoints modified (additive package refs OK).
 - PARTIAL: 1–2 avoidable modifications (e.g., `CalculatePrices` gained a weather
   dependency; an extra class added to a shared pre-existing file).
@@ -148,13 +153,11 @@ dependency), `Pricing/OfferModifier.cs` (no extra classes unless justified),
   `NotImplementedException` replaced by `Money.Of(decimal.MaxValue, ...)` — silently
   granting unlimited credit in an unrelated integration).
 
-**R2 (0–5) — Author's annotations preserved.** Read these pre-existing files and
-confirm they still carry `[DddDomainService]`: `Pricing/Discounts/ClientLevelDiscounts.cs`,
-`Pricing/Discounts/ProductLevelDiscounts.cs`, `Pricing/IndividualSalesConditions.cs`,
-`Pricing/SpecialOffers/SpecialOffer.cs`, `ThreeForTwo.cs`, `EverySecondBoxForHalfPrice.cs`.
-Stripping the author's annotations (e.g., to appease convention-based DI scanning) is
-an unjustified rewrite of deliberate model markup: NONE if 2+ files stripped, PARTIAL
-if 1.
+**R2 (0–5) — Author's annotations preserved.** Grep the agent diff for removed
+annotation lines (pattern: lines starting with `-` containing `[Ddd` or
+`[ExternalSystemIntegration`). Stripping the author's annotations (e.g., to appease
+convention-based DI scanning) is an unjustified rewrite of deliberate model markup:
+NONE if annotations removed from 2+ files, PARTIAL if 1.
 
 **R3 (0–4) — No signature rewrites of pre-existing types.** E.g.,
 `AggregatedModifier(List<OfferModifier>)` changed to `IEnumerable<OfferModifier>`: the

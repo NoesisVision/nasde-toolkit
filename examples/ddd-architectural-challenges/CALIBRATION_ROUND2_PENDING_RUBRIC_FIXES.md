@@ -1,9 +1,36 @@
-# PENDING rubric v2.1 proposal — ddd-weather-discount (status 2026-07-07)
+# Rubric v2.1 — ddd-weather-discount (APPLIED 2026-07-07, verification pending)
 
-**Not applied.** Owner's decision: finish the Fable subset first, then corroborate the
-check-level verdicts with cheaper judge models (Sonnet/Opus) BEFORE editing the rubric.
-This file is the durable record of the proposal + the round's live state, in case the
-working session's context is lost.
+**Status update:** after the Fable subset completed (10/10, formal check: 5 PASS /
+2 FAIL, both FAILs = the defects below), the owner approved applying the M1/M4/M5
+edits immediately — as separate commits — to enable a retroactive **Opus 4.8
+before/after comparison**. Sonnet corroboration was dropped (Opus instead, later).
+
+- **BEFORE (rubric v2.0):** commit `22d6dde` — dimensions fingerprint `8e0d00bfd8df`
+- **AFTER (rubric v2.1):** commit `feec7b9` — dimensions fingerprint `42d6a9e593cf`
+
+## Opus back-to-back procedure (planned for 2026-07-08)
+
+1. "Before" pass: materialize the v2.0 task files, e.g.
+   `git restore --source 22d6dde -- tasks/ddd-weather-discount/`
+   then `uv run nasde eval jobs/calibration-round2 -C . --eval-model claude-opus-4-8
+   --eval-backend claude --eval-repetitions 2` (or per-trial via
+   `calibration_round2_eval_one.sh` under budget gating). Evals land in fingerprint
+   group `8e0d00bfd8df`.
+2. "After" pass: `git restore --source feec7b9 -- tasks/ddd-weather-discount/` (or
+   branch head) and repeat — evals land in `42d6a9e593cf`. Groups never mix; the
+   check script derives the fingerprint from the working tree, so run it once per
+   state.
+3. Compare per-group summaries (same trials, same judge, only the rubric differs) —
+   this isolates the rubric edit as the sole variable.
+
+**No verification runs executed yet** (Fable window exhausted ~2026-07-07 evening;
+planned after reset). Fable v2.1 verification = re-run the 5-trial subset
+(`calibration_round2_fable_subset.sh`, now fingerprint-dynamic) and re-check
+acceptance: expected order 0.66/0.64/0.58/0.55/0.445, Spearman 1.0.
+
+---
+
+Original proposal record (now applied) below.
 
 ## Live state of the Fable subset (model claude-fable-5, dimensions fingerprint 8e0d00bfd8df)
 

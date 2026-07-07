@@ -52,22 +52,47 @@ score at 0.45).
 
 ## What round 2 lands
 
-1. **`tasks/ddd-weather-discount/assessment_criteria.md` v2** — decidable checks
-   (FULL/PARTIAL/NONE with evidence) instead of descriptive scales; every failure mode
-   scored in exactly one check of one dimension; anchors taken from the 13 real trials;
-   a "base-model intent" preamble (`[Pure]`, `[DddFactory]`, `ExchangeRate:PriceModifier
-   ≠ policy`, explicit `Or`/`min()` interaction idioms). Dimension names and max scores
-   are **unchanged** (challenge-wide `assessment_dimensions.json` untouched — other
-   tasks unaffected, fingerprints comparable).
-2. **`tasks/ddd-weather-discount/ground_truth_decisions.json`** — the seven reference
-   decisions (closure-in-factory, no-phantoms, canonical type, explicit exclusivity,
-   failure≠measurement, resemble-existing-code, restraint); injected automatically into
-   the judge prompt by the evaluator.
-3. **`tasks/ddd-weather-discount/precheck.sh`** — deterministic restraint signals from
-   git (the judge has Read/Glob/Grep only). Advisory `suggested_scores` for AC1–AC4 and
-   a `hard_fail` flag (annotation stripping ≥2 files, or behavior fabrication) mapping
-   to bucket D's 0.45 score cap. Smoke-tested against the sink: #21 → 10/20 no
-   hard-fail; #18 → 1/20 hard-fail; #17 → 11/20.
+Round 2 has priority over prior toolkit conventions: where the loop needed toolkit
+support, the toolkit was extended (per the project owner's direction), not worked
+around.
+
+**Toolkit changes (src/nasde_toolkit):**
+
+- **Per-task dimensions.** `assessment_dimensions.json` placed next to a task's
+  `assessment_criteria.md` now overrides the challenge-level file
+  (`evaluator.resolve_dimensions_path`, used by both the evaluator and
+  `calibrate publish`). Other tasks keep the shared 5-dimension file; a different
+  dimensions file yields a different fingerprint, so v1/v2 evaluations are never mixed
+  in one summary group.
+- **Deterministic precheck hook.** If a task ships `precheck.sh`, the evaluator runs it
+  against the trial workspace (`$1` = workspace path; HEAD = start state, agent work
+  uncommitted), validates its JSON, injects it into the judge prompt as
+  "Deterministic pre-check signals" (facts the judge must stay consistent with — the
+  judge has Read/Glob/Grep, no git), records it in `assessment_eval_*.json`, and
+  enforces an optional `normalized_score_cap`. Any precheck failure degrades to
+  "no precheck" with a warning.
+- **Reviewer bundle.** `calibrate publish` now also ships
+  `ground_truth_decisions.json` under `.calibration/`.
+
+**Task changes (tasks/ddd-weather-discount):**
+
+1. **Task-level `assessment_dimensions.json`** — three disjoint dimensions:
+   `model_fit` (0–50), `restraint` (0–25), `test_quality` (0–25).
+2. **`assessment_criteria.md` v2** — decidable checks (FULL/PARTIAL/NONE with
+   evidence): model_fit M1–M7 (closure & purity, factory policy, canonical type reuse,
+   no phantoms, explicit exclusivity, failure≠measurement, proportionate seam),
+   restraint R1–R6 (touchpoints & no fabrication, annotations, signatures, artifacts,
+   modularization mirror, domain language), test_quality T1–T5 (composition through
+   `ChooseFor`, single-fetch guarantee, honest failure/boundary, adapter isolation,
+   conventions). Anchors taken from the 13 real trials; "base-model intent" preamble
+   (`[Pure]`, `[DddFactory]`, `ExchangeRate:PriceModifier ≠ policy`, explicit
+   `Or`/`min()` idioms).
+3. **`ground_truth_decisions.json`** — the seven reference decisions, auto-injected
+   into the judge prompt.
+4. **`precheck.sh`** — dual-mode (evaluator workspace / sink refs) restraint signals
+   with advisory R1–R4 scores and `normalized_score_cap: 0.45` on hard fail
+   (annotation stripping ≥2 files, or behavior fabrication). Smoke-tested against the
+   sink: #21 → R-signals without cap; #18 → all R floored, cap 0.45.
 
 ## Acceptance criteria for the re-run (loop stop conditions)
 
@@ -75,29 +100,32 @@ Re-evaluate all 13 trials with v2 (2 judge models × 3 runs, as in v1). Accept v
 ALL hold; otherwise diagnose failing cases from judge reasoning, patch the specific
 check's wording, and re-run.
 
-1. **Repeatability:** per-dimension std within a judge model ≤ 2.0 pts (v1 worst: 5.03).
-2. **Judge-model agreement:** per-dimension mean gap between models ≤ 3.0 pts
-   (v1 worst: 8.7).
+1. **Repeatability:** per-dimension std within a judge model ≤ 8% of the dimension max
+   (model_fit ≤ 4.0, restraint/test_quality ≤ 2.0). v1 worst: 20% (5.03/25).
+2. **Judge-model agreement:** per-dimension mean gap between models ≤ 12% of the
+   dimension max (model_fit ≤ 6.0, restraint/test_quality ≤ 3.0). v1 worst: 35%.
 3. **Human agreement:** Spearman rank correlation (bucket ranks, ties within buckets)
    between the v2 total ordering and the reference ranking ≥ 0.8, AND strict bucket
    separation: every A total > every B > every C > every D.
 4. **Dimension disjointness:** pairwise Pearson |r| between dimension scores across the
    13 trials ≤ 0.6 (v1: domain_modeling/encapsulation/architecture strongly coupled).
 5. **Regression assertions (known v1 misfires):**
-   - #21 domain_modeling ≥ 18/25 and std ≤ 2 (was mean 12.67, std 5.03);
-   - #16 domain_modeling cross-model gap ≤ 3 (was 8.7);
-   - #13 no longer ranked #1 overall; #13 domain_modeling ≤ 18 (was 25.0);
-   - #18 and #20 architecture_compliance ≤ 8/20 (was 16.3/17.3) and normalized total
-     capped ≤ 0.45 via precheck hard-fail;
-   - no trial reaches test_quality ≥ 18/20 without a composition test through
-     `OfferModifiers.ChooseFor` (in v1, two such suites scored 20/20).
+   - #21 model_fit ≥ 38/50 and std ≤ 4 (v1 domain_modeling: mean 12.67/25, std 5.03);
+   - #16 model_fit cross-model gap ≤ 6/50 (v1: 8.7/25);
+   - #13 no longer ranked #1 overall; #13 model_fit ≤ 36/50 (v1 domain_modeling 25/25);
+   - #18 and #20: precheck cap holds (normalized ≤ 0.45) and restraint ≤ 8/25
+     (v1 architecture_compliance 16.3/17.3 of 20);
+   - no trial reaches test_quality ≥ 18/25 without a composition test through
+     `OfferModifiers.ChooseFor` (in v1, two suites with zero composition coverage
+     scored 20/20).
 
 ## Procedure (calibration orchestrator)
 
-1. `nasde eval` the existing job dirs with rubric v2 (no agent re-runs needed).
-2. Run `precheck.sh` per trial against the sink; apply the hard-fail cap.
-3. Compute acceptance criteria 1–5; report a pass/fail table.
-4. On failure: pull the offending judge reasoning (`assessment_eval_*.json`), map to the
-   specific DM/EN/AC/EX/TQ check, propose a wording diff (per the
-   `nasde-benchmark-calibration` skill — **wait for approval before writing**), re-run.
-5. On pass: republish with `nasde calibrate publish` for a confirmation human pass.
+1. `nasde eval` the existing job dirs — the evaluator picks up the task-level
+   dimensions, ground truth and precheck automatically (no agent re-runs needed).
+2. Compute acceptance criteria 1–5 from the fresh `assessment_eval_*.json` /
+   `assessment_summary.json`; report a pass/fail table.
+3. On failure: pull the offending judge reasoning, map it to the specific M/R/T check,
+   propose a wording diff (per the `nasde-benchmark-calibration` skill — **wait for
+   approval before writing**), re-run.
+4. On pass: republish with `nasde calibrate publish` for a confirmation human pass.

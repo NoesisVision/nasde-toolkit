@@ -1,0 +1,22 @@
+{
+  "dimensions": [
+    {
+      "name": "model_fit",
+      "title": "Model & Composition Fit",
+      "max_score": 50,
+      "description": "The new concept lands in the right place in the existing model and composes with it explicitly: world-state closed once in the factory and captured as a value ([Pure] application path), canonical discount types reused instead of duplicated, no phantom/null-object modifiers, interaction with existing discounts decided visibly, failure distinct from measurement, and a seam proportionate to the announced future requirements."
+    },
+    {
+      "name": "restraint",
+      "title": "Boundaries & Restraint",
+      "max_score": 25,
+      "description": "Respect for the pre-existing codebase and its author's intent: only the designated touchpoints modified, the author's annotations and type signatures preserved, no behavior fabrication outside the feature, no agent artifacts committed, modularization resembling the surrounding design, and domain language free of wire vocabulary."
+    },
+    {
+      "name": "test_quality",
+      "title": "Test Quality",
+      "max_score": 25,
+      "description": "Tests cover the riskiest behavior, not just the new island: composition with the existing modifier chain, the single-fetch guarantee, honest (non-vacuous) failure-path and boundary assertions, adapter isolation from the real API, and the repo's testing conventions."
+    }
+  ]
+}

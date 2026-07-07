@@ -16,6 +16,7 @@ from nasde_toolkit.evaluator import (
     DimensionScore,
     EvaluationResult,
     _aggregate_evaluations,
+    _apply_precheck,
     _build_evaluator_prompt,
     _build_opik_scores,
     _dimensions_fingerprint,
@@ -26,8 +27,10 @@ from nasde_toolkit.evaluator import (
     _next_eval_index,
     _parse_evaluation_response,
     _resolve_trajectory_path,
+    _run_precheck,
     _write_assessment_summary,
     _write_evaluation_result,
+    resolve_dimensions_path,
 )
 from nasde_toolkit.pricing import load_pricing, load_pricing_layered
 
@@ -641,3 +644,105 @@ def test_prompt_lists_per_dimension_ranges_not_shared_25() -> None:
     assert "`small`: 0–3 points" in prompt
     assert "`medium`: 0–20 points" in prompt
     assert "`large`: 0–100 points" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Per-task dimensions & deterministic precheck
+# ---------------------------------------------------------------------------
+
+
+def _make_task_dir(tmp_path: Path) -> Path:
+    task_dir = tmp_path / "evals" / "tasks" / "my-task"
+    task_dir.mkdir(parents=True)
+    return task_dir
+
+
+def test_resolve_dimensions_path_prefers_task_level(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "assessment_dimensions.json").write_text('{"dimensions": []}', encoding="utf-8")
+    (task_dir.parent.parent / "assessment_dimensions.json").write_text('{"dimensions": []}', encoding="utf-8")
+    assert resolve_dimensions_path(task_dir) == task_dir / "assessment_dimensions.json"
+
+
+def test_resolve_dimensions_path_falls_back_to_challenge_level(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    challenge_level = task_dir.parent.parent / "assessment_dimensions.json"
+    challenge_level.write_text('{"dimensions": []}', encoding="utf-8")
+    assert resolve_dimensions_path(task_dir) == challenge_level
+
+
+def test_run_precheck_returns_json_and_passes_workspace_arg(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "precheck.sh").write_text('#!/bin/bash\nprintf \'{"workspace": "%s"}\' "$1"\n', encoding="utf-8")
+    workspace = tmp_path / "ws"
+    output = _run_precheck(task_dir, workspace)
+    assert json.loads(output) == {"workspace": str(workspace)}
+
+
+def test_run_precheck_missing_script_returns_empty(tmp_path: Path) -> None:
+    assert _run_precheck(_make_task_dir(tmp_path), tmp_path / "ws") == ""
+
+
+def test_run_precheck_nonzero_exit_returns_empty(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "precheck.sh").write_text("#!/bin/bash\nexit 3\n", encoding="utf-8")
+    assert _run_precheck(task_dir, tmp_path / "ws") == ""
+
+
+def test_run_precheck_invalid_json_returns_empty(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "precheck.sh").write_text('#!/bin/bash\necho "not json"\n', encoding="utf-8")
+    assert _run_precheck(task_dir, tmp_path / "ws") == ""
+
+
+def test_apply_precheck_caps_normalized_score_and_records_it() -> None:
+    evaluation = _make_evaluation(normalized_score=0.9)
+    _apply_precheck(evaluation, json.dumps({"normalized_score_cap": 0.45}))
+    assert evaluation.normalized_score == 0.45
+    assert evaluation.precheck is not None
+    applied = evaluation.precheck["normalized_score_cap_applied"]
+    assert applied == {"uncapped_normalized_score": 0.9, "capped_to": 0.45}
+
+
+def test_apply_precheck_without_cap_keeps_score_and_stores_signals() -> None:
+    evaluation = _make_evaluation(normalized_score=0.9)
+    _apply_precheck(evaluation, json.dumps({"signals": {"artifacts": 1}}))
+    assert evaluation.normalized_score == 0.9
+    assert evaluation.precheck == {"signals": {"artifacts": 1}}
+
+
+def test_apply_precheck_ignores_non_numeric_cap() -> None:
+    evaluation = _make_evaluation(normalized_score=0.9)
+    _apply_precheck(evaluation, json.dumps({"normalized_score_cap": "high"}))
+    assert evaluation.normalized_score == 0.9
+
+
+def test_apply_precheck_cap_higher_than_score_is_a_no_op() -> None:
+    evaluation = _make_evaluation(normalized_score=0.3)
+    _apply_precheck(evaluation, json.dumps({"normalized_score_cap": 0.45}))
+    assert evaluation.normalized_score == 0.3
+    assert evaluation.precheck is not None
+    assert "normalized_score_cap_applied" not in evaluation.precheck
+
+
+def test_prompt_includes_precheck_section_when_provided() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+        ground_truth="",
+        artifacts_dir="/workspace",
+        trajectory_path=None,
+        precheck='{"signals": {"artifacts": 1}}',
+    )
+    assert "## Deterministic pre-check signals" in prompt
+    assert '<precheck>\n{"signals": {"artifacts": 1}}\n</precheck>' in prompt
+
+
+def test_prompt_no_precheck_section_by_default() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+    )
+    assert "pre-check" not in prompt.lower()

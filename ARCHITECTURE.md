@@ -184,6 +184,23 @@ flowchart TB
 
 ---
 
+### Per-task rubric inputs
+
+Three optional files next to a task's `assessment_criteria.md` refine its evaluation:
+
+- `assessment_dimensions.json` — overrides the benchmark-wide dimensions file **for that task only**
+  (`resolve_dimensions_path`). A different dimensions file yields a different fingerprint, so
+  evaluations under old and new dimensions are never mixed in one summary group.
+- `ground_truth_decisions.json` — reference decisions injected verbatim into the judge prompt.
+- `precheck.sh` — a deterministic pre-check the evaluator runs on the host before judging
+  (`bash precheck.sh <workspace-path>`; in the workspace, HEAD is the start state and the agent's
+  work is uncommitted). Its stdout must be one JSON object; it is injected into the judge prompt as
+  "Deterministic pre-check signals" (facts the judge — armed only with Read/Glob/Grep — must stay
+  consistent with), recorded in `assessment_eval_*.json` under `precheck`, and its optional
+  `normalized_score_cap` (0..1) is enforced on the trial's normalized score (cap application is
+  recorded, so a capped score is always explainable). Any precheck failure degrades to "no precheck"
+  with a warning. All three are also bundled into `.calibration/` by `nasde calibrate publish`.
+
 ## Evaluator configuration
 
 The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All options are optional — defaults provide a working evaluator out of the box.

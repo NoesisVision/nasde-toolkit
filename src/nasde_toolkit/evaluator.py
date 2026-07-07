@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 import statistics
+import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,6 +58,7 @@ class EvaluationResult:
     harbor_reward: float = 0.0
     duration_sec: float = 0.0
     dimensions_fingerprint: str = ""
+    precheck: dict | None = None
 
 
 @dataclass
@@ -281,7 +283,7 @@ async def evaluate_trial(
     harbor_reward = (result_json.get("verifier_result") or {}).get("rewards", {}).get("reward", 0.0)
     duration_sec = _compute_duration_sec(result_json)
 
-    dimensions_path = task_dir.parent.parent / "assessment_dimensions.json"
+    dimensions_path = resolve_dimensions_path(task_dir)
     expected_dimensions = _load_expected_dimensions(dimensions_path)
 
     criteria_path = task_dir / "assessment_criteria.md"
@@ -296,6 +298,8 @@ async def evaluate_trial(
     ground_truth_path = task_dir / "ground_truth_decisions.json"
     ground_truth = ground_truth_path.read_text() if ground_truth_path.exists() else ""
 
+    precheck_raw = _run_precheck(task_dir, workspace_path)
+
     trajectory_path = _resolve_trajectory_path(trial_dir, eval_config)
     artifacts_dir = str(workspace_path) if eval_config.skills_dir else None
     prompt = _build_evaluator_prompt(
@@ -305,6 +309,7 @@ async def evaluate_trial(
         ground_truth,
         artifacts_dir,
         trajectory_path,
+        precheck_raw,
     )
     console.print(f"  Task: {task_name}")
     console.print(f"  Workspace: {workspace_path}")
@@ -332,6 +337,7 @@ async def evaluate_trial(
     evaluation.evaluator_model = eval_config.model
     evaluation.timestamp = datetime.now(UTC).isoformat()
     evaluation.dimensions_fingerprint = _dimensions_fingerprint(dimensions_path)
+    _apply_precheck(evaluation, precheck_raw)
 
     total_max = sum(dim.max_score for dim in evaluation.dimensions)
     console.print(f"  Score: {evaluation.total_score}/{total_max} ({evaluation.normalized_score:.2f})")
@@ -363,6 +369,86 @@ def _compute_duration_sec(result: dict) -> float:
     start_dt = datetime.fromisoformat(started)
     end_dt = datetime.fromisoformat(finished)
     return (end_dt - start_dt).total_seconds()
+
+
+def resolve_dimensions_path(task_dir: Path) -> Path:
+    """Resolve the dimensions file for a task: task-level wins over challenge-level.
+
+    A task whose rubric was calibrated to its own dimension set ships
+    ``assessment_dimensions.json`` next to its ``assessment_criteria.md``; every
+    other task keeps using the shared challenge-level file two levels up.
+    Different dimension files yield different fingerprints, so per-task and
+    challenge-level evaluations are never mixed in one summary group.
+    """
+    task_level = task_dir / "assessment_dimensions.json"
+    if task_level.exists():
+        return task_level
+    return task_dir.parent.parent / "assessment_dimensions.json"
+
+
+PRECHECK_TIMEOUT_SEC = 60
+
+
+def _run_precheck(task_dir: Path, workspace_path: Path) -> str:
+    """Run the task's optional deterministic pre-check and return its JSON output.
+
+    A task may ship an executable ``precheck.sh`` next to its rubric. It receives
+    the trial workspace path as ``$1`` and must print a single JSON object to
+    stdout: signals computed mechanically (typically git-level restraint checks)
+    that the LLM judge cannot compute itself, since it only has Read/Glob/Grep.
+    The output is injected verbatim into the judge prompt and recorded in the
+    evaluation result. Any failure degrades to "no precheck" with a warning —
+    it must never sink the evaluation.
+    """
+    script = task_dir / "precheck.sh"
+    if not script.exists():
+        return ""
+    try:
+        proc = subprocess.run(
+            ["bash", str(script), str(workspace_path)],
+            capture_output=True,
+            text=True,
+            timeout=PRECHECK_TIMEOUT_SEC,
+        )
+    except (OSError, subprocess.TimeoutExpired) as err:
+        console.print(f"  [yellow]precheck.sh did not run: {err}[/yellow]")
+        return ""
+    if proc.returncode != 0:
+        console.print(f"  [yellow]precheck.sh exited {proc.returncode}: {proc.stderr.strip()[:200]}[/yellow]")
+        return ""
+    output = proc.stdout.strip()
+    try:
+        json.loads(output)
+    except json.JSONDecodeError as err:
+        console.print(f"  [yellow]precheck.sh output is not valid JSON: {err}[/yellow]")
+        return ""
+    return output
+
+
+def _apply_precheck(evaluation: EvaluationResult, precheck_raw: str) -> None:
+    """Attach precheck signals to the result and enforce its score cap, if any.
+
+    The precheck JSON may carry ``normalized_score_cap`` (float 0..1) — a hard
+    ceiling for trials that mechanically disqualify themselves (e.g. rewriting
+    unrelated pre-existing code). The cap and its application are recorded in
+    the result, so a capped score is always explainable.
+    """
+    if not precheck_raw:
+        return
+    precheck = json.loads(precheck_raw)
+    evaluation.precheck = precheck
+    cap = precheck.get("normalized_score_cap")
+    if cap is None:
+        return
+    if not isinstance(cap, int | float) or not 0.0 <= float(cap) <= 1.0:
+        console.print(f"  [yellow]precheck normalized_score_cap ignored (not a 0..1 number): {cap!r}[/yellow]")
+        return
+    if evaluation.normalized_score > float(cap):
+        precheck["normalized_score_cap_applied"] = {
+            "uncapped_normalized_score": evaluation.normalized_score,
+            "capped_to": float(cap),
+        }
+        evaluation.normalized_score = float(cap)
 
 
 def _load_expected_dimensions(dimensions_path: Path) -> list[dict] | None:
@@ -445,6 +531,7 @@ def _build_evaluator_prompt(
     ground_truth: str = "",
     artifacts_dir: str | None = None,
     trajectory_path: str | None = None,
+    precheck: str = "",
 ) -> str:
     """Build the evaluation prompt with optional dimension constraints and ground truth."""
     scoring_guidance = _format_scoring_guidance(expected_dimensions)
@@ -452,6 +539,7 @@ def _build_evaluator_prompt(
     output_schema = _format_output_schema(expected_dimensions)
     dimension_count_rule = _format_dimension_count_rule(expected_dimensions)
     ground_truth_section = _format_ground_truth_section(ground_truth)
+    precheck_section = _format_precheck_section(precheck)
     trajectory_section = _format_trajectory_section(trajectory_path)
 
     location_hint = (
@@ -481,7 +569,7 @@ that matches the description, not higher.
 <criteria>
 {criteria}
 </criteria>
-{ground_truth_section}{trajectory_section}## How to evaluate
+{ground_truth_section}{precheck_section}{trajectory_section}## How to evaluate
 
 1. Use `Glob` to discover all output files in the workspace.
 2. Use `Read` to examine the content of each output file.
@@ -569,6 +657,24 @@ decisions should lower the score.
 <ground_truth>
 {ground_truth}
 </ground_truth>
+"""
+
+
+def _format_precheck_section(precheck: str) -> str:
+    if not precheck:
+        return ""
+    return f"""
+## Deterministic pre-check signals
+
+The following signals were computed mechanically by tooling (git-level analysis
+you cannot perform yourself). Treat them as established facts. Where a rubric
+check overlaps with a signal below, your verdict MUST be consistent with the
+signal — use Read on the flagged files to write the evidence for your reasoning,
+not to re-litigate the fact.
+
+<precheck>
+{precheck}
+</precheck>
 """
 
 

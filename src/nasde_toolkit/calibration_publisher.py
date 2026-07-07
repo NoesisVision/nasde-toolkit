@@ -29,6 +29,7 @@ from nasde_toolkit.evaluator import (
     _aggregate_evaluations,
     _load_json,
     _load_raw_evaluations,
+    resolve_dimensions_path,
 )
 from nasde_toolkit.git_platform_backends import create_git_backend
 from nasde_toolkit.git_platform_backends.git_ops import (
@@ -224,11 +225,11 @@ def _add_task_context_files(files: dict[str, str], trial_dir: Path, project_root
     task_dir = _resolve_task_dir(trial_dir, project_root)
     if task_dir is None:
         return
-    for name in ("instruction.md", "assessment_criteria.md"):
+    for name in ("instruction.md", "assessment_criteria.md", "ground_truth_decisions.json"):
         source = task_dir / name
         if source.exists():
             files[name] = source.read_text(encoding="utf-8")
-    dimensions = task_dir.parent.parent / "assessment_dimensions.json"
+    dimensions = resolve_dimensions_path(task_dir)
     if dimensions.exists():
         files["assessment_dimensions.json"] = dimensions.read_text(encoding="utf-8")
 

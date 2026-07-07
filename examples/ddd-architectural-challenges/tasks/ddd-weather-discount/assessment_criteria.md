@@ -1,4 +1,9 @@
-# Assessment Criteria: Weather-Based Discount (v2, calibrated 2026-07)
+# Assessment Criteria: Weather-Based Discount (v2.1, calibrated 2026-07)
+
+v2.1 recalibrates three model_fit checks (M1, M4, M5) from the measured Fable subset
+(see CALIBRATION_ROUND2_PENDING_RUBRIC_FIXES.md): style is no longer priced as an
+invariant (M1), the factory-filtered empty-aggregate shape earns full credit (M4),
+and stacking-after is separated from applying-before-the-chain (M5).
 
 This task uses its own dimension set (task-level `assessment_dimensions.json`):
 **model_fit (0–50)**, **restraint (0–25)**, **test_quality (0–25)**. The rubric is a
@@ -61,10 +66,11 @@ returned modifier closes over the resolved **value** — no provider reference e
 past the factory boundary. `ApplyOn` stays `[Pure]`: no I/O, no async, no
 sync-over-async anywhere in the application path. Needing memoization/caching to avoid
 repeated calls is itself evidence the state was closed in the wrong place.
-- FULL: single upfront fetch (ideally parallel with other I/O, matching the house
-  tuple-await style), value-closed modifier, pure application.
-- PARTIAL: single fetch per calculation but awaited sequentially where the house style
-  is parallel, or the closure captures a provider it no longer needs.
+- FULL: single upfront fetch, value-closed modifier, pure application. Sequential
+  instead of parallel awaiting is a style note — mention it, do NOT deduct for it:
+  this invariant is about closure and purity, not await shape.
+- PARTIAL: no fetch is reachable from the application path, but the closure captures
+  a provider (or other unresolved dependency) it no longer needs.
 - NONE: any fetch reachable from `ApplyOn` (lazy, per-quote, `.Result`/`.Wait()`).
 
 **M2 (0–9) — Policy is assembled in the factory.** The weather discount is composed
@@ -96,10 +102,13 @@ modifier to the aggregation ONLY when the weather qualifies. A `NoDiscount` /
 `NoOfferModifier` null-object class **has no reason to exist** — it comes from
 over-engineering. Quotes must never pass through dead modifiers: `Quotes` may later be
 used to explain which discounts were applied.
-- FULL: conditional composition in the factory (e.g., rules filtered against the
-  once-fetched conditions before aggregation); no null-object class anywhere.
+- FULL: conditional composition in the factory — rules/discounts filtered against the
+  once-fetched conditions BEFORE aggregation; no null-object class anywhere. An
+  always-present but possibly-empty SHARED aggregate (e.g. an empty
+  `AggregatedModifier`) does not spoil FULL: the qualification decision already
+  happened in the factory and quotes never traverse a phantom modifier.
 - PARTIAL: no null-object class, but a self-disabling modifier is always present in the
-  chain (condition checked inside `ApplyOn`, or an always-included empty aggregate).
+  chain (the qualification condition is evaluated inside `ApplyOn`).
 - NONE: a named null-object class is introduced and unconditionally aggregated.
 
 **M5 (0–7) — Explicit interaction with existing discounts.** The model must NOT
@@ -109,8 +118,11 @@ silently assume the weather discount stacks on top of the whole offer. The decis
 Application order matters: applying weather BEFORE special offers feeds discounted
 quotes into `IndividualSalesConditions`' `min()` comparisons — score NONE for that.
 - FULL: interaction decision explicit and consistent with the model's idioms.
-- PARTIAL: stacking assumed but at least stated (comment/test names the assumption).
-- NONE: silent stacking, or weather applied before the existing chain.
+- PARTIAL: the discount stacks AFTER the existing chain — a conservative but undecided
+  default — whether silently or merely stated in a comment.
+- NONE: weather applied BEFORE the existing chain (feeding discounted quotes into
+  `IndividualSalesConditions`' `min()` comparisons), or tests canonizing compounding
+  of weather discounts with no spec basis.
 
 **M6 (0–4) — Failure is not a measurement.** API failure must be distinguishable from
 a measured zero. Encoding failure as `Clear()`, `Unknown => new(0)`, or

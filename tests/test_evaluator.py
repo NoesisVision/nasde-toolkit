@@ -827,3 +827,25 @@ def test_prompt_no_agent_diff_section_by_default() -> None:
         expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
     )
     assert "## Agent diff" not in prompt
+
+
+def test_prompt_procedure_is_diff_first_when_diff_present() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+        agent_diff_path="/jobs/j1/trial/agent_changes.diff",
+        agent_diffstat=" x.cs | 1 -",
+    )
+    assert "1. Start from the agent diff" in prompt
+    assert "## How to evaluate" in prompt
+
+
+def test_prompt_procedure_is_workspace_first_without_diff() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+    )
+    assert "1. Use `Glob` to discover all output files in the workspace." in prompt
+    assert "Start from the agent diff" not in prompt

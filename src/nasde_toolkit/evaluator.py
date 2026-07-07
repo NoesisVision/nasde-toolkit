@@ -568,6 +568,7 @@ def _build_evaluator_prompt(
     agent_diff_section = _format_agent_diff_section(agent_diff_path, agent_diffstat)
     precheck_section = _format_precheck_section(precheck)
     trajectory_section = _format_trajectory_section(trajectory_path)
+    how_to_evaluate = _format_how_to_evaluate(has_agent_diff=agent_diff_path is not None)
 
     location_hint = (
         f"Analyze the artifacts in `{artifacts_dir}`."
@@ -596,13 +597,7 @@ that matches the description, not higher.
 <criteria>
 {criteria}
 </criteria>
-{agent_diff_section}{ground_truth_section}{precheck_section}{trajectory_section}## How to evaluate
-
-1. Use `Glob` to discover all output files in the workspace.
-2. Use `Read` to examine the content of each output file.
-3. Use `Grep` to search for specific patterns or keywords.
-4. For each dimension, find concrete evidence before assigning a score.
-
+{agent_diff_section}{ground_truth_section}{precheck_section}{trajectory_section}{how_to_evaluate}
 ## Output format
 
 After your analysis, output a single JSON block with your evaluation.
@@ -684,6 +679,36 @@ decisions should lower the score.
 <ground_truth>
 {ground_truth}
 </ground_truth>
+"""
+
+
+def _format_how_to_evaluate(has_agent_diff: bool) -> str:
+    """Evaluation procedure; diff-first whenever the agent diff is available.
+
+    The diff step is part of the base procedure — independent of whatever the
+    task's assessment criteria say — so every rubric benefits from the
+    what-actually-changed reference point, not only rubrics that mention it.
+    """
+    if has_agent_diff:
+        return """## How to evaluate
+
+1. Start from the agent diff (see "Agent diff" above): review the change summary,
+   then Read/Grep the diff file — establish WHAT the agent changed, removed and
+   added before judging how well it did so.
+2. Use `Glob` to discover all output files in the workspace.
+3. Use `Read` to examine the changed files in their full workspace context — the
+   diff shows the change, the file shows how it fits its surroundings.
+4. Use `Grep` to search for specific patterns or keywords.
+5. For each dimension, find concrete evidence before assigning a score. Evidence
+   about what the agent changed comes from the diff; evidence about how it fits
+   comes from the workspace.
+"""
+    return """## How to evaluate
+
+1. Use `Glob` to discover all output files in the workspace.
+2. Use `Read` to examine the content of each output file.
+3. Use `Grep` to search for specific patterns or keywords.
+4. For each dimension, find concrete evidence before assigning a score.
 """
 
 

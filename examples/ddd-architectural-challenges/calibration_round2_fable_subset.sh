@@ -7,7 +7,7 @@ set -u
 export PATH="/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
 cd "$(dirname "$0")"
 
-FP=8e0d00bfd8df
+FP=$(uv run python -c "from nasde_toolkit.evaluator import _dimensions_fingerprint; from pathlib import Path; print(_dimensions_fingerprint(Path('tasks/ddd-weather-discount/assessment_dimensions.json')))")
 MODEL=claude-fable-5
 TARGET=2
 SUBSET=(FjYQ3XQ 4njch2w ZvSsnyg aGTFmDh qHCAtXV)   # A, D, C-lider-v1, B-rozstrzał, B-zaniżony

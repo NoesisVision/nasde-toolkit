@@ -248,3 +248,34 @@ def test_pricing_show_source_column(tmp_path: Path) -> None:
     assert "Layer" in result.output
     assert "project" in result.output
     assert "bundled" in result.output
+
+
+def test_override_eval_judge_sets_model_and_backend() -> None:
+    from nasde_toolkit.cli import _override_eval_judge
+    from nasde_toolkit.config import EvaluationConfig, ProjectConfig
+
+    config = ProjectConfig(name="test", evaluation=EvaluationConfig())
+    _override_eval_judge(config, model="claude-fable-5", backend="codex")
+    assert config.evaluation.model == "claude-fable-5"
+    assert config.evaluation.backend == "codex"
+
+
+def test_override_eval_judge_none_keeps_config_defaults() -> None:
+    from nasde_toolkit.cli import _override_eval_judge
+    from nasde_toolkit.config import EvaluationConfig, ProjectConfig
+
+    config = ProjectConfig(name="test", evaluation=EvaluationConfig(model="m0", backend="claude"))
+    _override_eval_judge(config, model=None, backend=None)
+    assert config.evaluation.model == "m0"
+    assert config.evaluation.backend == "claude"
+
+
+def test_override_eval_judge_rejects_unknown_backend() -> None:
+    import typer
+
+    from nasde_toolkit.cli import _override_eval_judge
+    from nasde_toolkit.config import EvaluationConfig, ProjectConfig
+
+    config = ProjectConfig(name="test", evaluation=EvaluationConfig())
+    with pytest.raises(typer.Exit):
+        _override_eval_judge(config, model=None, backend="gemini")

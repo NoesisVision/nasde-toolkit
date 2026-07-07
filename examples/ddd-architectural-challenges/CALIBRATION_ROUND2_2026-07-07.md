@@ -129,6 +129,40 @@ check's wording, and re-run.
      `OfferModifiers.ChooseFor` (in v1, two suites with zero composition coverage
      scored 20/20).
 
+## Judge-model matrix (round-2 run plan)
+
+The re-run doubles as a judge-model comparison. One command drives the whole thing:
+
+```
+./calibration_round2_run.sh          # add NASDE_RESULTS_PUSH=1 to also push results
+```
+
+| Judge model | Backend | Why |
+|---|---|---|
+| `claude-fable-5` | claude | Newest Claude (Mythos-class tier above Opus) |
+| `claude-opus-4-8` | claude | Newest Opus (v1 judged with opus-4-7) |
+| `gpt-5.5` | codex | Best model confirmed available in the codex CLI as of the June trials — bump the `MATRIX` entry if a newer one ships |
+
+Mechanics (all implemented in this round):
+
+1. `calibration_round2_run.sh` assembles `jobs/calibration-round2/` — symlinks to the
+   11 locally present reference trials plus **sink-restores** for the two whose local
+   job dirs are gone (`URtZnzf`, `FjYQ3XQ`): `calibration_round2_restore.sh` rebuilds
+   the evaluator contract from the calibration sink (workspace HEAD = base snapshot,
+   agent diff applied uncommitted, `result.json`/`config.json` synthesized from the
+   sink's `metrics.json`). Both restores verified against `workspace_diff.capture_patch`.
+2. `nasde eval` runs 3× per judge via the new `--eval-model` / `--eval-backend`
+   overrides (13 trials × 3 judges × 3 reps = 117 judge runs). Evals append to the
+   trial dirs; the v2 task-level dimensions fingerprint keeps them in separate summary
+   groups per judge, never mixed with v1.
+3. `calibration_round2_check.py` computes the acceptance criteria above mechanically
+   from `assessment_eval_*.json` (per judge model where applicable) and exits non-zero
+   on any FAIL — the loop's stop condition as an executable, not a judgment call.
+4. `nasde results-export` copies the essence (metrics, scores, patches, trajectories)
+   to the `nasde-results` repo under `calibration-round2-ddd-weather-discount/`,
+   together with `acceptance_report.txt`, and commits — so the round's evidence
+   survives even if `jobs/` is cleared.
+
 ## Procedure (calibration orchestrator)
 
 1. `nasde eval` the existing job dirs — the evaluator picks up the task-level

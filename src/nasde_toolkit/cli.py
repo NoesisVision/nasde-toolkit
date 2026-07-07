@@ -82,6 +82,17 @@ def _override_eval_repetitions(config: ProjectConfig, eval_repetitions: int | No
     config.evaluation.eval_repetitions = eval_repetitions
 
 
+def _override_eval_judge(config: ProjectConfig, model: str | None, backend: str | None) -> None:
+    """Apply per-run judge overrides (judge-model comparison matrices)."""
+    if backend is not None:
+        if backend not in ("claude", "codex"):
+            console.print(f"[red]ERROR: --eval-backend must be 'claude' or 'codex', got '{backend}'.[/red]")
+            raise typer.Exit(1)
+        config.evaluation.backend = backend
+    if model is not None:
+        config.evaluation.model = model
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
@@ -369,6 +380,16 @@ def eval_command(
         "--eval-repetitions",
         help="Judge evaluations per trial (default: from nasde.toml [evaluation], fallback 3).",
     ),
+    eval_model: str | None = typer.Option(
+        None,
+        "--eval-model",
+        help="Override the judge model from nasde.toml [evaluation] for this run (judge-model comparison matrices).",
+    ),
+    eval_backend: str | None = typer.Option(
+        None,
+        "--eval-backend",
+        help="Override the judge backend for this run: claude | codex.",
+    ),
     project_dir: Path = typer.Option(
         Path("."),
         "--project-dir",
@@ -382,6 +403,7 @@ def eval_command(
 
     config = load_project_config(project_dir.resolve())
     _override_eval_repetitions(config, eval_repetitions)
+    _override_eval_judge(config, eval_model, eval_backend)
 
     from nasde_toolkit.banner import print_banner
 

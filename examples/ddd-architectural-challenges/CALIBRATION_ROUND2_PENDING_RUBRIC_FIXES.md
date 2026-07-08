@@ -4,17 +4,23 @@
 `42d6a9e593cf`, verified live) → v2.2 `5c49d8e` (fp `25e9d07f8b31`, verified live
 2026-07-08: BAzkEPJ 0.79 / ayg7ckA 0.70 / #21 0.68 / #13 0.59 neg-control clean;
 facts-vs-verdicts rule discriminates — sanctioned constructor change recovers R3,
-#21's List→IEnumerable rewrite stays penalized) → **v2.3 (fp `fdb83b1535a6`,
+#21's List→IEnumerable rewrite stays penalized) → **v2.3 (fp `37ffc5f460d2`,
 CURRENT)** — M5 direction-neutral: spec is silent on discount interaction and the
 agent cannot ask, so a TESTED assumption (accumulation or exclusivity alike) is an
-explicit decision, not a deduction; base-intent note corrected after code audit
-(base has NO Pricing tests; all implemented interaction idioms choose —
+explicit decision, not a deduction (6/7); the 7th point is reserved for reifying the
+choice itself — exclusive-vs-accumulate as a configurable composition decision, both
+policies expressible (the way `.Or` vs `AggregatedModifier` embody the two
+directions), demonstrated both ways in tests. Base-intent note corrected after code
+audit (base has NO Pricing tests; all implemented interaction idioms choose —
 ClientLevelDiscounts override, min(), .Or fallback — but unused AggregatedModifier
 is a base-provided sequential-composition idiom, and special-offer bodies are
 unimplemented). Ground truth `explicit-exclusivity` renamed → `explicit-interaction`.
-v2.3 has NO live evaluations yet. Expected v2.3 re-scores: BAzkEPJ M5 0→7 (composition
-tested through ChooseFor) ≈ 0.86; ayg7ckA M5 0→~4 (intra-weather tested, chain
-interaction still silent) ≈ 0.74; #13 unchanged (before-chain stays NONE).
+(Lineage note: v2.3 was amended same-day pre-first-run, fp `fdb83b1535a6` →
+`37ffc5f460d2`; the earlier fp never ran, so no evaluations are affected.)
+v2.3 has NO live evaluations yet. Expected v2.3 re-scores: BAzkEPJ M5 0→6 (composition
+tested through ChooseFor, single direction) ≈ 0.85; ayg7ckA M5 0→~4 (intra-weather
+tested, chain interaction still silent) ≈ 0.74; #13 unchanged (before-chain stays
+NONE). No trial so far models the configurable-policy ceiling.
 
 **Live results so far** (all judge=claude-fable-5): v2.1 anchors #21 0.66 / #16 0.64 /
 #14 0.63 / #13 0.55 (neg. control exact) / #18 not run (cap-by-construction); Fable

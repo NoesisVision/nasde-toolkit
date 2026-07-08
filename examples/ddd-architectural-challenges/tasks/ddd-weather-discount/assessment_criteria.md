@@ -138,13 +138,21 @@ that pins the chosen semantics is the strongest form of visibility — including
 that introduces a hypothetical second weather rule to demonstrate how multiple weather
 discounts combine; do NOT deduct such a test for "lacking spec basis". With a silent
 spec and no way to interact, a tested assumption is the correct engineering move.
+The EXEMPLARY ceiling goes one step further: since the business has not decided, the
+strongest model treats exclusive-vs-accumulate as a CONFIGURATION decision — both
+policies expressible through composition idioms (the way `.Or` and `AggregatedModifier`
+already embody the two directions), selectable without touching the discount logic.
+Any genuine movement in this direction earns the top of the range.
 Application order remains a hard constraint: applying weather BEFORE special offers
 feeds discounted quotes into `IndividualSalesConditions`' `min()` comparisons and
 breaks the semantics of the model's existing decisions.
 - FULL: the interaction semantics — whatever direction — are visible and consistent:
   pinned by a test that exercises the composition with existing discounts, or modeled
   as an explicit idiom. A tested accumulation assumption and a tested exclusivity
-  decision score identically.
+  decision score identically: 6 of 7. Award the full 7 ONLY when the choice itself is
+  modeled: both policies expressible and selectable at composition/configuration time
+  (an explicit combinator choice, a policy seam demonstrated both ways in tests) —
+  reward any genuine movement in this direction.
 - PARTIAL: the interaction with EXISTING discounts is only implicit — e.g. the weather
   modifier stacks after the chain silently (even if intra-weather semantics are
   tested), or the decision is stated in a comment/assumptions note but never tested.

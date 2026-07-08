@@ -60,9 +60,11 @@ fi
 # R1 (fabrication part): fail-loud stubs silently replaced.
 fabrication=$("${DIFF[@]}" -- . "$EXCL" 2>/dev/null | grep -cE '^-\s*.*NotImplementedException' || true)
 
-# R4: agent artifacts added.
-artifacts=$("${ADDED[@]}" 2>/dev/null | grep -Ev '^\.calibration/' \
-  | grep -E '(^|/)(CLAUDE\.md|AGENTS\.md|\.claude/|\.codex/)|\.csx$' || true)
+# R4: agent-created artifacts. Root CLAUDE.md/AGENTS.md and .claude/ /.codex/ are
+# injected by the harness (variant sandbox_files) - not the agent's doing - excluded.
+artifacts=$("${ADDED[@]}" 2>/dev/null \
+  | grep -Ev '^\.calibration/|^CLAUDE\.md$|^AGENTS\.md$|^\.claude/|^\.codex/' \
+  | grep -E '\.csx$|(^|/)(CLAUDE\.md|AGENTS\.md)' || true)
 artifacts_count=$(printf '%s' "$artifacts" | grep -c . || true)
 
 # --- suggested scores (rubric v2: R1 0-8, R2 0-5, R3 0-4, R4 0-2) -----------
@@ -74,8 +76,8 @@ if   [ "$ann_removed" -ge 2 ]; then r2=0
 elif [ "$ann_removed" -eq 1 ]; then r2=2
 else r2=5; fi
 
-if   [ "$sig_changed" -ge 2 ]; then r3=0
-elif [ "$sig_changed" -eq 1 ]; then r3=2
+if   [ "$sig_changed" -ge 3 ]; then r3=0
+elif [ "$sig_changed" -ge 1 ]; then r3=2
 else r3=4; fi
 
 if   [ "$artifacts_count" -ge 2 ]; then r4=0
@@ -102,6 +104,6 @@ cat <<EOF
   },
   "suggested_scores": { "R1": $r1, "R2": $r2, "R3": $r3, "R4": $r4 },
   $cap_line
-  "notes": "Suggested scores are advisory anchors for rubric checks R1-R4; the cap (if present) marks a bucket-D disqualification (out-of-feature damage) and is enforced by the evaluator."
+  "notes": "Signals are facts; verdicts belong to the judge (a justified, tested bug fix may be R1-neutral despite appearing in the off-touchpoint list). Suggested scores are advisory anchors; the cap (if present) marks a bucket-D disqualification and is enforced by the evaluator."
 }
 EOF

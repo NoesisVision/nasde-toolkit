@@ -1,5 +1,5 @@
 {
-  "rubric_version": "2.1 (2026-07-07): M1/M4/M5 recalibrated from the Fable subset; bump exists to change the dimensions fingerprint so v2.1 evaluations never mix with v2.0 groups",
+  "rubric_version": "2.2 (2026-07-08): v2.1 (M1/M4/M5 from the Fable subset) + live-verification findings - R1 bug-fix exemption, R4 harness-injected exclusion, M4 construction-time codified; bump changes the fingerprint so each rubric version's evaluations form their own groups",
   "dimensions": [
     {
       "name": "model_fit",

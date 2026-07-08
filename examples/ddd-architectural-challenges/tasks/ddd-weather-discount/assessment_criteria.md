@@ -1,9 +1,12 @@
-# Assessment Criteria: Weather-Based Discount (v2.1, calibrated 2026-07)
+# Assessment Criteria: Weather-Based Discount (v2.2, calibrated 2026-07)
 
-v2.1 recalibrates three model_fit checks (M1, M4, M5) from the measured Fable subset
+v2.1 recalibrated three model_fit checks (M1, M4, M5) from the measured Fable subset
 (see CALIBRATION_ROUND2_PENDING_RUBRIC_FIXES.md): style is no longer priced as an
 invariant (M1), the factory-filtered empty-aggregate shape earns full credit (M4),
-and stacking-after is separated from applying-before-the-chain (M5).
+and stacking-after is separated from applying-before-the-chain (M5). v2.2 adds the
+findings of the live verification: a justified, tested bug fix in pre-existing code
+is restraint-neutral (R1), harness-injected files are not agent artifacts (R4), and
+construction-time qualification resolution is codified as factory-time (M4).
 
 This task uses its own dimension set (task-level `assessment_dimensions.json`):
 **model_fit (0–50)**, **restraint (0–25)**, **test_quality (0–25)**. The rubric is a
@@ -23,9 +26,11 @@ Hard rules:
   agent's work (start state → final workspace). It is the authoritative record of
   what the agent changed: answer every change-related check from the diff (Grep it —
   removed lines start with `-`), not from impressions of the final state.
-- When a "Deterministic pre-check signals" section is also present, its facts override
-  your own impression for the overlapping checks (R1–R4): stay consistent with the
-  signals and use the diff and Read only to collect the evidence quotes.
+- When a "Deterministic pre-check signals" section is also present, treat its signals
+  as FACTS (which files changed, which lines were removed) — never dispute them. The
+  VERDICTS remain yours: a file listed outside the touchpoints may still score
+  R1-neutral when it is a justified, tested bug fix. `suggested_scores` are advisory
+  anchors, not decisions.
 - Verify against the code, not against the agent's comments or naming.
 
 ## Base-model intent (read this before scoring)
@@ -106,9 +111,13 @@ used to explain which discounts were applied.
   once-fetched conditions BEFORE aggregation; no null-object class anywhere. An
   always-present but possibly-empty SHARED aggregate (e.g. an empty
   `AggregatedModifier`) does not spoil FULL: the qualification decision already
-  happened in the factory and quotes never traverse a phantom modifier.
-- PARTIAL: no null-object class, but a self-disabling modifier is always present in the
-  chain (the qualification condition is evaluated inside `ApplyOn`).
+  happened in the factory and quotes never traverse a phantom modifier. Resolution at
+  CONSTRUCTION time counts as factory time: a modifier whose constructor pre-resolves
+  the applicable rules/discounts from the fetched conditions (so `ApplyOn` only
+  consults that pre-resolved state) also qualifies as FULL.
+- PARTIAL: no null-object class, but a self-disabling modifier is always present in
+  the chain — the qualification condition is evaluated at APPLICATION time inside
+  `ApplyOn`, not pre-resolved at factory/construction time.
 - NONE: a named null-object class is introduced and unconditionally aggregated.
 
 **M5 (0–7) — Explicit interaction with existing discounts.** The model must NOT
@@ -164,6 +173,13 @@ three-way tuple await with no weather dependency).
 - NONE: 3+ pre-existing files modified, or ANY behavior fabrication (e.g.,
   `NotImplementedException` replaced by `Money.Of(decimal.MaxValue, ...)` — silently
   granting unlimited credit in an unrelated integration).
+- **Justified bug fix is R1-neutral.** An off-touchpoint modification does NOT count
+  against R1 when all three hold: the defect is demonstrable in the base code, the
+  fix is minimal, and it is covered by a test (the task explicitly allows refactoring
+  existing code). Example: base `Discount.Value(Money)` passes `isPercentage: true`,
+  silently turning value discounts into a default percentage — fixing that flag with
+  a covering test earns no deduction. Distinguish sharply from behavior FABRICATION
+  (inventing business behavior to make things run), which remains NONE.
 
 **R2 (0–5) — Author's annotations preserved.** Grep the agent diff for removed
 annotation lines (pattern: lines starting with `-` containing `[Ddd` or
@@ -177,8 +193,12 @@ author may have used `List` for a reason; catching author intent is a trait of g
 domain modeling. PARTIAL for one cosmetic change, NONE for more or for semantic
 changes.
 
-**R4 (0–2) — No agent artifacts committed.** `CLAUDE.md`, `AGENTS.md`, `.claude/`
-skill files, scratch scripts (`*.csx`), etc. FULL: none; PARTIAL: one; NONE: multiple.
+**R4 (0–2) — No agent artifacts committed.** Scratch scripts (`*.csx`), notes, debug
+dumps and other agent-created junk. IGNORE files injected by the evaluation harness
+itself: root `CLAUDE.md` / `AGENTS.md` and the `.claude/` / `.codex/` directories are
+mounted into the workspace by the runner (variant `sandbox_files`), not created by
+the agent, and must not be penalized. FULL: no agent-created artifacts; PARTIAL: one;
+NONE: multiple.
 
 **R5 (0–4) — Modularization mirrors the surrounding design.** A separate weather
 module that **exposes offer modifiers analogously to `SpecialOffers`**, wired through

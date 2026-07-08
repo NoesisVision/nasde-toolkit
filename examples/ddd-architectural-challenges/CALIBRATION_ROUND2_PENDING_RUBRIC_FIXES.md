@@ -1,60 +1,121 @@
-# HANDOVER SNAPSHOT (2026-07-08, end of working session)
+# HANDOVER SNAPSHOT (2026-07-08 evening — rubric v2.3 verified, supple-v3 probe run)
 
-**Rubric lineage:** v2.0 `22d6dde` (fp `8e0d00bfd8df`) → v2.1 `feec7b9` (fp
-`42d6a9e593cf`, verified live) → v2.2 `5c49d8e` (fp `25e9d07f8b31`, verified live
-2026-07-08: BAzkEPJ 0.79 / ayg7ckA 0.70 / #21 0.68 / #13 0.59 neg-control clean;
-facts-vs-verdicts rule discriminates — sanctioned constructor change recovers R3,
-#21's List→IEnumerable rewrite stays penalized) → **v2.3 (fp `37ffc5f460d2`,
-CURRENT)** — M5 direction-neutral: spec is silent on discount interaction and the
-agent cannot ask, so a TESTED assumption (accumulation or exclusivity alike) is an
-explicit decision, not a deduction (FULL, 6/7); the 7th point is the verdict **MAX** —
-the only above-FULL verdict in the rubric — reserved for reifying the choice itself:
-exclusive-vs-accumulate as a configurable composition decision, both policies
-expressible (the way `.Or` vs `AggregatedModifier` embody the two directions), with
-a decidable two-part evidence bar: (a) the selection point, file + line, and (b)
-executable proof of the second policy (test or working combinator); prose is not
-movement. Base-intent note corrected after code
-audit (base has NO Pricing tests; all implemented interaction idioms choose —
-ClientLevelDiscounts override, min(), .Or fallback — but unused AggregatedModifier
-is a base-provided sequential-composition idiom, and special-offer bodies are
-unimplemented). Ground truth `explicit-exclusivity` renamed → `explicit-interaction`.
-(Lineage note: v2.3 was amended same-day pre-first-run, fp `fdb83b1535a6` →
-`37ffc5f460d2`; the earlier fp never ran, so no evaluations are affected.)
-v2.3 has NO live evaluations yet. Expected v2.3 re-scores: BAzkEPJ M5 0→6 (composition
-tested through ChooseFor, single direction) ≈ 0.85; ayg7ckA M5 0→~4 (intra-weather
-tested, chain interaction still silent) ≈ 0.74; #13 unchanged (before-chain stays
-NONE). No trial so far models the configurable-policy ceiling.
+**TL;DR of the day:** v2.2 verified live on 4 trials (every prediction exact, no
+inflation, no amnesty); owner rulings turned M5 direction-neutral and added the MAX
+verdict → rubric v2.3, verified live same day (BAzkEPJ 0.85, prediction exact, MAX
+correctly withheld); `claude-supple` instruction rewritten v1→v3 (universal text,
+supple-design elements explained, anti-abstraction restraint, tests-as-documentation);
+supple-v3 coding run landed in the ExchangeRate trap (modified `CalculatePrices.cs`,
+never touched `OfferModifiers.cs`) — eval result below. Everything committed and
+pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 
-**Live results so far** (all judge=claude-fable-5): v2.1 anchors #21 0.66 / #16 0.64 /
-#14 0.63 / #13 0.55 (neg. control exact) / #18 not run (cap-by-construction); Fable
-as coder: vanilla `ayg7ckA` 0.66, deeper-instruction probe `BAzkEPJ` 0.70 (record;
-first composition test in 15 trials; found+fixed base `Discount.Value` bug). v2.2:
-BAzkEPJ 0.79 (restraint 25/25 — R1 bug-fix exemption + R4 harness exclusion fired
-verbatim), ayg7ckA 0.70, #21 0.68 (no amnesty for the author-intent rewrite), #13
-0.59 (model_fit/test identical to v2.0/v2.1 — zero inflation). Trials published for
-review: PR #22 (ayg7ckA), PR #23 (BAzkEPJ) on NoesisVision/nasde-calibration, with
-13 inline comments mapping v2.2 verdicts to code.
+## Score table (judge = claude-fable-5, grouped by fingerprint — groups never mix)
 
-**Next actions (in order):**
-1. Opus 4.8 back-to-back: v2.0 (`git restore --source 22d6dde -- tasks/ddd-weather-discount/`)
-   vs **v2.2** (branch head; v2.1 was transitional). Same 13-trial job dir
-   `jobs/calibration-round2/`, `--eval-model claude-opus-4-8`, n=2 if budget allows;
-   per-eval gating via `calibration_round2_eval_one.sh` (edit MODEL inside or copy).
-2. Optional: #18 under current rubric (live cap-application demo), Fable eval of
-   `BAzkEPJ`/`ayg7ckA` under v2.2, `variants/claude-supple` coding run (ready, unrun).
-3. `calibration_round2_check.py` computes acceptance per fingerprint group from the
-   working tree's dimensions file; export results via `nasde results-export` to the
-   nasde-results repo (commit+push — precedent established).
+| Trial | v2.1 `42d6a9e593cf` | v2.2 `25e9d07f8b31` | v2.3 `37ffc5f460d2` |
+|---|---|---|---|
+| BAzkEPJ (Fable, deeper instruction) | 0.70 | 0.79 | **0.85** (pred. 0.85 ✓) |
+| ayg7ckA (Fable, vanilla) | 0.66 | 0.70 | ~0.74 predicted, not run |
+| 3WwZrNY (Fable, claude-supple v3) | — | — | **0.69** (39/19/11) |
+| #21 FjYQ3XQ (bucket A) | 0.66 | 0.68 | not run |
+| #13 ZvSsnyg (bucket C, neg control) | 0.55 | 0.59 | expected unchanged |
 
-**Budget reality:** one Fable eval = 12–21 min ≈ 20–40% of a Max-5x 5h window; runs
-are gated per-eval by the owner. Auth: claude CLI keychain works for evals; sandbox
-coding runs need CLAUDE_CODE_OAUTH_TOKEN (extracted from keychain at runtime by the
-scratch launchers — never print it).
+## Today's experiments, in order
+
+1. **v2.2 verification (4 evals):** BAzkEPJ 0.79 (restraint 25/25 — R1 bug-fix
+   exemption and R4 harness exclusion cited verbatim by the judge), ayg7ckA 0.70,
+   #21 0.68 (facts-vs-verdicts discriminates: sanctioned constructor change recovers
+   R3 while the List→IEnumerable author-intent rewrite stays penalized; R4 correctly
+   generalized to codex's AGENTS.md), #13 0.59 (model_fit/test_quality identical to
+   v2.0/v2.1 to the point — zero inflation; restraint uplift fully attributable).
+2. **Publication:** PR #22 (ayg7ckA) and PR #23 (BAzkEPJ) on
+   NoesisVision/nasde-calibration + 13 inline comments mapping v2.2 verdicts to code
+   (7 on #22, 6 on #23); M5 comments carry "superseded by v2.3" replies.
+3. **M5 base-code audit** (triggered by owner's challenge): the base has NO Pricing
+   tests at all; every implemented interaction idiom chooses (ClientLevelDiscounts
+   override, IndividualSalesConditions min(), SpecialOffer.Or fallback with
+   unimplemented bodies); unused `AggregatedModifier` is a base-provided
+   sequential-composition idiom. Conclusion: the base prescribes VISIBILITY of the
+   interaction decision, not a direction.
+4. **Rubric v2.3** (commits `82fa12c`, `2dd14e1`, `2f15d6f`, `7fb6a9f`): M5
+   direction-neutral (tested accumulation == tested exclusivity == FULL 6/7);
+   verdict **MAX (7)** — the only above-FULL verdict — for reifying
+   exclusive-vs-accumulate as a configurable composition decision, gated by a
+   two-part evidence bar: (a) selection point (file+line), (b) executable proof of
+   the second policy; prose is not movement. Ground truth `explicit-exclusivity` →
+   `explicit-interaction`. Fingerprint `fdb83b1535a6` (never ran) → `37ffc5f460d2`.
+5. **v2.3 first live eval:** BAzkEPJ 0.85 (40/25/20) — M5 FULL 6 citing
+   `RainDiscountIsAppliedOnTopOfProductDiscounts`; MAX not awarded (correct — its
+   policy seam extends the discount LIST, not the interaction choice); M4 PARTIAL 3
+   and T2 NONE held. Third rubric version in a row with exact verdict-level
+   predictions. Watch item: the judge withheld MAX silently — verify future MAX
+   denials cite the missing selection point.
+6. **claude-supple instruction v1→v2→v3** (commits `5bf43d9`, `6a50420`): universal
+   study-the-model text ("as if the original author had extended it"); dropped
+   "maintaining extension points for the future" (the phrase that biased BAzkEPJ
+   toward always-in-chain structure); v3 adds a compact explanation of supple design
+   + its six Evans elements framed as "inspiration, not a checklist", the
+   anti-abstraction clause ("avoid interfaces nothing needs yet... small and concrete
+   wherever the domain is concrete"), and proof discipline (edge cases; tests as the
+   model's documentation — every claimed property, including extension points,
+   demonstrated by an executable test, not a comment).
+   **Owner's universality rule (binding):** proof-discipline and attention-direction
+   hints are fine in an always-injected CLAUDE.md; naming the mechanism under test
+   (where decisions live, how to treat unspecified interactions) is telegraphing —
+   it converts understanding into obedience and is forbidden.
+7. **supple-v3 coding run:** job `2026-07-08__17-57-38__claude-supple__fable5-supple3`,
+   trial `3WwZrNY`, 15 min, harbor reward 1.0. Restrained structure as instructed
+   (`Pricing/Discounts/Weather/` with 3 types, `Weather/` with 2 types — fewer
+   abstractions than BAzkEPJ) **but composed in the wrong place: modified
+   `CalculatePrices.cs`, never touched `OfferModifiers.cs`** — the exact
+   ExchangeRate-precedent trap the rubric's base-intent note warns judges about
+   (denomination ≠ policy). **Eval (v2.3, Fable): 0.69 = 39/19/11.** The measured
+   diagnosis PARTIALLY refutes the first hypothesis ("restraint overpowered
+   composition"): the composition MECHANICS were right — M4 FULL (eager factory-time
+   filtering in its own [DddFactory], no null-object) and, first time in 16 trials,
+   **M3 FULL** (zero bespoke spreading: delegates to pre-existing
+   `Offer.Apply<TPriceModifier>` with canonical `PercentageDiscount`) — the
+   anti-abstraction clause demonstrably worked. What failed is the ENTRY POINT and
+   the PROOF: M2 PARTIAL (proper weather factory, but applied via a second
+   `.Apply(weatherDiscount)` in `CalculatePrices.cs:41` instead of the
+   OfferModifiers chain → also R1 PARTIAL off-touchpoint), M5 PARTIAL (silent
+   stacking re existing chain), and **T1 NONE — the composition test that made
+   BAzkEPJ shine is gone** (weather module tested in isolation only; test_quality
+   11 vs deeper's 20). Net vs siblings: v3 instruction fixed M3+M4 (+7 over deeper's
+   verdicts) but lost M2+T1+M5 (−13). Instruction v4 question for tomorrow: anchor
+   the entry point and composition-testing WITHOUT telegraphing — candidates:
+   strengthen "study how the pieces compose into a whole" and extend proof
+   discipline to "properties of the change's integration with the existing model",
+   both still mechanism-free. Also note: proof discipline delivered module-level
+   tests (T3/T4/T5 FULL) but not integration-level ones — the wording says
+   "properties your design claims" and the model read "design" as "my new module".
+
+## Next actions (in order)
+
+1. Analyze the 3WwZrNY eval against the hypothesis above; decide instruction v4
+   (universality rule applies — no mechanism naming).
+2. Complete the v2.3 table: ayg7ckA (~0.74 predicted), #13 (control, expected
+   ~0.59), then #21/#16/#14 as budget allows. Per-eval gating stays.
+3. Opus 4.8 back-to-back on `jobs/calibration-round2/` (13 trials assembled):
+   originally v2.0 (`git restore --source 22d6dde -- tasks/ddd-weather-discount/`)
+   vs v2.2; now a v2.3 pass is the more interesting endpoint — owner to choose the
+   version pair. `--eval-model claude-opus-4-8`, per-eval gating.
+4. Exports to nasde-results: fable5-coder / fable5-deeper / fable5-supple3 jobs and
+   refreshed calibration-round2 (new v2.2/v2.3 assessment files) — commit+push
+   (precedent established; last push 4d1ff59 contains only the v2.1 state).
+5. Optional: #18 under current rubric (live cap demo — the cap has never fired).
+
+**Budget reality:** plan upgraded to **Max 20x** on 2026-07-08 — one Fable eval
+(7–21 min) now ≈ 5–10% of a 5h window; a coding run ≈ 15 min. Fable disappears after
+**2026-07-12** — Fable-judge and Fable-coder work has priority until then. Per-eval
+gating by the owner stays in force regardless of headroom. Auth: claude CLI keychain
+works for evals; sandbox coding runs need CLAUDE_CODE_OAUTH_TOKEN (extracted from
+keychain at runtime by the scratch launchers — never print it).
 
 **Where everything lives:** toolkit PR #75 (branch `calibration/ddd-weather-discount-v2`);
-sink PRs #9–#21 with 60 inline comments (NoesisVision/nasde-calibration, GitHub is
-canonical); durable results in NoesisVision/nasde-results (main); review reports on
-sink branch `nasde-calibrate`.
+sink PRs #9–#21 with 60 inline comments + PR #22 (ayg7ckA) and PR #23 (BAzkEPJ) with
+13 v2.2-verdict comments (NoesisVision/nasde-calibration, GitHub is canonical);
+durable results in NoesisVision/nasde-results (main); review reports on sink branch
+`nasde-calibrate`.
 
 ---
 

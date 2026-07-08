@@ -30,6 +30,51 @@ acceptance: expected order 0.66/0.64/0.58/0.55/0.445, Spearman 1.0.
 
 ---
 
+## Live v2.1 verification + Fable-coder experiments (2026-07-08)
+
+All predictions from the simulation were confirmed by live single evals
+(judge claude-fable-5, fingerprint `42d6a9e593cf`); reference order restored:
+
+| Trial | Bucket | v2.0 mean | v2.1 live | Wording validated |
+|---|:---:|:---:|:---:|---|
+| FjYQ3XQ #21 | A | 0.600 | **0.66** | M4 FULL (judge cites "the v2.1-approved empty AggregatedModifier"); M5 NONE→PARTIAL |
+| aGTFmDh #16 | B | 0.600 | **0.64** | M1 FULL despite sequential await (was PARTIAL) |
+| qHCAtXV #14 | B | 0.500 | **0.63** | M1+M5 lifts; NOTE: judge also read constructor-side rule filtering as factory-time → M4 FULL (+4 beyond simulation; defensible, ordering unharmed) |
+| ZvSsnyg #13 | C | 0.550 | **0.55** | negative control EXACT (30-19-6); M4 stays PARTIAL ("self-disables inside ApplyOn"), M5 stays NONE (before-the-chain clause) — v2.1 not inflationary |
+| 4njch2w #18 | D | 0.445 | not run | cap-by-construction; optional demo pending |
+
+**Fable 5 as coding agent** (claude-vanilla, xhigh, --without-eval, then judged):
+
+- `ayg7ckA` (standard instruction): **0.66** (36/19/11) — tied with #21; avoided every
+  hard trap (parallel factory closure, factory-filtered rules M4 FULL, genuine Unknown
+  M6 FULL); sins: compounding canonized in a test (M5 NONE), weather types in shared
+  Pricing/Discounts (R5), Percentage-hardcoded contract (M7).
+- `BAzkEPJ` ("deeper" instruction experiment): **0.70 — highest score ever recorded**
+  (32/18/20). The Quality-Expectations bullet "Fit into the existing DDD architecture"
+  was temporarily replaced with: *"VERY IMPORTANT - before the actual implementation
+  understand the deeper idea behind the implemented Domain Driven Design model - try
+  to fit in the existing model in the most conceptually sensible way - making only
+  necessary changes while maintaining extension points for the future ("supple
+  design" from Eric Evans). The quality of the changes in the resulting model is very
+  important"*. Instruction restored afterwards; the sentence now lives in the
+  **`variants/claude-supple`** variant CLAUDE.md instead (task stays canonical — an
+  instruction change would invalidate cross-trial comparability). CAVEAT: BAzkEPJ ran
+  on the modified instruction, so it is a coaching-effect probe, not a same-task data
+  point.
+- Coaching effect, check-level: **first composition test in 15 trials** (T1 FULL:
+  `OfferModifiersTests` drives `ChooseFor` with a product discount active and asserts
+  the interaction + unavailable path) → test_quality 11→20; dedicated
+  `Pricing/WeatherDiscounts` module beside SpecialOffers (R5 FULL); **and it found and
+  fixed a real latent bug in the base model**: `Discount.Value(Money)` passes
+  `isPercentage: true`, so value discounts silently apply a default percentage —
+  no other trial noticed this. The mechanical precheck priced that fix as an
+  off-touchpoint modification (R1 PARTIAL) — open rubric question for round 3:
+  should a *justified, tested bug fix* in a pre-existing file cost restraint points?
+  Counter-effects: model_fit dropped 36→32 (M4 back to PARTIAL — per-quote gating in
+  ApplyOn instead of vanilla's factory filtering; M5 NONE again — compounding test;
+  M7 registry). Net: the supple-design nudge moved modularization, testing depth and
+  model comprehension, but not the interaction-decision discipline.
+
 Original proposal record (now applied) below.
 
 ## Live state of the Fable subset (model claude-fable-5, dimensions fingerprint 8e0d00bfd8df)

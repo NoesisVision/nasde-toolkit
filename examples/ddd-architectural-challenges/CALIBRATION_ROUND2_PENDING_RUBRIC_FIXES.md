@@ -1,3 +1,39 @@
+# HANDOVER SNAPSHOT (2026-07-08, end of working session)
+
+**Rubric lineage:** v2.0 `22d6dde` (fp `8e0d00bfd8df`) → v2.1 `feec7b9` (fp
+`42d6a9e593cf`, verified live) → **v2.2 `5c49d8e` (fp `25e9d07f8b31`, CURRENT)** —
+R1 bug-fix exemption, R4 harness-injected exclusion, M4 construction-time codified,
+precheck R3 softened. v2.2 is text-verified + precheck offline-verified; it has NO
+live evaluations yet.
+
+**Live results so far** (all judge=claude-fable-5): v2.1 anchors #21 0.66 / #16 0.64 /
+#14 0.63 / #13 0.55 (neg. control exact) / #18 not run (cap-by-construction); Fable
+as coder: vanilla `ayg7ckA` 0.66, deeper-instruction probe `BAzkEPJ` 0.70 (record;
+first composition test in 15 trials; found+fixed base `Discount.Value` bug).
+
+**Next actions (in order):**
+1. Opus 4.8 back-to-back: v2.0 (`git restore --source 22d6dde -- tasks/ddd-weather-discount/`)
+   vs **v2.2** (branch head; v2.1 was transitional). Same 13-trial job dir
+   `jobs/calibration-round2/`, `--eval-model claude-opus-4-8`, n=2 if budget allows;
+   per-eval gating via `calibration_round2_eval_one.sh` (edit MODEL inside or copy).
+2. Optional: #18 under current rubric (live cap-application demo), Fable eval of
+   `BAzkEPJ`/`ayg7ckA` under v2.2, `variants/claude-supple` coding run (ready, unrun).
+3. `calibration_round2_check.py` computes acceptance per fingerprint group from the
+   working tree's dimensions file; export results via `nasde results-export` to the
+   nasde-results repo (commit+push — precedent established).
+
+**Budget reality:** one Fable eval = 12–21 min ≈ 20–40% of a Max-5x 5h window; runs
+are gated per-eval by the owner. Auth: claude CLI keychain works for evals; sandbox
+coding runs need CLAUDE_CODE_OAUTH_TOKEN (extracted from keychain at runtime by the
+scratch launchers — never print it).
+
+**Where everything lives:** toolkit PR #75 (branch `calibration/ddd-weather-discount-v2`);
+sink PRs #9–#21 with 60 inline comments (NoesisVision/nasde-calibration, GitHub is
+canonical); durable results in NoesisVision/nasde-results (main); review reports on
+sink branch `nasde-calibrate`.
+
+---
+
 # Rubric v2.1 — ddd-weather-discount (APPLIED 2026-07-07, verification pending)
 
 **Status update:** after the Fable subset completed (10/10, formal check: 5 PASS /

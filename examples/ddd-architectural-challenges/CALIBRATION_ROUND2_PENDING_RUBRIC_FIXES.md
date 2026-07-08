@@ -10,8 +10,10 @@ agent cannot ask, so a TESTED assumption (accumulation or exclusivity alike) is 
 explicit decision, not a deduction (FULL, 6/7); the 7th point is the verdict **MAX** —
 the only above-FULL verdict in the rubric — reserved for reifying the choice itself:
 exclusive-vs-accumulate as a configurable composition decision, both policies
-expressible (the way `.Or` vs `AggregatedModifier` embody the two directions),
-demonstrated both ways in tests. Base-intent note corrected after code
+expressible (the way `.Or` vs `AggregatedModifier` embody the two directions), with
+a decidable two-part evidence bar: (a) the selection point, file + line, and (b)
+executable proof of the second policy (test or working combinator); prose is not
+movement. Base-intent note corrected after code
 audit (base has NO Pricing tests; all implemented interaction idioms choose —
 ClientLevelDiscounts override, min(), .Or fallback — but unused AggregatedModifier
 is a base-provided sequential-composition idiom, and special-offer bodies are

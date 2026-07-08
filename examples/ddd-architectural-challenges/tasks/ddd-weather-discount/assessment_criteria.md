@@ -145,9 +145,12 @@ This is the ONE check with a verdict above FULL:
 - MAX (7): the choice itself is modeled. Since the business has not decided,
   the strongest model treats exclusive-vs-accumulate as a CONFIGURATION decision —
   both policies expressible through composition idioms (the way `.Or` and
-  `AggregatedModifier` already embody the two directions), selectable without touching
-  the discount logic, demonstrated both ways in tests. Reward any genuine movement in
-  this direction.
+  `AggregatedModifier` already embody the two directions). To award MAX, point to
+  BOTH pieces of evidence: (a) the composition point where a configurer selects the
+  interaction policy without touching the discount logic (file + line), and (b)
+  executable proof that the second policy is real — a test exercising it, or a
+  working alternative combinator. Prose is not movement: an "easily extensible"
+  comment, an unused strategy parameter, or a TODO stays FULL.
 - FULL (6): one direction — whichever — visible and consistent: pinned by a test that
   exercises the composition with existing discounts, or modeled as an explicit idiom.
   A tested accumulation assumption and a tested exclusivity decision score identically.

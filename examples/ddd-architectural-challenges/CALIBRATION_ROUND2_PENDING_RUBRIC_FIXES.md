@@ -7,10 +7,11 @@ facts-vs-verdicts rule discriminates — sanctioned constructor change recovers 
 #21's List→IEnumerable rewrite stays penalized) → **v2.3 (fp `37ffc5f460d2`,
 CURRENT)** — M5 direction-neutral: spec is silent on discount interaction and the
 agent cannot ask, so a TESTED assumption (accumulation or exclusivity alike) is an
-explicit decision, not a deduction (6/7); the 7th point is reserved for reifying the
-choice itself — exclusive-vs-accumulate as a configurable composition decision, both
-policies expressible (the way `.Or` vs `AggregatedModifier` embody the two
-directions), demonstrated both ways in tests. Base-intent note corrected after code
+explicit decision, not a deduction (FULL, 6/7); the 7th point is the verdict **MAX** —
+the only above-FULL verdict in the rubric — reserved for reifying the choice itself:
+exclusive-vs-accumulate as a configurable composition decision, both policies
+expressible (the way `.Or` vs `AggregatedModifier` embody the two directions),
+demonstrated both ways in tests. Base-intent note corrected after code
 audit (base has NO Pricing tests; all implemented interaction idioms choose —
 ClientLevelDiscounts override, min(), .Or fallback — but unused AggregatedModifier
 is a base-provided sequential-composition idiom, and special-offer bodies are

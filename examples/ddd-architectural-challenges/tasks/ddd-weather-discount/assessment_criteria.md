@@ -1,4 +1,4 @@
-# Assessment Criteria: Weather-Based Discount (v2.2, calibrated 2026-07)
+# Assessment Criteria: Weather-Based Discount (v2.3, calibrated 2026-07)
 
 v2.1 recalibrated three model_fit checks (M1, M4, M5) from the measured Fable subset
 (see CALIBRATION_ROUND2_PENDING_RUBRIC_FIXES.md): style is no longer priced as an
@@ -6,7 +6,10 @@ invariant (M1), the factory-filtered empty-aggregate shape earns full credit (M4
 and stacking-after is separated from applying-before-the-chain (M5). v2.2 adds the
 findings of the live verification: a justified, tested bug fix in pre-existing code
 is restraint-neutral (R1), harness-injected files are not agent artifacts (R4), and
-construction-time qualification resolution is codified as factory-time (M4).
+construction-time qualification resolution is codified as factory-time (M4). v2.3
+makes M5 direction-neutral: the spec is silent on discount interaction and the agent
+cannot ask, so a TESTED assumption (accumulation or exclusivity alike) scores as an
+explicit decision — only invisible or model-breaking interaction is penalized.
 
 This task uses its own dimension set (task-level `assessment_dimensions.json`):
 **model_fit (0–50)**, **restraint (0–25)**, **test_quality (0–25)**. The rubric is a
@@ -51,9 +54,14 @@ intent. Facts you must know to score correctly:
 - `ExchangeRate` is a `struct : PriceModifier` — **denomination, not policy**. That FX
   is fetched in `CalculatePrices` is NOT a precedent for fetching weather there: a
   weather discount is an `OfferModifier` (policy) and belongs to the factory.
-- Discount interaction is always **explicit** in this model: `SpecialOffer.Or(...)` is
-  an exclusive fallback; `IndividualSalesConditions` takes per-quote `min()` of client
-  vs product discounts. Nothing stacks silently.
+- Discount interaction is decided **explicitly** wherever the base model implements it:
+  `ClientLevelDiscounts` overrides (product-specific ELSE base), `IndividualSalesConditions`
+  takes per-quote `min()` of client vs product paths, `SpecialOffer.Or(...)` names an
+  exclusive fallback (bodies unimplemented — intent visible in shape only). The base
+  also ships `AggregatedModifier`, an unused sequential-composition idiom — so the model
+  points at BOTH choosing and composing; it prescribes visibility, not a direction.
+  Note: the base has no Pricing tests at all — interaction idioms exist in code shape
+  only, and the agent has no test precedent to imitate.
 - The canonical shape of an offer-wide percentage discount already exists:
   `ClientLevelDiscounts`' base-discount path applies a `PercentageDiscount` to every
   quote (unless a product-specific discount overrides it). Value objects `Discount`
@@ -120,18 +128,29 @@ used to explain which discounts were applied.
   `ApplyOn`, not pre-resolved at factory/construction time.
 - NONE: a named null-object class is introduced and unconditionally aggregated.
 
-**M5 (0–7) — Explicit interaction with existing discounts.** The model must NOT
-silently assume the weather discount stacks on top of the whole offer. The decision
-(stack / exclusive / min) must be visible somewhere: modeled as a composition idiom
-(like `.Or` / `min()`), tested, or at minimum stated in code or an assumptions note.
-Application order matters: applying weather BEFORE special offers feeds discounted
-quotes into `IndividualSalesConditions`' `min()` comparisons — score NONE for that.
-- FULL: interaction decision explicit and consistent with the model's idioms.
-- PARTIAL: the discount stacks AFTER the existing chain — a conservative but undecided
-  default — whether silently or merely stated in a comment.
+**M5 (0–7) — Explicit interaction with existing discounts.** The specification does
+NOT define how the weather discount interacts with existing discounts, and the agent
+has no channel to ask — so the DIRECTION of the choice is free: accumulation on top of
+the offer, exclusivity, or a min/max competition are all acceptable readings (the base
+model itself points both ways: `.Or`/`min()` choose, `AggregatedModifier` composes).
+What this check scores is the VISIBILITY of the decision, not its direction. A test
+that pins the chosen semantics is the strongest form of visibility — including a test
+that introduces a hypothetical second weather rule to demonstrate how multiple weather
+discounts combine; do NOT deduct such a test for "lacking spec basis". With a silent
+spec and no way to interact, a tested assumption is the correct engineering move.
+Application order remains a hard constraint: applying weather BEFORE special offers
+feeds discounted quotes into `IndividualSalesConditions`' `min()` comparisons and
+breaks the semantics of the model's existing decisions.
+- FULL: the interaction semantics — whatever direction — are visible and consistent:
+  pinned by a test that exercises the composition with existing discounts, or modeled
+  as an explicit idiom. A tested accumulation assumption and a tested exclusivity
+  decision score identically.
+- PARTIAL: the interaction with EXISTING discounts is only implicit — e.g. the weather
+  modifier stacks after the chain silently (even if intra-weather semantics are
+  tested), or the decision is stated in a comment/assumptions note but never tested.
 - NONE: weather applied BEFORE the existing chain (feeding discounted quotes into
-  `IndividualSalesConditions`' `min()` comparisons), or tests canonizing compounding
-  of weather discounts with no spec basis.
+  `IndividualSalesConditions`' `min()` comparisons), or self-contradictory semantics
+  (code and tests disagree about the interaction).
 
 **M6 (0–4) — Failure is not a measurement.** API failure must be distinguishable from
 a measured zero. Encoding failure as `Clear()`, `Unknown => new(0)`, or

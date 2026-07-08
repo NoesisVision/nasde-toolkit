@@ -1,15 +1,30 @@
 # HANDOVER SNAPSHOT (2026-07-08, end of working session)
 
 **Rubric lineage:** v2.0 `22d6dde` (fp `8e0d00bfd8df`) → v2.1 `feec7b9` (fp
-`42d6a9e593cf`, verified live) → **v2.2 `5c49d8e` (fp `25e9d07f8b31`, CURRENT)** —
-R1 bug-fix exemption, R4 harness-injected exclusion, M4 construction-time codified,
-precheck R3 softened. v2.2 is text-verified + precheck offline-verified; it has NO
-live evaluations yet.
+`42d6a9e593cf`, verified live) → v2.2 `5c49d8e` (fp `25e9d07f8b31`, verified live
+2026-07-08: BAzkEPJ 0.79 / ayg7ckA 0.70 / #21 0.68 / #13 0.59 neg-control clean;
+facts-vs-verdicts rule discriminates — sanctioned constructor change recovers R3,
+#21's List→IEnumerable rewrite stays penalized) → **v2.3 (fp `fdb83b1535a6`,
+CURRENT)** — M5 direction-neutral: spec is silent on discount interaction and the
+agent cannot ask, so a TESTED assumption (accumulation or exclusivity alike) is an
+explicit decision, not a deduction; base-intent note corrected after code audit
+(base has NO Pricing tests; all implemented interaction idioms choose —
+ClientLevelDiscounts override, min(), .Or fallback — but unused AggregatedModifier
+is a base-provided sequential-composition idiom, and special-offer bodies are
+unimplemented). Ground truth `explicit-exclusivity` renamed → `explicit-interaction`.
+v2.3 has NO live evaluations yet. Expected v2.3 re-scores: BAzkEPJ M5 0→7 (composition
+tested through ChooseFor) ≈ 0.86; ayg7ckA M5 0→~4 (intra-weather tested, chain
+interaction still silent) ≈ 0.74; #13 unchanged (before-chain stays NONE).
 
 **Live results so far** (all judge=claude-fable-5): v2.1 anchors #21 0.66 / #16 0.64 /
 #14 0.63 / #13 0.55 (neg. control exact) / #18 not run (cap-by-construction); Fable
 as coder: vanilla `ayg7ckA` 0.66, deeper-instruction probe `BAzkEPJ` 0.70 (record;
-first composition test in 15 trials; found+fixed base `Discount.Value` bug).
+first composition test in 15 trials; found+fixed base `Discount.Value` bug). v2.2:
+BAzkEPJ 0.79 (restraint 25/25 — R1 bug-fix exemption + R4 harness exclusion fired
+verbatim), ayg7ckA 0.70, #21 0.68 (no amnesty for the author-intent rewrite), #13
+0.59 (model_fit/test identical to v2.0/v2.1 — zero inflation). Trials published for
+review: PR #22 (ayg7ckA), PR #23 (BAzkEPJ) on NoesisVision/nasde-calibration, with
+13 inline comments mapping v2.2 verdicts to code.
 
 **Next actions (in order):**
 1. Opus 4.8 back-to-back: v2.0 (`git restore --source 22d6dde -- tasks/ddd-weather-discount/`)

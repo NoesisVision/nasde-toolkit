@@ -23,11 +23,11 @@
       "anti_pattern": "Bespoke weather-named percentage type; the generic apply-to-all-quotes behavior hidden as a private nested class in the weather module."
     },
     {
-      "id": "explicit-exclusivity",
-      "decision": "The interaction between the weather discount and existing discounts must be an explicit, visible decision - never a silent assumption that the 10% stacks on top of the whole offer.",
-      "rationale": "Existing discounts interact explicitly: SpecialOffer.Or is an exclusive fallback, IndividualSalesConditions takes per-quote min(). An agent that cannot ask should choose conservatively and record the assumption. Applying weather BEFORE special offers is the worst variant: discounted quotes flow into the min() comparisons.",
-      "canonical_example": "Interaction expressed with the model's idioms (Or / min / documented stacking) and covered by a composition test through OfferModifiers.ChooseFor.",
-      "anti_pattern": "Silent multiplicative stacking; a test that canonizes compounding of weather rules (e.g. 100 -> 90 -> 81) with no spec basis; weather applied before the existing chain."
+      "id": "explicit-interaction",
+      "decision": "The interaction between the weather discount and existing discounts must be an explicit, visible decision - never a silent assumption. The DIRECTION of the decision is free: the spec is silent and the agent cannot ask, so a tested accumulation assumption and a tested exclusivity decision are equally acceptable.",
+      "rationale": "Where the base model implements interaction it decides explicitly (ClientLevelDiscounts overrides, IndividualSalesConditions takes per-quote min(), SpecialOffer.Or names an exclusive fallback), but it also ships AggregatedModifier - an unused sequential-composition idiom - so the base points at both choosing and composing. It prescribes visibility, not a direction. The base has no Pricing tests, so the agent has no test precedent to imitate; writing the assumption down as a test is the correct engineering move. Applying weather BEFORE special offers remains the worst variant: discounted quotes flow into the min() comparisons.",
+      "canonical_example": "Interaction expressed with the model's idioms (Or / min / explicit aggregation) and covered by a composition test through OfferModifiers.ChooseFor - regardless of whether the tested decision is accumulation or exclusivity.",
+      "anti_pattern": "Silent stacking with no test or note covering the interaction with existing discounts; weather applied before the existing chain; code and tests that disagree about the interaction semantics."
     },
     {
       "id": "failure-is-not-a-measurement",

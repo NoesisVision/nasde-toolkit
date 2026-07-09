@@ -17,7 +17,7 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 | ayg7ckA (Fable, vanilla) | 0.66 | 0.70 | **0.75** (42/22/11) |
 | 3WwZrNY (Fable, claude-supple v3) | — | — | **0.69** (39/19/11) |
 | #21 FjYQ3XQ (bucket A) | 0.66 | 0.68 | not run |
-| #13 ZvSsnyg (bucket C, neg control) | 0.55 | 0.59 | expected unchanged |
+| #13 ZvSsnyg (bucket C, neg control) | 0.55 | 0.59 | **0.59** (30/23/6 — identical to v2.2; M5 NONE held: before-chain) |
 
 ## Today's experiments, in order
 
@@ -101,8 +101,9 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
    idiom-without-test is FULL (current judge reading; the test gap is already priced
    in T1) or PARTIAL, and say it explicitly. PR naming convention (owner): #22 =
    vanilla, #23 = supple, #24 = supple2.
-2. Complete the v2.3 table: ayg7ckA (~0.74 predicted), #13 (control, expected
-   ~0.59), then #21/#16/#14 as budget allows. Per-eval gating stays.
+2. Complete the v2.3 table: remaining #21, #16, #14 — one password each.
+   Done under v2.3: BAzkEPJ 0.85, ayg7ckA 0.75, 3WwZrNY 0.69, #13 0.59 (control clean).
+   PR #24 carries 7 inline comments mapping the v2.3 verdicts to code.
 3. Opus 4.8 back-to-back on `jobs/calibration-round2/` (13 trials assembled):
    originally v2.0 (`git restore --source 22d6dde -- tasks/ddd-weather-discount/`)
    vs v2.2; now a v2.3 pass is the more interesting endpoint — owner to choose the

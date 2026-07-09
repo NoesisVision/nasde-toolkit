@@ -23,6 +23,7 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 | b5jkaWo (Fable, deeper-hint #2) | — | — | Fable: **0.74/0.74**; Opus: **0.73/0.73** — M4 PARTIAL, T1 PARTIAL (identity-chain composition test), no bug fix |
 | PuuJKHt (Fable, deeper-hint #3) | — | — | Fable: **0.81/0.80**; Opus: **0.73/0.75** — M4/M5 FULL, T1 PARTIAL (identity-base again); arm complete: 0.79/0.74/0.805, mean ~0.78 |
 | QZ3Fe5u (deeper-hint #3 attempt 1) | — | — | FAILED: OAuth 401 mid-run after machine restart (token rotated); ~$6.3 equiv lost, no artifacts; evaluator auto-skips |
+| CKEcWHg (Fable, vanilla #3) | — | — | Fable: **0.76/0.78**; Opus: **0.73/0.75**. harbor_reward=0.0 is an ENV ARTIFACT: dotnet test SIGKILLed in-container mid-IntegrationTests (43/43 unit passed); full suite re-run locally on the workspace = 10/10 integration green in 326ms. Trial counted as valid with this annotation |
 
 ## Today's experiments, in order
 
@@ -93,6 +94,18 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
    both still mechanism-free. Also note: proof discipline delivered module-level
    tests (T3/T4/T5 FULL) but not integration-level ones — the wording says
    "properties your design claims" and the model read "design" as "my new module".
+
+### MATRIX COMPLETE (2026-07-09 late) — Fable arms n=3 each, dual-judge 2+2
+
+Fable judge: vanilla 0.75 / 0.73 / 0.77 (mean ~0.75) vs deeper-hint 0.79 / 0.74 /
+0.805 (mean ~0.78) — gap ~+0.03, ranges overlap; bootstrap pending. Opus judge:
+vanilla 0.67 / 0.74 (ayg7ckA NOT yet Opus-evaluated) vs deeper-hint 0.78 / 0.73 /
+0.74. Verdict-level patterns (the article's spine): composition test attempted 3/3
+hint runs (T1 PARTIAL twice - identity-base chain - and NONE once) vs 0/3 vanilla;
+base-bug found 1/3 hint (+ the #23 probe) vs 0/3 vanilla; M4 oscillates in both arms
+(vanilla FULL/NONE/?, hint FULL/PARTIAL/FULL); M5-idiom boundary is the ONLY
+recurring judge divergence (4 samples). Remaining gap: ayg7ckA needs +1 Fable eval
+(BEFORE 07-12) and +2 Opus evals for 2+2 symmetry.
 
 ### 2026-07-09 addendum — deeper-hint probe + judge pilot (autonomous task)
 

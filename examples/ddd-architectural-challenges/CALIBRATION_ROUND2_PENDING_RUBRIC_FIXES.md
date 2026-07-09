@@ -18,6 +18,7 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 | 3WwZrNY (Fable, claude-supple v3) | — | — | **0.69** (39/19/11) |
 | #21 FjYQ3XQ (bucket A) | 0.66 | 0.68 | not run |
 | #13 ZvSsnyg (bucket C, neg control) | 0.55 | 0.59 | **0.59** (30/23/6 — identical to v2.2; M5 NONE held: before-chain) |
+| 7sJ9JK3 (Fable, claude-deeper-hint) | — | — | Fable: **0.78/0.80**; Opus: **0.78/0.78** (judge pilot) |
 
 ## Today's experiments, in order
 
@@ -88,6 +89,32 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
    both still mechanism-free. Also note: proof discipline delivered module-level
    tests (T3/T4/T5 FULL) but not integration-level ones — the wording says
    "properties your design claims" and the model read "design" as "my new module".
+
+### 2026-07-09 addendum — deeper-hint probe + judge pilot (autonomous task)
+
+Article matrix settled: TWO Fable arms only (vanilla, claude-deeper-hint = minimal
+'think deeper' CLAUDE.md hint, instruction untouched), n=3 each; Opus/Sonnet ± skill
+arms in a later session; judge-cost and orchestration-cost threads CUT from the
+article (owner). claude-supple-hint instruction-override feature REVERTED (benchmark
+invariant: instruction belongs to the benchmark, never to a variant); claude-supple
+(rich v3) parked as internal exploration.
+
+Probe trial `7sJ9JK3` (job 2026-07-09__14-33-46, reward 1.0, hint mount smoke-checked):
+found+fixed the SAME latent base bug as BAzkEPJ (Discount.Value isPercentage) plus a
+ValueDiscount GetHashCode null-safety fix, both covered by DiscountTests — two
+independent 'think deeper' runs found the bug; vanilla and supple2 did not.
+Fable evals: 0.78 (44/25/9) and 0.80 (44/25/11) — model_fit 44 = RECORD (M4 FULL,
+M5 FULL via AggregatedModifier idiom, M3 PARTIAL hidden GrantedDiscounts); weakness
+is tests again: T1/T2 NONE, T4 PARTIAL (NeverDisruptsPricingWhenObservingRealWeather
+hits the real API during dotnet test). vs the instruction-swap probe 0.85: better
+model mechanics, all of the gap is test_quality (10 vs 20 — no composition test).
+Opus 4.8 evals (judge pilot): 0.78 (41/25/12) and 0.78 (44/19/15) — headline
+agreement with Fable excellent (0.78 vs 0.79 mean); dimension level one genuine
+gray-zone split (Opus#2 read the extra ValueDiscount null-safety edit as R1
+PARTIAL/'avoidable modification' where Fable and Opus#1 folded it into the bug-fix
+exemption). Opus cites rubric checks by name, applies harness-mount exclusion
+correctly — reads the rubric's language well. Rubric v2.4 candidate: define whether
+a SECOND, adjacent fix in the same shared file stays inside the bug-fix exemption.
 
 ## Next actions (in order)
 

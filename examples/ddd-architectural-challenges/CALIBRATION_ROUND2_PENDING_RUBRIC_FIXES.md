@@ -19,6 +19,7 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 | #21 FjYQ3XQ (bucket A) | 0.66 | 0.68 | not run |
 | #13 ZvSsnyg (bucket C, neg control) | 0.55 | 0.59 | **0.59** (30/23/6 — identical to v2.2; M5 NONE held: before-chain) |
 | 7sJ9JK3 (Fable, claude-deeper-hint) | — | — | Fable: **0.78/0.80**; Opus: **0.78/0.78** (judge pilot) |
+| Ss2F6dR (Fable, vanilla #2) | — | — | Fable: **0.72/0.74**; Opus: **0.67/0.67** — M4 NONE (NoDiscount null-object!), no base-bug fix |
 
 ## Today's experiments, in order
 

@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shutil
 import statistics
 import sys
 import tempfile
@@ -86,8 +85,6 @@ async def run_benchmark(
     resolved_model = _resolve_model(model, variant_dir, config)
     resolved_effort = _resolve_effort(effort, variant_dir)
 
-    instruction_overrides = stage_instruction_overrides(config, variant_dir, tasks_filter)
-
     merged_config = _build_merged_config(
         config=config,
         variant_config_path=harbor_config_path,
@@ -99,33 +96,26 @@ async def run_benchmark(
         harbor_env=harbor_env,
         n_attempts=n_attempts,
         job_suffix=job_suffix,
-        task_path_overrides={name: entry["staged"] for name, entry in instruction_overrides.items()},
     )
 
-    try:
-        if with_eval:
-            os.environ.pop("CLAUDECODE", None)
-            await _run_job_with_streaming_eval(
-                config=config,
-                merged_config=merged_config,
-                with_opik=with_opik,
-                harbor_env=harbor_env,
-                max_concurrent_eval=max_concurrent_eval,
-            )
-        else:
-            result = await _run_job(
-                merged_config,
-                with_opik=with_opik,
-                project_name=config.reporting.project_name or config.name,
-                project_dir=config.project_dir,
-            )
-            _print_job_summary(result, _job_dir_from_config(merged_config))
-            console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
-    finally:
-        normalize_instruction_override_trials(
-            _job_dir_from_config(merged_config), instruction_overrides, config.project_dir
+    if with_eval:
+        os.environ.pop("CLAUDECODE", None)
+        await _run_job_with_streaming_eval(
+            config=config,
+            merged_config=merged_config,
+            with_opik=with_opik,
+            harbor_env=harbor_env,
+            max_concurrent_eval=max_concurrent_eval,
         )
-        cleanup_instruction_overrides(instruction_overrides)
+    else:
+        result = await _run_job(
+            merged_config,
+            with_opik=with_opik,
+            project_name=config.reporting.project_name or config.name,
+            project_dir=config.project_dir,
+        )
+        _print_job_summary(result, _job_dir_from_config(merged_config))
+        console.print("\n[bold green]Benchmark execution completed[/bold green]\n")
 
 
 # ---------------------------------------------------------------------------
@@ -835,7 +825,6 @@ def _build_merged_config(
     harbor_env: str | None = None,
     n_attempts: int = 1,
     job_suffix: str | None = None,
-    task_path_overrides: dict[str, Path] | None = None,
 ) -> dict:
     from datetime import datetime
 
@@ -849,7 +838,7 @@ def _build_merged_config(
         if reasoning_effort is not None:
             agent.setdefault("kwargs", {})["reasoning_effort"] = reasoning_effort
 
-    registry = _build_registry(config, tasks_filter, task_path_overrides)
+    registry = _build_registry(config, tasks_filter)
     registry_path = _write_temp_json(registry, prefix="nasde-registry-")
 
     jobs_dir = _resolve_jobs_dir(config.project_dir).resolve()
@@ -878,107 +867,20 @@ def _build_merged_config(
     return merged
 
 
-def _build_registry(
-    config: ProjectConfig,
-    tasks_filter: list[str] | None,
-    task_path_overrides: dict[str, Path] | None = None,
-) -> list[dict]:
+def _build_registry(config: ProjectConfig, tasks_filter: list[str] | None) -> list[dict]:
     tasks = config.tasks
     if tasks_filter:
         allowed = set(tasks_filter)
         tasks = [t for t in tasks if t.name in allowed]
 
-    overrides = task_path_overrides or {}
     return [
         {
             "name": config.name,
             "description": f"Benchmark: {config.name}",
             "version": config.version,
-            "tasks": [{"name": t.name, "path": str(overrides.get(t.name, t.path).resolve())} for t in tasks],
+            "tasks": [{"name": t.name, "path": str(t.path.resolve())} for t in tasks],
         }
     ]
-
-
-def stage_instruction_overrides(
-    config: ProjectConfig, variant_dir: Path, tasks_filter: list[str] | None
-) -> dict[str, dict[str, Path]]:
-    """Stage shadow task dirs for tasks whose instruction the variant overrides.
-
-    Convention (a sibling of the CLAUDE.md carrier): a file at
-    ``variants/<v>/tasks/<task-name>/instruction.md`` replaces that task's
-    instruction for this variant's runs only. The task dir is copied to a temp
-    dir with ``instruction.md`` swapped, so the canonical task stays untouched
-    and the override is a committed, reviewable artifact of the variant.
-
-    Returns ``{task_name: {"staged": ..., "canonical": ..., "override": ...}}``.
-    After the job, ``normalize_instruction_override_trials`` points the trials'
-    ``task_id.path`` back at the canonical dir — evaluations (including future
-    re-evaluations) always run against the live rubric and canonical
-    instruction, with the override recorded as ``instruction_override``.
-    """
-    allowed = set(tasks_filter) if tasks_filter else None
-    staged: dict[str, dict[str, Path]] = {}
-    for task in config.tasks:
-        if allowed is not None and task.name not in allowed:
-            continue
-        override = variant_dir / "tasks" / task.name / "instruction.md"
-        if not override.exists():
-            continue
-        staged_root = Path(tempfile.mkdtemp(prefix="nasde_instr_override_")) / task.name
-        shutil.copytree(task.path, staged_root, symlinks=True)
-        shutil.copy2(override, staged_root / "instruction.md")
-        staged[task.name] = {
-            "staged": staged_root,
-            "canonical": task.path.resolve(),
-            "override": override,
-        }
-        console.print(f"[cyan]instruction override:[/cyan] task '{task.name}' runs with {override}")
-    return staged
-
-
-def normalize_instruction_override_trials(
-    job_dir: Path | None, staged: dict[str, dict[str, Path]], project_dir: Path
-) -> None:
-    """Rewrite override trials' ``task_id.path`` to the canonical task dir.
-
-    Harbor records the staged temp path; left as-is it would dangle after
-    cleanup and freeze the rubric at run time. Re-pointing at the canonical dir
-    keeps the established workflow — re-evaluating old trials under the current
-    rubric — intact. The swap is recorded per trial as ``instruction_override``
-    (project-relative path into the variant), so provenance survives export.
-    """
-    if not staged or job_dir is None or not job_dir.exists():
-        return
-    by_staged = {str(entry["staged"].resolve()): entry for entry in staged.values()}
-    for result_path in job_dir.glob("*/result.json"):
-        result = _load_result_json(result_path)
-        if result is None or not result.get("task_id"):
-            continue
-        task_path = str(Path(result["task_id"].get("path", "")).resolve())
-        entry = by_staged.get(task_path)
-        if entry is None:
-            continue
-        result["task_id"]["path"] = str(entry["canonical"])
-        try:
-            override_rel: str = str(entry["override"].resolve().relative_to(project_dir.resolve()))
-        except ValueError:
-            override_rel = str(entry["override"])
-        result["instruction_override"] = override_rel
-        result_path.write_text(json.dumps(result, indent=2))
-        console.print(f"  [dim]normalized task_id for override trial: {result_path.parent.name}[/dim]")
-
-
-def cleanup_instruction_overrides(staged: dict[str, dict[str, Path]]) -> None:
-    for entry in staged.values():
-        shutil.rmtree(entry["staged"].parent, ignore_errors=True)
-
-
-def _load_result_json(path: Path) -> dict | None:
-    try:
-        loaded: dict = json.loads(path.read_text())
-        return loaded
-    except (OSError, json.JSONDecodeError):
-        return None
 
 
 def _write_temp_json(data: object, prefix: str) -> str:

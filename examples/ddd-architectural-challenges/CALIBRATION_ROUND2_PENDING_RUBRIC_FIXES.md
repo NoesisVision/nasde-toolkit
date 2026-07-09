@@ -104,8 +104,15 @@ vanilla 0.67 / 0.74 (ayg7ckA NOT yet Opus-evaluated) vs deeper-hint 0.78 / 0.73 
 hint runs (T1 PARTIAL twice - identity-base chain - and NONE once) vs 0/3 vanilla;
 base-bug found 1/3 hint (+ the #23 probe) vs 0/3 vanilla; M4 oscillates in both arms
 (vanilla FULL/NONE/?, hint FULL/PARTIAL/FULL); M5-idiom boundary is the ONLY
-recurring judge divergence (4 samples). Remaining gap: ayg7ckA needs +1 Fable eval
-(BEFORE 07-12) and +2 Opus evals for 2+2 symmetry.
+recurring judge divergence (4 samples). ayg7ckA top-up DONE 2026-07-09 late:
+new Fable v2.3 eval 0.75 (42/22/11) — IDENTICAL to its first one (perfect
+repeatability); Opus 0.70/0.71. Matrix fully symmetric: 6 trials x (2 Fable +
+2 Opus) = 24 v2.3 evaluations. FINAL ARM MEANS — Fable judge: vanilla 0.75 vs
+deeper-hint 0.778 (+0.028); Opus judge: vanilla 0.705 vs deeper-hint 0.75
+(+0.045). Judges differ on LEVELS (~-0.03..-0.04 Opus, mostly the M5-idiom
+boundary) but AGREE on the arm comparison's direction and rough size — the key
+cross-judge result. NOTHING Fable-deadline-bound remains; Opus-vanilla runs
+(+2), bootstrap analysis and the article are all deadline-free.
 
 ### 2026-07-09 addendum — deeper-hint probe + judge pilot (autonomous task)
 

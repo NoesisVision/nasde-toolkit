@@ -26,9 +26,18 @@ source = "https://developers.openai.com/api/docs/pricing"
 
 [models."claude-opus-4-8"]
 input_per_1m = 5.0
+# NOTE 2026-07-09: official page now lists output at $25/MTok — 15.0 kept until the
+# owner decides whether to restate the June figures (chart + backfilled exports).
 output_per_1m = 15.0
 cached_input_per_1m = 0.50
 as_of = "2026-06-08"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"
+
+[models."claude-fable-5"]
+input_per_1m = 10.0
+output_per_1m = 50.0
+cached_input_per_1m = 1.0
+as_of = "2026-07-09"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-4-6"]

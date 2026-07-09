@@ -14,7 +14,7 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 | Trial | v2.1 `42d6a9e593cf` | v2.2 `25e9d07f8b31` | v2.3 `37ffc5f460d2` |
 |---|---|---|---|
 | BAzkEPJ (Fable, deeper instruction) | 0.70 | 0.79 | **0.85** (pred. 0.85 ✓) |
-| ayg7ckA (Fable, vanilla) | 0.66 | 0.70 | ~0.74 predicted, not run |
+| ayg7ckA (Fable, vanilla) | 0.66 | 0.70 | **0.75** (42/22/11) |
 | 3WwZrNY (Fable, claude-supple v3) | — | — | **0.69** (39/19/11) |
 | #21 FjYQ3XQ (bucket A) | 0.66 | 0.68 | not run |
 | #13 ZvSsnyg (bucket C, neg control) | 0.55 | 0.59 | expected unchanged |
@@ -93,6 +93,14 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 
 1. Analyze the 3WwZrNY eval against the hypothesis above; decide instruction v4
    (universality rule applies — no mechanism naming).
+   v2.4 CANDIDATE (do NOT apply while the v2.3 table is filling — fingerprint bump
+   would orphan the group): sharpen the M5 FULL/PARTIAL boundary — the judge read
+   "modeled as an explicit idiom" as covering composition via the base
+   AggregatedModifier in ChooseFor (ayg7ckA M5 FULL 6 without any composition test),
+   while the PARTIAL example calls untested stack-after "silent". Decide whether
+   idiom-without-test is FULL (current judge reading; the test gap is already priced
+   in T1) or PARTIAL, and say it explicitly. PR naming convention (owner): #22 =
+   vanilla, #23 = supple, #24 = supple2.
 2. Complete the v2.3 table: ayg7ckA (~0.74 predicted), #13 (control, expected
    ~0.59), then #21/#16/#14 as budget allows. Per-eval gating stays.
 3. Opus 4.8 back-to-back on `jobs/calibration-round2/` (13 trials assembled):

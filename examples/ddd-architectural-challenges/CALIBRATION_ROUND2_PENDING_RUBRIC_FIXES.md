@@ -21,6 +21,8 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
 | 7sJ9JK3 (Fable, claude-deeper-hint) | — | — | Fable: **0.78/0.80**; Opus: **0.78/0.78** (judge pilot) |
 | Ss2F6dR (Fable, vanilla #2) | — | — | Fable: **0.72/0.74**; Opus: **0.67/0.67** — M4 NONE (NoDiscount null-object!), no base-bug fix |
 | b5jkaWo (Fable, deeper-hint #2) | — | — | Fable: **0.74/0.74**; Opus: **0.73/0.73** — M4 PARTIAL, T1 PARTIAL (identity-chain composition test), no bug fix |
+| PuuJKHt (Fable, deeper-hint #3) | — | — | Fable: **0.81/0.80**; Opus: **0.73/0.75** — M4/M5 FULL, T1 PARTIAL (identity-base again); arm complete: 0.79/0.74/0.805, mean ~0.78 |
+| QZ3Fe5u (deeper-hint #3 attempt 1) | — | — | FAILED: OAuth 401 mid-run after machine restart (token rotated); ~$6.3 equiv lost, no artifacts; evaluator auto-skips |
 
 ## Today's experiments, in order
 

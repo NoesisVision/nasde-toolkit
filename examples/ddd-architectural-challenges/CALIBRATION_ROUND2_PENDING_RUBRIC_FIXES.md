@@ -95,6 +95,27 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
    tests (T3/T4/T5 FULL) but not integration-level ones — the wording says
    "properties your design claims" and the model read "design" as "my new module".
 
+### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
+
+All four steps done sequentially, separate scripts, exports pushed after each:
+1. fable5-van4 `8ks7yf5` (reward 1.0): Fable 0.79/0.77, Opus 0.74/0.68 — strongest
+   vanilla run (model_fit 44).
+2. fable5-deeperhint4 `E2soRnZ` (reward 1.0): **RECORD 0.87/0.87 Fable, 0.89/0.94
+   Opus** — first REAL composition test in an arm run (T1 FULL: active 5% product
+   discount through the factory, 85.5 asserted), base bug fixed again (Discount.cs),
+   Opus#2 model_fit 49/50 with explicit "M5 FULL(6) not MAX" — MAX denial now CITED
+   (watch-item closed). First attempt `A5TDdvJ` SIGKILLed at 23min (env; retried OK).
+3. opus48-van2 `GoWvUz6` (reward 1.0): 0.62/0.62 Fable, 0.62/0.56 Opus.
+4. opus48-van3 `cyQyXFc` (reward 1.0): 0.74/0.71 Fable, 0.71/0.71 Opus.
+
+ARM MEANS after the night (per-trial means, v2.3):
+- fable vanilla n=4 — Fable judge **0.757**, Opus judge 0.706
+- fable deeper-hint n=4 — Fable judge **0.801**, Opus judge 0.791
+- opus-4.8 vanilla n=2 — Fable judge **0.672**, Opus judge 0.65
+Emerging headline: Fable-vanilla beats Opus-vanilla by ~+0.09 (BOTH judges agree);
+the one-sentence hint adds ~+0.04 on top of Fable. GAP: k1opus (June trial) still
+needs 2 Fable (BEFORE 07-12) + 2 Opus v2.3 evals to make the Opus arm n=3.
+
 ### MATRIX COMPLETE (2026-07-09 late) — Fable arms n=3 each, dual-judge 2+2
 
 Fable judge: vanilla 0.75 / 0.73 / 0.77 (mean ~0.75) vs deeper-hint 0.79 / 0.74 /

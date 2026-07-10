@@ -95,6 +95,26 @@ pushed; Max 20x active; Fable (coder+judge) available until 2026-07-12.
    tests (T3/T4/T5 FULL) but not integration-level ones — the wording says
    "properties your design claims" and the model read "design" as "my new module".
 
+### NTCODING ARM OPENED + OOM ROOT-CAUSE FIX (2026-07-10 morning)
+
+Trial `MNP2RGe` (fable + public ntcoding tactical-ddd skill, reward 1.0):
+Fable 0.79/0.83, Opus 0.79/0.83 — PERFECT cross-judge pair agreement. Profile is
+the mirror image of the hint arm: T1 FULL (real composition test: 20% client base
+discount + weather, asserts 72), model_fit 44, four base defects fixed (all granted
+bug-fix neutrality) — but **R1 NONE**: three avoidable off-touchpoint rewrites
+(ConventionBasedRegistrations scanner, RiskManagementInMemoryCalls ctor,
+appsettings.json). The skill turns the model into a reformer: fixes everything,
+touches everything. Skill arm n=1 mean 0.81 ≈ hint arm 0.80 with opposite
+trade-offs (tests+model vs restraint).
+
+Failed attempts A5TDdvJ + tXRxnyj root-caused via kernel memcg OOM reports: 45+
+concurrent dotnet processes (three generations of 16-node MSBuild fleets kept
+alive by default nodeReuse) exhausted the 6 GiB cgroup; claude agent itself ~71MB.
+Fix: MSBUILDDISABLENODEREUSE=1 + DOTNET_CLI_USE_MSBUILD_SERVER=0 in all four
+dotnet task Dockerfiles (owner-approved; commit on the branch). Verified live
+under load: build spike 1.5 GiB/17 procs collapses to 0.7 GiB/1 proc within a
+minute — sawtooth, no accumulation. memory_mb stays 6144.
+
 ### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
 
 All four steps done sequentially, separate scripts, exports pushed after each:

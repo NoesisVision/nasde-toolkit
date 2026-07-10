@@ -153,6 +153,16 @@ one sentence catches the premium model; (5) both judges agree on every ordering.
 k1opus (June trial) deliberately left OUT of the arm (different config epoch).
 Next: bootstrap + verdict heatmap + article draft (no LLM cost).
 
+### Opus cross-cells n=2 (2026-07-10 late): opus-deeperhint2 `VoktgLb` F 0.65/0.63
+O 0.65/0.61 (arm mean ~0.68 - the single 0.73 was partly luck; hint effect on Opus
+revised from +0.10 to +0.03); opus-ntcoding2 `TsjcHWY` F 0.65/0.67 O 0.67/0.63
+(arm ~0.62 - skill still no help). REVISED grid (F-judge arm means):
+Fable 0.757/0.801/0.818 (n=4); Opus 0.654 (n=4) / 0.68 (n=2) / 0.62 (n=2).
+Theses after revision: model lever +0.10 holds; hint helps BOTH modestly
+(+0.03..0.04); skill helps ONLY Fable; 'Opus+hint catches Fable-vanilla' WEAKENED
+(0.68 vs 0.757). Owner protocol: further densification to n=4 - one password per
+launch.
+
 ### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
 
 All four steps done sequentially, separate scripts, exports pushed after each:

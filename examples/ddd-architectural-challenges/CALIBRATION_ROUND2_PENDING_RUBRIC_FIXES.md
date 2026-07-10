@@ -133,6 +133,26 @@ FINAL Fable-judge arm means: ntcoding 0.818 > deeper-hint 0.801 > vanilla 0.757
 0.706 / 0.65. Remaining: k1opus 2+2 top-up (Fable side BEFORE 07-12), bootstrap,
 verdict heatmap, article draft.
 
+### OPUS BATCH COMPLETE (2026-07-10 evening) — full model x configuration grid
+
+Parallel 2-lane batch (owner-authorized autonomous): opus48-van4 `JTgey8p`
+(F 0.60/0.60, O 0.60/0.57), opus48-van5 `Lozfurr` (F 0.66/0.68, O 0.71/0.71;
+first attempt `GH2KKhi` AgentSetupTimeout during a connectivity outage, retried;
+eval top-up after the window reset), opus48-deeperhint1 `YgcbZjf` (F 0.73/0.77,
+O 0.70/0.72), opus48-ntcoding1 `ZMX6Xbq` (F 0.63/0.58, O 0.58/0.56).
+
+FINAL GRID (arm means, Fable-judge / Opus-judge):
+              vanilla        +hint          +skill
+Fable coder   0.757/0.706    0.801/0.791    0.818/0.800   (n=4 each)
+Opus coder    0.654/0.649    0.75/0.71      0.605/0.57    (n=4/1/1)
+
+Theses: (1) model is the biggest lever (+0.10); (2) the one-sentence hint is
+PORTABLE (+0.04 Fable, +0.10 Opus); (3) the heavy skill is NOT (+0.06 Fable,
+-0.05 Opus, n=1); (4) Opus+hint (0.75) ~= Fable-vanilla (0.757) — half price plus
+one sentence catches the premium model; (5) both judges agree on every ordering.
+k1opus (June trial) deliberately left OUT of the arm (different config epoch).
+Next: bootstrap + verdict heatmap + article draft (no LLM cost).
+
 ### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
 
 All four steps done sequentially, separate scripts, exports pushed after each:

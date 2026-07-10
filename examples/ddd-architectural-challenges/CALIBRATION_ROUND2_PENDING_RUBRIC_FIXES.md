@@ -115,6 +115,11 @@ dotnet task Dockerfiles (owner-approved; commit on the branch). Verified live
 under load: build spike 1.5 GiB/17 procs collapses to 0.7 GiB/1 proc within a
 minute — sawtooth, no accumulation. memory_mb stays 6144.
 
+### ntcoding #2 `qpCRH3A` (2026-07-10 midday): Fable 0.78/0.78, Opus 0.75/0.73 —
+the reformer profile did NOT repeat: restraint 25/25 (vs #1's R1 NONE) but
+test_quality 11 (no composition test, vs #1's T1 FULL). The skill arm oscillates
+in SHAPE, not just score. Arm n=2 mean ~0.795 ≈ deeper-hint 0.80.
+
 ### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
 
 All four steps done sequentially, separate scripts, exports pushed after each:

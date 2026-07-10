@@ -126,6 +126,13 @@ best-of-both-shapes: T1 FULL composition test (like #1) AND restraint 23-25 (lik
 ~0.81, a hair above deeper-hint (~0.80). Final Fable-judge arm landscape:
 ntcoding 0.81 >= deeper-hint 0.80 > vanilla 0.757 > opus-4.8-vanilla 0.672.
 
+### ntcoding #4 `h3a65Ke` (2026-07-10): Fable 0.84/0.84, Opus 0.81/0.82 —
+model_fit 44, restraint 25, tests 15. ALL THREE FABLE ARMS NOW n=4 (symmetric).
+FINAL Fable-judge arm means: ntcoding 0.818 > deeper-hint 0.801 > vanilla 0.757
+> opus-4.8-vanilla 0.672 (n=2). Opus-judge confirms ordering: 0.80 / 0.79 /
+0.706 / 0.65. Remaining: k1opus 2+2 top-up (Fable side BEFORE 07-12), bootstrap,
+verdict heatmap, article draft.
+
 ### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
 
 All four steps done sequentially, separate scripts, exports pushed after each:

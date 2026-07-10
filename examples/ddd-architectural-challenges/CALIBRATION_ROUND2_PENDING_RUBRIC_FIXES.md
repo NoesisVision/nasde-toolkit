@@ -120,6 +120,12 @@ the reformer profile did NOT repeat: restraint 25/25 (vs #1's R1 NONE) but
 test_quality 11 (no composition test, vs #1's T1 FULL). The skill arm oscillates
 in SHAPE, not just score. Arm n=2 mean ~0.795 ≈ deeper-hint 0.80.
 
+### ntcoding #3 `NZmadqg` (2026-07-10 afternoon): Fable 0.83/0.85, Opus 0.81/0.85 —
+best-of-both-shapes: T1 FULL composition test (like #1) AND restraint 23-25 (like
+#2). Second-best trial overall. SKILL ARM COMPLETE n=3: 0.81/0.78/0.84 -> mean
+~0.81, a hair above deeper-hint (~0.80). Final Fable-judge arm landscape:
+ntcoding 0.81 >= deeper-hint 0.80 > vanilla 0.757 > opus-4.8-vanilla 0.672.
+
 ### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
 
 All four steps done sequentially, separate scripts, exports pushed after each:

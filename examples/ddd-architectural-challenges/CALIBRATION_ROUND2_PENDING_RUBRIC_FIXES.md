@@ -163,6 +163,24 @@ Theses after revision: model lever +0.10 holds; hint helps BOTH modestly
 (0.68 vs 0.757). Owner protocol: further densification to n=4 - one password per
 launch.
 
+### GRID COMPLETE (night 2026-07-11): n=4 in EVERY cell (24 trials, 96 grid evals)
+
+Night lanes: opus-deeperhint3 `sSUYQp4` ~0.795 (F 0.80/0.81, O 0.79/0.78),
+opus-deeperhint4 `a6okSgZ` ~0.64, opus-ntcoding3 `Bkwiqom` 0.59 x4 (perfect
+agreement), opus-ntcoding4 `F5vYATs` ~0.77 (model_fit up to 47).
+
+FINAL GRID (arm means, Fable-judge | Opus-judge):
+              vanilla          +hint            +skill
+Fable coder   0.757 | 0.706    0.801 | 0.791    0.818 | 0.800
+Opus coder    0.654 | 0.649    0.702 | 0.689    0.651 | 0.645
+
+FINAL THESES: (1) model lever +0.10, both judges; (2) the one-sentence hint is
+PORTABLE and remarkably consistent: +0.044 Fable, +0.048 Opus; (3) the heavy
+skill is NOT portable: +0.06 Fable, +-0.00 Opus (with huge shape variance
+0.59-0.77); (4) Opus variance in cross cells >> Fable variance everywhere;
+(5) judges agree on every arm ordering. Next: bootstrap + verdict heatmap +
+article draft (no LLM cost). Fable-coder/judge access ends 2026-07-12.
+
 ### NIGHT CHAIN 2026-07-10 (owner asleep, fully authorized): n=4 both Fable arms + 2 Opus-coder runs
 
 All four steps done sequentially, separate scripts, exports pushed after each:

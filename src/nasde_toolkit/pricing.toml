@@ -8,7 +8,8 @@
 # cached_input_per_1m is recorded for reference only; it is NOT used in the cost
 # formula. reasoning output tokens are folded into output (see token_metrics.py).
 #
-# Verified 2026-06-08 — CONFIRM before publishing any cost figures.
+# Verified 2026-07-13 (Claude models re-checked against the official pricing page
+# before publication) — CONFIRM before publishing any cost figures.
 
 [models."gpt-5.5"]
 input_per_1m = 5.0
@@ -28,14 +29,14 @@ source = "https://developers.openai.com/api/docs/pricing"
 input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
-as_of = "2026-07-09"
+as_of = "2026-07-13"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-fable-5"]
 input_per_1m = 10.0
 output_per_1m = 50.0
 cached_input_per_1m = 1.0
-as_of = "2026-07-09"
+as_of = "2026-07-13"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-4-6"]

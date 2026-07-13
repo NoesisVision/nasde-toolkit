@@ -278,6 +278,15 @@ gating by the owner stays in force regardless of headroom. Auth: claude CLI keyc
 works for evals; sandbox coding runs need CLAUDE_CODE_OAUTH_TOKEN (extracted from
 keychain at runtime by the scratch launchers — never print it).
 
+**Tooling (example root, battle-tested on the 24-trial grid):**
+`trial_probe.sh <variant> <coder-model> <suffix> [smoke-grep]` — one trial
+end-to-end (token preflight + stale-token refresh, canonical-instruction guard,
+xhigh run, workspace smoke, 2x Fable + 2x Opus evals, results digest);
+`eval_topup.sh <job> <judge> <reps>` — complete judge pairs on existing jobs;
+`grid_raw_scores_plot.py` / `_en.py` — the raw-measurements grid and judge
+test-retest charts (PNGs in assets/); `calibration_round2_*.sh/py` — the older
+sink-anchor drivers and the acceptance check.
+
 **Where everything lives:** toolkit PR #75 (branch `calibration/ddd-weather-discount-v2`);
 sink PRs #9–#21 with 60 inline comments + PR #22 (ayg7ckA) and PR #23 (BAzkEPJ) with
 13 v2.2-verdict comments (NoesisVision/nasde-calibration, GitHub is canonical);

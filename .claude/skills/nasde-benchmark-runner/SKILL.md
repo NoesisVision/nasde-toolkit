@@ -518,3 +518,23 @@ cat jobs/<ts>/<trial>/verifier/test-stdout.txt
 ```
 
 This shows exactly which step in `test.sh` failed.
+
+
+## Project-local proven drivers (ddd-architectural-challenges)
+
+For single-trial experiments with a dual-judge pair (the 2026-07 Fable/Opus grid
+pattern), prefer the battle-tested scripts in the example root over hand-rolled
+command chains:
+
+- `trial_probe.sh <variant> <coder-model> <job-suffix> [smoke-grep]` — keychain
+  token preflight (auto-refresh when <100 min left), canonical-instruction guard,
+  coding run at xhigh, workspace smoke check, then 2x claude-fable-5 and
+  2x claude-opus-4-8 evaluations, and a per-eval results digest.
+- `eval_topup.sh <job-dir-name> <judge-model> <reps>` — add missing evaluations to
+  an existing job after a window limit or interruption (evaluations accumulate as
+  assessment_eval_N.json; fingerprint groups keep rubric versions separate).
+
+Current experiment state and arm results: `CALIBRATION_ROUND2_PENDING_RUBRIC_FIXES.md`
+(HANDOVER section on top). Owner protocol for these experiments: one explicit
+authorization per LLM run; export to nasde-results + commit + push after every
+iteration.

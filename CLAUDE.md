@@ -406,6 +406,18 @@ If `harbor_config.json` is absent, `nasde` auto-generates one based on `variant.
 Every failure path must `echo 0 > /logs/verifier/reward.txt && exit 1`.
 Final success must `echo 1 > /logs/verifier/reward.txt && exit 0`.
 
+## Calibration experiments (examples/ddd-architectural-challenges)
+
+The 2026-07 Fable/Opus grid experiment lives in this example. Before touching it,
+read `examples/ddd-architectural-challenges/CALIBRATION_ROUND2_PENDING_RUBRIC_FIXES.md`
+(top HANDOVER section = current state, rubric lineage, arm results). Proven drivers
+in the example root: `trial_probe.sh` (one trial end-to-end: token preflight,
+xhigh run, smoke check, 2x Fable + 2x Opus evals), `eval_topup.sh` (complete judge
+pairs on existing jobs), `grid_raw_scores_plot*.py` (publication charts; PNGs in
+`assets/`). Results archive: `NoesisVision/nasde-results`. Protocol: every LLM run
+is individually authorized by the owner; export+commit+push results after every
+iteration.
+
 ## Known issues and workarounds
 
 - **opik 2.x (and 1.10.x)**: token usage=None for Harbor spans — runtime monkeypatch in `runner.py` (`_patch_opik_deferred_metrics`). Defers Step span creation to `__setattr__` because Harbor assigns metrics after `Step.__init__`. See ADR-006. Remove when opik fixes upstream.

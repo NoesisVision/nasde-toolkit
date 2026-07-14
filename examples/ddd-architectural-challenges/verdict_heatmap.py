@@ -182,17 +182,25 @@ def collect() -> tuple[dict[tuple[str, str], list[dict]], list[str]]:
 
 
 VAL = {"FULL": 1.0, "PARTIAL": 0.5, "NONE": 0.0}
-CMAP = LinearSegmentedColormap.from_list("verdict", ["#f8f3fe", "#4a2a8a"])
+# one sequential ramp per check group; anchors CVD-checked as a set (worst dE 36)
+GROUP_RAMP = {
+    "M": ("#f7f3fd", "#53309e"),
+    "R": ("#eff8fa", "#0b7285"),
+    "T": ("#fdf4ea", "#b45309"),
+}
+CMAPS = {g: LinearSegmentedColormap.from_list(f"verdict_{g}", ramp)
+         for g, ramp in GROUP_RAMP.items()}
 
 
 def heatmap(per_arm: dict, lang: str) -> None:
     t = TEXT[lang]
     grid = [[sum(VAL[evals[c]] for evals in per_arm[arm]) / len(per_arm[arm])
              for arm in ARM_ORDER] for c in CHECKS]
+    rgba = [[CMAPS[c[0]](v) for v in row] for c, row in zip(CHECKS, grid)]
 
-    fig, ax = plt.subplots(figsize=(9.6, 8.6))
-    fig.suptitle(t["title"], fontsize=11.5, color=INK, y=0.975)
-    ax.imshow(grid, cmap=CMAP, vmin=0.0, vmax=1.0, aspect="auto")
+    fig, ax = plt.subplots(figsize=(9.6, 8.8))
+    fig.suptitle(t["title"], fontsize=11.5, color=INK, y=0.985)
+    ax.imshow(rgba, aspect="auto")
 
     for yi, row in enumerate(grid):
         for xi, v in enumerate(row):
@@ -201,10 +209,11 @@ def heatmap(per_arm: dict, lang: str) -> None:
                     fontweight="bold" if v <= 0.5 else "normal")
 
     ax.set_xticks(range(len(ARM_ORDER)))
-    ax.set_xticklabels([config for _c, config in ARM_ORDER], fontsize=9.5, color="#444")
+    ax.set_xticklabels([config for _c, config in ARM_ORDER], fontsize=10, color="#3a3a38")
+    ax.xaxis.set_ticks_position("top")
     for xi, (coder, _config) in enumerate(ARM_ORDER):
-        ax.annotate(coder, (xi, 1.012), xycoords=("data", "axes fraction"),
-                    ha="center", fontsize=8.6, color=CODER_COLOR[coder], fontweight="bold")
+        ax.annotate(coder, (xi, 1.058), xycoords=("data", "axes fraction"),
+                    ha="center", fontsize=9, color=CODER_COLOR[coder], fontweight="bold")
     ax.set_yticks(range(len(CHECKS)))
     ax.set_yticklabels([LABELS[lang][c] for c in CHECKS], fontsize=8.8, color="#3a3a38")
     ax.tick_params(length=0)
@@ -222,10 +231,10 @@ def heatmap(per_arm: dict, lang: str) -> None:
             ax.axhline(start - 0.5, color="white", linewidth=4.2)
         ax.annotate(t["groups"][group], (1.01, 1 - (start + size / 2) / len(CHECKS)),
                     xycoords="axes fraction", ha="left", va="center", fontsize=8.6,
-                    color="#777", rotation=270)
+                    color=GROUP_RAMP[group][1], rotation=270)
 
     fig.text(0.5, 0.015, t["scale"], ha="center", fontsize=8.2, color="#777")
-    fig.tight_layout(rect=(0, 0.035, 0.97, 0.94))
+    fig.tight_layout(rect=(0, 0.035, 0.97, 0.905))
     out = HERE / "assets" / t["out"]
     fig.savefig(out, dpi=160, facecolor="white")
     print("saved:", out)

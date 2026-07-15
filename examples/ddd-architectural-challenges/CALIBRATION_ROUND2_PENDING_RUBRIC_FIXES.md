@@ -1,5 +1,15 @@
 # HANDOVER SNAPSHOT (2026-07-08 evening — rubric v2.3 verified, supple-v3 probe run)
 
+> **COST REPRICING (2026-07-15, ADR-014):** `cost_usd` is now CACHE-AWARE (fresh
+> input at full rate + cache writes at 2x + cache reads at 0.1x + output) — it
+> matches what the API would bill and Harbor's own accounting. Any dollar figure
+> below this note predates the change (old "as-if full rate" formula, ~4.4x higher:
+> grid total $958 as-if vs $220 real; cache reads are 93-98% of input on all 24
+> grid trials). Current arm means (cost/quality): F vanilla $10.60/0.732, F hint
+> $9.78/0.796, F skill $13.35/0.808; O vanilla $6.61/0.651, O hint $7.25/0.701,
+> O skill $7.30/0.651. Charts regenerated. Historical nasde-results exports still
+> carry old-formula cost_usd until re-exported.
+
 **TL;DR of the day:** v2.2 verified live on 4 trials (every prediction exact, no
 inflation, no amnesty); owner rulings turned M5 direction-neutral and added the MAX
 verdict → rubric v2.3, verified live same day (BAzkEPJ 0.85, prediction exact, MAX

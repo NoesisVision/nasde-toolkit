@@ -10,6 +10,18 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Changed
+- **Cost is now cache-aware ([ADR-014](docs/adr/014-cache-aware-cost.md)) — supersedes ADR-011's
+  "as if every run were the first" formula.** `cost_usd` bills fresh input at the
+  full rate, cache writes at the new per-model `cache_write_per_1m` (Anthropic
+  1-hour mode: 2× input), cache reads at `cached_input_per_1m` (0.1×), and output
+  at the output rate — matching what the API would bill (verified against Harbor's
+  per-step accounting to the cent on 20 of 24 grid trials). Rationale: measured
+  cache read ratios are a stable 93–98% of input across a full 24-trial grid, and
+  the old full-rate figure sat ~4.4× above a real bill. `token_usage` gains
+  `cache_write_tokens`; the cache-free ceiling is no longer stored (derivable as
+  `input × input_rate + output × output_rate`). A model entry missing cache rates
+  bills those volumes at the full input rate — conservative, never a silent
+  discount. Historical exports need a one-shot economics backfill to reprice.
 - **Harbor bumped from 0.13 to 0.19** (`harbor[daytona,modal,e2b,runloop,gke]>=0.19,<0.20`).
   The Python-API surface nasde drives (`JobConfig.model_validate`, `Job.create`,
   `job.run()`, `AgentConfig` `import_path`/`kwargs`/`skills`/`mcp_servers`/`env`)

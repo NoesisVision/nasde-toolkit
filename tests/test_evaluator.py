@@ -279,8 +279,8 @@ def test_assessment_summary_includes_economics(tmp_path: Path) -> None:
     assert summary is not None
     assert summary.model_name == "claude-sonnet-4-6"
     assert summary.token_usage["total_tokens"] == 1_060_000
-    # sonnet $3/$15: 1M*3 + 0.06M*15 = 3.9
-    assert summary.cost_usd == pytest.approx(3.9)
+    # sonnet $3/$15/$0.30 cached (ADR-014): fresh 0.2M*3 + cached 0.8M*0.30 + 0.06M*15 = 1.74
+    assert summary.cost_usd == pytest.approx(1.74)
     assert summary.pricing_as_of == "2026-06-08"
     assert not hasattr(summary, "cost_efficiency")  # removed: arbitrary zero → use Pareto front
     assert not hasattr(summary, "token_efficiency")

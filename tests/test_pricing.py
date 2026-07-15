@@ -67,11 +67,33 @@ def test_load_custom_pricing_file(tmp_path: Path) -> None:
     assert pricing["my-model"].input_per_1m == 1.0
 
 
-def test_compute_cost_full_rate_no_cache_discount() -> None:
+def test_compute_cost_without_cache_reduces_to_full_rate() -> None:
     pricing = load_pricing()
     # claude-sonnet-4-6 = $3 in / $15 out: 1M input + 0.1M output = 3.0 + 1.5 = 4.5
     cost = compute_cost_usd(1_000_000, 100_000, "claude-sonnet-4-6", pricing)
     assert cost == pytest.approx(4.5)
+
+
+def test_compute_cost_cache_aware_matches_harbor_accounting() -> None:
+    # Real trial ayg7ckA (claude-fable-5): Harbor's own per-step total was $8.841665.
+    cost = compute_cost_usd(
+        3_070_507,
+        66_456,
+        "claude-fable-5",
+        load_pricing(),
+        cache_read_tokens=2_939_665,
+        cache_write_tokens=127_078,
+    )
+    assert cost == pytest.approx(8.841665, abs=0.0005)
+
+
+def test_compute_cost_missing_cache_rates_falls_back_to_full_rate(tmp_path: Path) -> None:
+    custom = tmp_path / "pricing.toml"
+    custom.write_text('[models."bare"]\ninput_per_1m = 2.0\noutput_per_1m = 10.0\n')
+    pricing = load_pricing(custom)
+    # no cached/cache-write rates -> reads and writes bill at the full input rate
+    cost = compute_cost_usd(1_000_000, 0, "bare", pricing, cache_read_tokens=900_000, cache_write_tokens=50_000)
+    assert cost == pytest.approx(2.0)
 
 
 def test_compute_cost_unknown_model_returns_none() -> None:

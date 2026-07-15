@@ -1,9 +1,9 @@
 """Cost x quality plane for the 24-trial Fable/Opus grid (PL + EN publication PNGs).
 
-X = house-formula run cost: ALL prompt tokens (cache included) at the full input
-rate + (completion + reasoning) tokens at the output rate — deterministic, no
-cache discount (ADR-011). Rates are read live from src/nasde_toolkit/pricing.toml
-so a rate update reprices the chart on the next render.
+X = cache-aware run cost (ADR-014): fresh input at the full rate, cache writes at
+the 1h-cache write rate, cache reads at the cached rate, output at the output rate
+— what the API would bill for the run. Rates are read live from
+src/nasde_toolkit/pricing.toml so a rate update reprices the chart on next render.
 Y = trial quality: mean of the 4 rubric-v2.3 evaluations (2x Fable + 2x Opus judge).
 """
 from __future__ import annotations
@@ -35,15 +35,15 @@ INK = "#1a1a19"
 TEXT = {
     "pl": {
         "title": "Koszt runu a jakość modelu domenowego — ddd-weather-discount, 24 runy kodujące",
-        "xlabel": "koszt runu w USD — pełne stawki API, bez rabatu za cache",
+        "xlabel": "koszt runu w USD — stawki API z rozliczeniem prompt cache",
         "ylabel": "jakość (średnia 4 ewaluacji, rubryka v2.3)",
         "coder": "model kodujący",
         "mean": "duży znacznik = średnia ramienia (n=4)",
         "outlier": "pojedynczy run za ${cost:.0f}",
         # \$ keeps matplotlib from treating $...$ pairs as mathtext
         "footnote": (
-            "koszt = wszystkie tokeny wejściowe (z cache) × pełna stawka wejścia "
-            "+ tokeny wyjściowe (z rozumowaniem) × stawka wyjścia\n"
+            "koszt = świeże wejście × stawka + zapisy cache × stawka zapisu (2×) "
+            "+ odczyty cache × stawka odczytu (0.1×) + wyjście × stawka wyjścia\n"
             "stawki API z {as_of}: Fable 5 \\${fi:.0f} / \\${fo:.0f}, "
             "Opus 4.8 \\${oi:.0f} / \\${oo:.0f} za mln tokenów"
         ),
@@ -51,14 +51,14 @@ TEXT = {
     },
     "en": {
         "title": "Run cost vs domain-model quality — ddd-weather-discount, 24 coding runs",
-        "xlabel": "run cost in USD — full API rates, no cache discount",
+        "xlabel": "run cost in USD — API rates with prompt caching",
         "ylabel": "quality (mean of 4 evaluations, rubric v2.3)",
         "coder": "coding model",
         "mean": "large marker = arm mean (n=4)",
         "outlier": "a single ${cost:.0f} run",
         "footnote": (
-            "cost = all input tokens (cache included) × full input rate "
-            "+ output tokens (reasoning included) × output rate\n"
+            "cost = fresh input × input rate + cache writes × write rate (2×) "
+            "+ cache reads × read rate (0.1×) + output × output rate\n"
             "API rates as of {as_of}: Fable 5 \\${fi:.0f} / \\${fo:.0f}, "
             "Opus 4.8 \\${oi:.0f} / \\${oo:.0f} per MTok"
         ),
@@ -71,9 +71,9 @@ LABEL_OFFSET = {
     ("Fable 5", "vanilla"): (14, -4, "left"),
     ("Fable 5", "hint"): (-14, 2, "right"),
     ("Fable 5", "skill"): (0, 12, "center"),
-    ("Opus 4.8", "vanilla"): (14, -4, "left"),
+    ("Opus 4.8", "vanilla"): (-14, -4, "right"),
     ("Opus 4.8", "hint"): (14, -4, "left"),
-    ("Opus 4.8", "skill"): (-14, -4, "right"),
+    ("Opus 4.8", "skill"): (14, -4, "left"),
 }
 
 
@@ -86,7 +86,12 @@ def load_rates() -> dict:
         "oo": raw["claude-opus-4-8"]["output_per_1m"],
         "as_of": raw["claude-fable-5"]["as_of"],
         "by_model": {
-            m: (raw[m]["input_per_1m"], raw[m]["output_per_1m"])
+            m: (
+                raw[m]["input_per_1m"],
+                raw[m]["output_per_1m"],
+                raw[m]["cached_input_per_1m"],
+                raw[m]["cache_write_per_1m"],
+            )
             for m in ("claude-fable-5", "claude-opus-4-8")
         },
     }
@@ -98,9 +103,12 @@ def collect(rates: dict) -> list[dict]:
         for trial in trials:
             (trial_dir,) = JOBS.glob(f"*/ddd-weather-discount__{trial}")
             fm = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("final_metrics") or {}
+            extra = fm.get("extra") or {}
             inp = fm["total_prompt_tokens"]
-            out = (fm.get("total_completion_tokens") or 0) + ((fm.get("extra") or {}).get("reasoning_output_tokens") or 0)
-            in_rate, out_rate = rates["by_model"][MODEL_ID[coder]]
+            out = (fm.get("total_completion_tokens") or 0) + (extra.get("reasoning_output_tokens") or 0)
+            reads = extra.get("total_cache_read_input_tokens") or fm.get("total_cached_tokens") or 0
+            writes = extra.get("total_cache_creation_input_tokens") or 0
+            in_rate, out_rate, read_rate, write_rate = rates["by_model"][MODEL_ID[coder]]
             scores = []
             for f in sorted(trial_dir.glob("assessment_eval_*.json")):
                 d = json.loads(f.read_text())
@@ -110,7 +118,12 @@ def collect(rates: dict) -> list[dict]:
                 print(f"WARN: {trial} has {len(scores)} v2.3 evals (expected 4)")
             rows.append({
                 "trial": trial, "coder": coder, "config": config,
-                "cost": inp / 1e6 * in_rate + out / 1e6 * out_rate,
+                "cost": (
+                    (inp - reads - writes) / 1e6 * in_rate
+                    + writes / 1e6 * write_rate
+                    + reads / 1e6 * read_rate
+                    + out / 1e6 * out_rate
+                ),
                 "q": sum(scores) / len(scores),
             })
     return rows
@@ -155,7 +168,7 @@ def plane_plot(rows: list[dict], rates: dict, lang: str) -> None:
                 textcoords="offset points", xytext=(-13, -3), ha="right",
                 fontsize=8.8, color="#666", zorder=6)
 
-    ax.set_xlim(0, 145)
+    ax.set_xlim(0, 26)
     ax.set_ylim(0.55, 0.92)
     ax.set_xlabel(t["xlabel"], fontsize=10, color="#444")
     ax.set_ylabel(t["ylabel"], fontsize=10, color="#444")

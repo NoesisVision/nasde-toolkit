@@ -40,6 +40,8 @@ def test_extract_claude_shape() -> None:
     assert usage.input_tokens == 1_109_410
     assert usage.reasoning_tokens == 0
     assert usage.output_tokens == 55_518  # no reasoning to fold in
+    assert usage.cached_tokens == 1_031_868
+    assert usage.cache_write_tokens == 74_666
     assert usage.total_tokens == 1_109_410 + 55_518
 
 
@@ -49,6 +51,7 @@ def test_extract_codex_folds_reasoning_into_output() -> None:
     assert usage.completion_tokens == 23_401
     assert usage.reasoning_tokens == 13_921
     assert usage.output_tokens == 23_401 + 13_921  # reasoning folded in
+    assert usage.cache_write_tokens == 0  # Codex trajectories carry no cache-creation counter
     assert usage.total_tokens == 2_817_494 + 23_401 + 13_921
 
 
@@ -96,8 +99,10 @@ def test_build_trial_economics_priced_model(tmp_path: Path) -> None:
 
     assert econ["model_name"] == "gpt-5.4"
     assert econ["token_usage"]["total_tokens"] == 2_854_816
-    # gpt-5.4 = $2.50 in / $15 out: 2.817494M*2.5 + 0.037322M*15
-    assert econ["cost_usd"] == pytest.approx(2_817_494 / 1e6 * 2.5 + 37_322 / 1e6 * 15)
+    # gpt-5.4 = $2.50 in / $15 out / $0.25 cached (ADR-014): fresh input at full
+    # rate, the 2_646_272 cached reads at the cached rate, no write premium.
+    fresh = 2_817_494 - 2_646_272
+    assert econ["cost_usd"] == pytest.approx(fresh / 1e6 * 2.5 + 2_646_272 / 1e6 * 0.25 + 37_322 / 1e6 * 15)
     assert econ["pricing_as_of"] == "2026-06-08"
 
 

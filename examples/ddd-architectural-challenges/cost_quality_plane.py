@@ -34,7 +34,7 @@ INK = "#1a1a19"
 
 TEXT = {
     "pl": {
-        "title": "Koszt runu a jakość modelu domenowego — ddd-weather-discount, 24 runy kodujące",
+        "title": "Koszt runu a jakość modelu domenowego — ddd-weather-discount",
         "xlabel": "koszt runu w USD — stawki API z rozliczeniem prompt cache",
         "ylabel": "jakość (średnia 4 ewaluacji, rubryka v2.3)",
         "coder": "model kodujący",
@@ -50,7 +50,7 @@ TEXT = {
         "out": "cost_quality_plane.png",
     },
     "en": {
-        "title": "Run cost vs domain-model quality — ddd-weather-discount, 24 coding runs",
+        "title": "Run cost vs domain-model quality — ddd-weather-discount",
         "xlabel": "run cost in USD — API rates with prompt caching",
         "ylabel": "quality (mean of 4 evaluations, rubric v2.3)",
         "coder": "coding model",

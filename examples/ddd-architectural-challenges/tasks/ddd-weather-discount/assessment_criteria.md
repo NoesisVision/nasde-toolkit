@@ -1,7 +1,8 @@
 # Assessment Criteria: Weather-Based Discount (v2.3, calibrated 2026-07)
 
 v2.1 recalibrated three model_fit checks (M1, M4, M5) from the measured Fable subset
-(see CALIBRATION_ROUND2_PENDING_RUBRIC_FIXES.md): style is no longer priced as an
+(round-2 calibration; method and acceptance criteria in
+`../../CALIBRATION_ROUND2_2026-07-07.md`): style is no longer priced as an
 invariant (M1), the factory-filtered empty-aggregate shape earns full credit (M4),
 and stacking-after is separated from applying-before-the-chain (M5). v2.2 adds the
 findings of the live verification: a justified, tested bug fix in pre-existing code

@@ -10,6 +10,18 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Changed
+- **Harbor bumped from 0.13 to 0.19** (`harbor[daytona,modal,e2b,runloop,gke]>=0.19,<0.20`).
+  The Python-API surface nasde drives (`JobConfig.model_validate`, `Job.create`,
+  `job.run()`, `AgentConfig` `import_path`/`kwargs`/`skills`/`mcp_servers`/`env`)
+  is unchanged; the native skill-injection contract (ADR-012) moved from
+  `BaseInstalledAgent._build_register_skills_command` to per-agent implementations
+  upstream but keeps the same `$HOME/.agents/skills` / `~/.gemini/skills` targets.
+  Unlocks ~10 new built-in Harbor agents (pi, grok-build, langgraph, deerflow,
+  eve, mimo, computer-1, acp, vibe, …) and agent `skills` entries as git
+  references (`org/name@ref`). The dependency tree also slims down (pandas,
+  numpy, pyarrow, mcp no longer pulled in). Verified: 463 tests green, pip-audit
+  clean, and a full smoke run (`ddd-threshold-discount`, claude-vanilla) with
+  non-null cache-aware token/cost economics on a fresh 0.19 trajectory.
 - Added the NASDE branding source assets and updated the README and
   documentation website to use the new brand. ([#73])
 

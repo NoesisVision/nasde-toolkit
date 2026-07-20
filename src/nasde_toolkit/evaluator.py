@@ -10,9 +10,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import re
 import statistics
 import subprocess
+import sys
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -430,7 +432,7 @@ def _run_precheck(task_dir: Path, workspace_path: Path) -> str:
         return ""
     try:
         proc = subprocess.run(
-            ["bash", str(script), workspace_path.as_posix()],
+            [_bash_executable(), str(script), workspace_path.as_posix()],
             capture_output=True,
             text=True,
             timeout=PRECHECK_TIMEOUT_SEC,
@@ -448,6 +450,17 @@ def _run_precheck(task_dir: Path, workspace_path: Path) -> str:
         console.print(f"  [yellow]precheck.sh output is not valid JSON: {err}[/yellow]")
         return ""
     return output
+
+
+def _bash_executable() -> str:
+    """Locate bash, preferring Git Bash on Windows over the System32 WSL stub."""
+    if sys.platform != "win32":
+        return "bash"
+    program_files = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+    git_bash = Path(program_files) / "Git" / "bin" / "bash.exe"
+    if git_bash.exists():
+        return str(git_bash)
+    return "bash"
 
 
 def _apply_precheck(evaluation: EvaluationResult, precheck_raw: str) -> None:

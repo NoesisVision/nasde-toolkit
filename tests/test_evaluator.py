@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
@@ -672,6 +673,11 @@ def test_resolve_dimensions_path_falls_back_to_challenge_level(tmp_path: Path) -
     assert resolve_dimensions_path(task_dir) == challenge_level
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="needs a working POSIX bash; on Windows PATH `bash` may be the WSL stub, "
+    "and _run_precheck then degrades to no-precheck by design",
+)
 def test_run_precheck_returns_json_and_passes_workspace_arg(tmp_path: Path) -> None:
     task_dir = _make_task_dir(tmp_path)
     (task_dir / "precheck.sh").write_text('#!/bin/bash\nprintf \'{"workspace": "%s"}\' "$1"\n', encoding="utf-8")

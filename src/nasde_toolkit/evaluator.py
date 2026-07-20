@@ -417,7 +417,8 @@ def _run_precheck(task_dir: Path, workspace_path: Path) -> str:
     """Run the task's optional deterministic pre-check and return its JSON output.
 
     A task may ship an executable ``precheck.sh`` next to its rubric. It receives
-    the trial workspace path as ``$1`` and must print a single JSON object to
+    the trial workspace path as ``$1`` (POSIX-style, so scripts may embed it in
+    JSON on any platform) and must print a single JSON object to
     stdout: signals computed mechanically (typically git-level restraint checks)
     that the LLM judge cannot compute itself, since it only has Read/Glob/Grep.
     The output is injected verbatim into the judge prompt and recorded in the
@@ -429,7 +430,7 @@ def _run_precheck(task_dir: Path, workspace_path: Path) -> str:
         return ""
     try:
         proc = subprocess.run(
-            ["bash", str(script), str(workspace_path)],
+            ["bash", str(script), workspace_path.as_posix()],
             capture_output=True,
             text=True,
             timeout=PRECHECK_TIMEOUT_SEC,

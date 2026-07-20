@@ -677,7 +677,7 @@ def test_run_precheck_returns_json_and_passes_workspace_arg(tmp_path: Path) -> N
     (task_dir / "precheck.sh").write_text('#!/bin/bash\nprintf \'{"workspace": "%s"}\' "$1"\n', encoding="utf-8")
     workspace = tmp_path / "ws"
     output = _run_precheck(task_dir, workspace)
-    assert json.loads(output) == {"workspace": str(workspace)}
+    assert json.loads(output) == {"workspace": workspace.as_posix()}
 
 
 def test_run_precheck_missing_script_returns_empty(tmp_path: Path) -> None:

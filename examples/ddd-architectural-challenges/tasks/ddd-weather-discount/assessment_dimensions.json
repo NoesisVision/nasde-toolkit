@@ -1,0 +1,23 @@
+{
+  "rubric_version": "2.3 (2026-07-08): v2.2 + M5 direction-neutral - the spec is silent on discount interaction and the agent cannot ask, so a tested assumption (accumulation or exclusivity alike) scores as an explicit decision (6/7); the 7th point is reserved for reifying the choice itself as a configurable composition decision (both policies expressible, demonstrated in tests); base-intent note corrected (AggregatedModifier is a base-provided sequential-composition idiom; base has no Pricing tests); bump changes the fingerprint so each rubric version's evaluations form their own groups",
+  "dimensions": [
+    {
+      "name": "model_fit",
+      "title": "Model & Composition Fit",
+      "max_score": 50,
+      "description": "The new concept lands in the right place in the existing model and composes with it explicitly: world-state closed once in the factory and captured as a value ([Pure] application path), canonical discount types reused instead of duplicated, no phantom/null-object modifiers, interaction with existing discounts decided visibly, failure distinct from measurement, and a seam proportionate to the announced future requirements."
+    },
+    {
+      "name": "restraint",
+      "title": "Boundaries & Restraint",
+      "max_score": 25,
+      "description": "Respect for the pre-existing codebase and its author's intent: only the designated touchpoints modified, the author's annotations and type signatures preserved, no behavior fabrication outside the feature, no agent artifacts committed, modularization resembling the surrounding design, and domain language free of wire vocabulary."
+    },
+    {
+      "name": "test_quality",
+      "title": "Test Quality",
+      "max_score": 25,
+      "description": "Tests cover the riskiest behavior, not just the new island: composition with the existing modifier chain, the single-fetch guarantee, honest (non-vacuous) failure-path and boundary assertions, adapter isolation from the real API, and the repo's testing conventions."
+    }
+  ]
+}

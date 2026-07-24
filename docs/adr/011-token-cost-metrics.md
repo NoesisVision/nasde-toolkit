@@ -1,6 +1,7 @@
 # ADR-011: Token & cost metrics
 
-**Status:** Accepted
+**Status:** Accepted — cost formula superseded by ADR-014 (cache-aware cost);
+everything else stands
 **Date:** 2026-06-08
 
 ## Context

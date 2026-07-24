@@ -128,6 +128,17 @@ def test_add_task_context_files_includes_instruction_criteria_dimensions(tmp_pat
     assert files["assessment_dimensions.json"] == '{"dimensions": []}'
 
 
+def test_add_task_context_files_prefers_task_level_dimensions_and_bundles_ground_truth(tmp_path: Path) -> None:
+    project_root, trial_dir = _make_trial_with_task(tmp_path)
+    task_dir = project_root / "tasks" / "my-task"
+    (task_dir / "assessment_dimensions.json").write_text('{"dimensions": [{"name": "model_fit"}]}', encoding="utf-8")
+    (task_dir / "ground_truth_decisions.json").write_text('{"decisions": []}', encoding="utf-8")
+    files: dict[str, str] = {}
+    _add_task_context_files(files, trial_dir, project_root)
+    assert "model_fit" in files["assessment_dimensions.json"]
+    assert files["ground_truth_decisions.json"] == '{"decisions": []}'
+
+
 def test_summarize_trial_returns_empty_summary_without_evals(tmp_path: Path) -> None:
     trial = tmp_path / "trial__x"
     trial.mkdir()

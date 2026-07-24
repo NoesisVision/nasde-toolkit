@@ -12,6 +12,7 @@ from pathlib import Path
 from rich.console import Console
 
 from nasde_toolkit.config import EvaluationConfig
+from nasde_toolkit.evaluator_backends.protocol import AGENT_DIFF_FILENAME
 
 console = Console()
 
@@ -61,11 +62,17 @@ class ClaudeSubprocessBackend:
         raise SystemExit(1)
 
     def validate_auth(self) -> None:
+        # No env credentials is NOT fatal: this backend deliberately omits
+        # --bare so the claude CLI can read OAuth tokens from the keychain
+        # (subscription accounts). If the CLI truly has no auth, the
+        # evaluation subprocess fails loudly on its first call.
         has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
         has_oauth = bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"))
         if not has_api_key and not has_oauth:
-            console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
-            raise SystemExit(1)
+            console.print(
+                "[dim]No ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN in the environment — "
+                "relying on the claude CLI's keychain OAuth.[/dim]"
+            )
 
     def _build_command_with_skills(
         self,
@@ -109,7 +116,10 @@ class ClaudeSubprocessBackend:
         allowed_tools = eval_config.allowed_tools or ["Read", "Glob", "Grep"]
         cmd.extend(["--allowedTools", ",".join(allowed_tools)])
 
-        if eval_config.include_trajectory and trial_dir:
+        needs_trial_dir = trial_dir is not None and (
+            eval_config.include_trajectory or (trial_dir / AGENT_DIFF_FILENAME).exists()
+        )
+        if needs_trial_dir:
             cmd.extend(["--add-dir", str(trial_dir)])
 
         if eval_config.mcp_config:

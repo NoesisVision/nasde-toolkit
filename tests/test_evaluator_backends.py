@@ -66,12 +66,14 @@ def test_claude_backend_validate_auth_succeeds_with_oauth(monkeypatch: pytest.Mo
     backend.validate_auth()
 
 
-def test_claude_backend_validate_auth_fails_without_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_claude_backend_validate_auth_tolerates_missing_env_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Keychain OAuth (subscription accounts) is invisible to the environment;
+    # validate_auth must not hard-fail — the subprocess fails loudly if the
+    # CLI truly has no auth.
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
     backend = ClaudeSubprocessBackend()
-    with pytest.raises(SystemExit):
-        backend.validate_auth()
+    backend.validate_auth()
 
 
 def test_claude_backend_builds_command(tmp_path: Path) -> None:
@@ -108,6 +110,34 @@ def test_claude_backend_command_includes_add_dir_for_trajectory(tmp_path: Path) 
     )
     assert "--add-dir" in cmd
     assert str(trial_dir) in cmd
+
+
+def test_claude_backend_command_includes_add_dir_for_agent_diff(tmp_path: Path) -> None:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    (trial_dir / "agent_changes.diff").write_text("diff --git a/x b/x\n", encoding="utf-8")
+    backend = ClaudeSubprocessBackend()
+    cmd = backend._build_command(
+        workspace_path=tmp_path,
+        eval_config=EvaluationConfig(),
+        project_root=tmp_path.parent,
+        trial_dir=trial_dir,
+    )
+    assert "--add-dir" in cmd
+    assert str(trial_dir) in cmd
+
+
+def test_claude_backend_command_no_add_dir_without_trajectory_or_diff(tmp_path: Path) -> None:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    backend = ClaudeSubprocessBackend()
+    cmd = backend._build_command(
+        workspace_path=tmp_path,
+        eval_config=EvaluationConfig(),
+        project_root=tmp_path.parent,
+        trial_dir=trial_dir,
+    )
+    assert "--add-dir" not in cmd
 
 
 def test_claude_backend_command_includes_mcp_config(tmp_path: Path) -> None:

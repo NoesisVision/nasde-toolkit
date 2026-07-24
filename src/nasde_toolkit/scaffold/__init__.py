@@ -120,6 +120,8 @@ PRICING_TOML_EXAMPLE = """\
 # [models."claude-sonnet-4-6"]
 # input_per_1m = 2.5
 # output_per_1m = 11.0
+# cached_input_per_1m = 0.25      # optional: cache-read rate; omitted -> reads billed at input_per_1m
+# cache_write_per_1m = 5.0        # optional: cache-write rate; omitted -> writes billed at input_per_1m
 # as_of = "2026-01-01"            # optional: when you confirmed this rate
 # source = "your contract / rate card"   # optional: where it came from
 """

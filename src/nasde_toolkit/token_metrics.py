@@ -5,11 +5,15 @@ and the export path (results_exporter.py → metrics.json), so the two never div
 
 Token volumes come from the trajectory's top-level ``final_metrics`` (written by
 Harbor for both Claude and Codex agents):
-  input  = total_prompt_tokens            (full, cache included)
-  output = total_completion_tokens + extra.reasoning_output_tokens
-  total  = input + output
+  input       = total_prompt_tokens            (full, cache included)
+  output      = total_completion_tokens + extra.reasoning_output_tokens
+  cached      = total_cached_tokens            (cache reads)
+  cache_write = extra.total_cache_creation_input_tokens
+  total       = input + output
 
-Cost applies the full catalog rate to those volumes (no cache discount) — see ADR-011.
+Cost is cache-aware (ADR-014): fresh input at the full rate, cache writes and
+reads at their catalog rates. The cache-free ceiling is derivable from the
+recorded token volumes and is not stored.
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ class TokenUsage:
     completion_tokens: int
     reasoning_tokens: int
     cached_tokens: int
+    cache_write_tokens: int
     total_tokens: int
 
 
@@ -39,9 +44,11 @@ def extract_token_usage(trajectory: dict) -> TokenUsage | None:
     prompt_tokens = final_metrics.get("total_prompt_tokens")
     if prompt_tokens is None:
         return None
+    extra = final_metrics.get("extra") or {}
     completion_tokens = final_metrics.get("total_completion_tokens", 0) or 0
-    reasoning_tokens = (final_metrics.get("extra") or {}).get("reasoning_output_tokens", 0) or 0
+    reasoning_tokens = extra.get("reasoning_output_tokens", 0) or 0
     cached_tokens = final_metrics.get("total_cached_tokens", 0) or 0
+    cache_write_tokens = extra.get("total_cache_creation_input_tokens", 0) or 0
     output_tokens = completion_tokens + reasoning_tokens
     return TokenUsage(
         input_tokens=prompt_tokens,
@@ -49,6 +56,7 @@ def extract_token_usage(trajectory: dict) -> TokenUsage | None:
         completion_tokens=completion_tokens,
         reasoning_tokens=reasoning_tokens,
         cached_tokens=cached_tokens,
+        cache_write_tokens=cache_write_tokens,
         total_tokens=prompt_tokens + output_tokens,
     )
 
@@ -87,7 +95,14 @@ def build_trial_economics(
     usage = extract_token_usage(trajectory) if trajectory is not None else None
     if usage is None:
         return _empty_economics(model)
-    cost_usd = compute_cost_usd(usage.input_tokens, usage.output_tokens, model, pricing)
+    cost_usd = compute_cost_usd(
+        usage.input_tokens,
+        usage.output_tokens,
+        model,
+        pricing,
+        cache_read_tokens=usage.cached_tokens,
+        cache_write_tokens=usage.cache_write_tokens,
+    )
     return {
         "model_name": model,
         "token_usage": asdict(usage),

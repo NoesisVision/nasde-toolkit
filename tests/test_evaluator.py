@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from nasde_toolkit.evaluator import (
     DimensionScore,
     EvaluationResult,
     _aggregate_evaluations,
+    _apply_precheck,
     _build_evaluator_prompt,
     _build_opik_scores,
     _dimensions_fingerprint,
@@ -23,11 +25,14 @@ from nasde_toolkit.evaluator import (
     _evaluate_and_record_trial,
     _evaluation_from_dict,
     _load_expected_dimensions,
+    _materialize_agent_diff,
     _next_eval_index,
     _parse_evaluation_response,
     _resolve_trajectory_path,
+    _run_precheck,
     _write_assessment_summary,
     _write_evaluation_result,
+    resolve_dimensions_path,
 )
 from nasde_toolkit.pricing import load_pricing, load_pricing_layered
 
@@ -275,8 +280,8 @@ def test_assessment_summary_includes_economics(tmp_path: Path) -> None:
     assert summary is not None
     assert summary.model_name == "claude-sonnet-4-6"
     assert summary.token_usage["total_tokens"] == 1_060_000
-    # sonnet $3/$15: 1M*3 + 0.06M*15 = 3.9
-    assert summary.cost_usd == pytest.approx(3.9)
+    # sonnet $3/$15/$0.30 cached (ADR-014): fresh 0.2M*3 + cached 0.8M*0.30 + 0.06M*15 = 1.74
+    assert summary.cost_usd == pytest.approx(1.74)
     assert summary.pricing_as_of == "2026-06-08"
     assert not hasattr(summary, "cost_efficiency")  # removed: arbitrary zero → use Pareto front
     assert not hasattr(summary, "token_efficiency")
@@ -641,3 +646,212 @@ def test_prompt_lists_per_dimension_ranges_not_shared_25() -> None:
     assert "`small`: 0–3 points" in prompt
     assert "`medium`: 0–20 points" in prompt
     assert "`large`: 0–100 points" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Per-task dimensions & deterministic precheck
+# ---------------------------------------------------------------------------
+
+
+def _make_task_dir(tmp_path: Path) -> Path:
+    task_dir = tmp_path / "evals" / "tasks" / "my-task"
+    task_dir.mkdir(parents=True)
+    return task_dir
+
+
+def test_resolve_dimensions_path_prefers_task_level(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "assessment_dimensions.json").write_text('{"dimensions": []}', encoding="utf-8")
+    (task_dir.parent.parent / "assessment_dimensions.json").write_text('{"dimensions": []}', encoding="utf-8")
+    assert resolve_dimensions_path(task_dir) == task_dir / "assessment_dimensions.json"
+
+
+def test_resolve_dimensions_path_falls_back_to_challenge_level(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    challenge_level = task_dir.parent.parent / "assessment_dimensions.json"
+    challenge_level.write_text('{"dimensions": []}', encoding="utf-8")
+    assert resolve_dimensions_path(task_dir) == challenge_level
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="needs a working POSIX bash; on Windows PATH `bash` may be the WSL stub, "
+    "and _run_precheck then degrades to no-precheck by design",
+)
+def test_run_precheck_returns_json_and_passes_workspace_arg(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "precheck.sh").write_text('#!/bin/bash\nprintf \'{"workspace": "%s"}\' "$1"\n', encoding="utf-8")
+    workspace = tmp_path / "ws"
+    output = _run_precheck(task_dir, workspace)
+    assert json.loads(output) == {"workspace": workspace.as_posix()}
+
+
+def test_run_precheck_missing_script_returns_empty(tmp_path: Path) -> None:
+    assert _run_precheck(_make_task_dir(tmp_path), tmp_path / "ws") == ""
+
+
+def test_run_precheck_nonzero_exit_returns_empty(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "precheck.sh").write_text("#!/bin/bash\nexit 3\n", encoding="utf-8")
+    assert _run_precheck(task_dir, tmp_path / "ws") == ""
+
+
+def test_run_precheck_invalid_json_returns_empty(tmp_path: Path) -> None:
+    task_dir = _make_task_dir(tmp_path)
+    (task_dir / "precheck.sh").write_text('#!/bin/bash\necho "not json"\n', encoding="utf-8")
+    assert _run_precheck(task_dir, tmp_path / "ws") == ""
+
+
+def test_apply_precheck_caps_normalized_score_and_records_it() -> None:
+    evaluation = _make_evaluation(normalized_score=0.9)
+    _apply_precheck(evaluation, json.dumps({"normalized_score_cap": 0.45}))
+    assert evaluation.normalized_score == 0.45
+    assert evaluation.precheck is not None
+    applied = evaluation.precheck["normalized_score_cap_applied"]
+    assert applied == {"uncapped_normalized_score": 0.9, "capped_to": 0.45}
+
+
+def test_apply_precheck_without_cap_keeps_score_and_stores_signals() -> None:
+    evaluation = _make_evaluation(normalized_score=0.9)
+    _apply_precheck(evaluation, json.dumps({"signals": {"artifacts": 1}}))
+    assert evaluation.normalized_score == 0.9
+    assert evaluation.precheck == {"signals": {"artifacts": 1}}
+
+
+def test_apply_precheck_ignores_non_numeric_cap() -> None:
+    evaluation = _make_evaluation(normalized_score=0.9)
+    _apply_precheck(evaluation, json.dumps({"normalized_score_cap": "high"}))
+    assert evaluation.normalized_score == 0.9
+
+
+def test_apply_precheck_cap_higher_than_score_is_a_no_op() -> None:
+    evaluation = _make_evaluation(normalized_score=0.3)
+    _apply_precheck(evaluation, json.dumps({"normalized_score_cap": 0.45}))
+    assert evaluation.normalized_score == 0.3
+    assert evaluation.precheck is not None
+    assert "normalized_score_cap_applied" not in evaluation.precheck
+
+
+def test_prompt_includes_precheck_section_when_provided() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+        ground_truth="",
+        artifacts_dir="/workspace",
+        trajectory_path=None,
+        precheck='{"signals": {"artifacts": 1}}',
+    )
+    assert "## Deterministic pre-check signals" in prompt
+    assert '<precheck>\n{"signals": {"artifacts": 1}}\n</precheck>' in prompt
+
+
+def test_prompt_no_precheck_section_by_default() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+    )
+    assert "pre-check" not in prompt.lower()
+
+
+# ---------------------------------------------------------------------------
+# Agent diff materialization
+# ---------------------------------------------------------------------------
+
+
+def _git_ws(workspace: Path, *args: str) -> None:
+    import subprocess
+
+    subprocess.run(
+        ["git", "-C", str(workspace), "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        check=True,
+        capture_output=True,
+    )
+
+
+def _make_workspace_with_agent_changes(tmp_path: Path) -> tuple[Path, Path]:
+    workspace = tmp_path / "artifacts" / "workspace"
+    workspace.mkdir(parents=True)
+    (workspace / "Existing.cs").write_text("[DddDomainService]\nclass Existing { }\n", encoding="utf-8")
+    _git_ws(workspace, "init", "-q")
+    _git_ws(workspace, "add", "-A")
+    _git_ws(workspace, "commit", "-qm", "base")
+    # agent's uncommitted work: modify a tracked file, add an untracked one
+    (workspace / "Existing.cs").write_text("class Existing { }\n", encoding="utf-8")
+    (workspace / "CLAUDE.md").write_text("You are a coding assistant.\n", encoding="utf-8")
+    trial_dir = tmp_path
+    return workspace, trial_dir
+
+
+def test_materialize_agent_diff_writes_tracked_and_untracked_changes(tmp_path: Path) -> None:
+    workspace, trial_dir = _make_workspace_with_agent_changes(tmp_path)
+    diff_path, diffstat = _materialize_agent_diff(workspace, trial_dir)
+    assert diff_path == str(trial_dir / "agent_changes.diff")
+    content = Path(diff_path).read_text(encoding="utf-8")
+    assert "-[DddDomainService]" in content
+    assert "CLAUDE.md" in content
+    assert "Existing.cs" in diffstat
+    assert "CLAUDE.md (new file)" in diffstat
+
+
+def test_materialize_agent_diff_no_git_returns_none(tmp_path: Path) -> None:
+    workspace = tmp_path / "artifacts" / "workspace"
+    workspace.mkdir(parents=True)
+    diff_path, diffstat = _materialize_agent_diff(workspace, tmp_path)
+    assert diff_path is None
+    assert diffstat == ""
+    assert not (tmp_path / "agent_changes.diff").exists()
+
+
+def test_materialize_agent_diff_clean_workspace_returns_none(tmp_path: Path) -> None:
+    workspace, trial_dir = _make_workspace_with_agent_changes(tmp_path)
+    _git_ws(workspace, "add", "-A")
+    _git_ws(workspace, "commit", "-qm", "agent work committed, tree clean")
+    diff_path, diffstat = _materialize_agent_diff(workspace, trial_dir)
+    assert diff_path is None
+    assert diffstat == ""
+
+
+def test_prompt_includes_agent_diff_section_when_provided() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+        agent_diff_path="/jobs/j1/trial/agent_changes.diff",
+        agent_diffstat=" Existing.cs | 1 -\n CLAUDE.md (new file)",
+    )
+    assert "## Agent diff" in prompt
+    assert "/jobs/j1/trial/agent_changes.diff" in prompt
+    assert "CLAUDE.md (new file)" in prompt
+
+
+def test_prompt_no_agent_diff_section_by_default() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+    )
+    assert "## Agent diff" not in prompt
+
+
+def test_prompt_procedure_is_diff_first_when_diff_present() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+        agent_diff_path="/jobs/j1/trial/agent_changes.diff",
+        agent_diffstat=" x.cs | 1 -",
+    )
+    assert "1. Start from the agent diff" in prompt
+    assert "## How to evaluate" in prompt
+
+
+def test_prompt_procedure_is_workspace_first_without_diff() -> None:
+    prompt = _build_evaluator_prompt(
+        instruction="Fix the bug",
+        criteria="Check correctness",
+        expected_dimensions=[{"name": "correctness", "title": "Correctness", "max_score": 25}],
+    )
+    assert "1. Use `Glob` to discover all output files in the workspace." in prompt
+    assert "Start from the agent diff" not in prompt

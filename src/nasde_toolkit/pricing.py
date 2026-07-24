@@ -3,9 +3,9 @@
 Loads per-model rates from a bundled ``pricing.toml`` and computes USD cost from
 token volumes. The catalog is overridable by convention via layered files —
 ``<project>/pricing.toml`` > ``~/.nasde/pricing.toml`` > bundled, merged per-model
-(see ``load_pricing_layered`` and ADR-013). Cost is the full catalog rate applied
-to the full prompt-token volume (cache included, no discount) — see ``pricing.toml``
-and ADR-011.
+(see ``load_pricing_layered`` and ADR-013). Cost is cache-aware — fresh input at
+the full rate, cache writes and reads at their own rates — see ``pricing.toml``
+and ADR-014 (supersedes ADR-011's full-rate formula).
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ class ModelPrice:
     input_per_1m: float
     output_per_1m: float
     cached_input_per_1m: float | None = None
+    cache_write_per_1m: float | None = None
     as_of: str = ""
     source: str = ""
 
@@ -53,8 +54,18 @@ def compute_cost_usd(
     output_tokens: int,
     model: str,
     pricing: dict[str, ModelPrice],
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
 ) -> float | None:
-    """Full-rate USD cost for the given token volumes, or None if model is unpriced."""
+    """Cache-aware USD cost for the given token volumes, or None if model is unpriced.
+
+    Fresh input (prompt volume minus cache reads and writes) is billed at the full
+    input rate, cache writes at ``cache_write_per_1m``, cache reads at
+    ``cached_input_per_1m``, output at the output rate (ADR-014). A missing cache
+    rate falls back to the full input rate — conservative, never a silent discount.
+    With zero cache volumes this reduces to the full-rate formula, which is also
+    how the cache-free ceiling can be derived offline from ``token_usage``.
+    """
     price = pricing.get(model)
     if price is None:
         console.print(
@@ -62,7 +73,15 @@ def compute_cost_usd(
             f"Add it to pricing.toml to enable cost metrics.[/yellow]"
         )
         return None
-    return input_tokens / 1_000_000 * price.input_per_1m + output_tokens / 1_000_000 * price.output_per_1m
+    read_rate = price.cached_input_per_1m if price.cached_input_per_1m is not None else price.input_per_1m
+    write_rate = price.cache_write_per_1m if price.cache_write_per_1m is not None else price.input_per_1m
+    fresh_tokens = max(input_tokens - cache_read_tokens - cache_write_tokens, 0)
+    return (
+        fresh_tokens / 1_000_000 * price.input_per_1m
+        + cache_write_tokens / 1_000_000 * write_rate
+        + cache_read_tokens / 1_000_000 * read_rate
+        + output_tokens / 1_000_000 * price.output_per_1m
+    )
 
 
 def effective_pricing_with_source(project_dir: Path | None = None) -> dict[str, tuple[ModelPrice, str]]:
@@ -207,6 +226,7 @@ def _model_price_from_dict(entry: dict) -> ModelPrice:
         input_per_1m=entry["input_per_1m"],
         output_per_1m=entry["output_per_1m"],
         cached_input_per_1m=entry.get("cached_input_per_1m"),
+        cache_write_per_1m=entry.get("cache_write_per_1m"),
         as_of=entry.get("as_of", ""),
         source=entry.get("source", ""),
     )

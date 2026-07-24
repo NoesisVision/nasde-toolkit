@@ -40,13 +40,22 @@ There are **two separate sources of wobble**, and Nasde keeps them apart on purp
 
 Why split them? Because the question you actually care about is: **is the gap between two configs bigger than the wobble, or is it just noise?** Keeping the two sources separate lets you answer that — a 0.02 gap means nothing if each score wobbles by ±0.08. (Formal significance testing is a separate, offline step; Nasde's job here is to surface the spread and sample size that make an average trustworthy in the first place.)
 
-## How the cost is calculated — "as if every run were the first"
+## How the cost is calculated — what the API would bill
 
-The dollar figure Nasde reports is **deliberately consistent**: run the same task ten times and you'll get the same cost ten times. That's on purpose, and here's why it matters.
+The dollar figure Nasde reports is the **cache-aware price of the run**: each token volume the agent actually consumed, billed at its own catalog rate.
 
-Most providers give a discount for **prompt caching** — if you send the same prompt again soon after, the repeated part is cheaper. That sounds good, but it makes cost *unpredictable for comparison*: the exact same run can cost more or less depending on whether your cache happened to be "warm" (recently used) or "cold". You'd be comparing models on luck, not on how much they actually cost.
+Most providers discount **prompt caching** — and in an agentic session that discount is not a lucky accident, it's structural. Every step of the session re-sends the same growing prompt prefix, so the bulk of input tokens are cheap cache reads (on our measured benchmark grids, 93–98% of them). Pricing a run as if no cache existed sounds "safer", but it lands several times above any real invoice — we measured a 4.4× gap on a real 24-run grid. A cost number that far from the bill can't drive a model decision.
 
-So Nasde **ignores the cache discount entirely** and prices every run **as if it were the very first one** — the full prompt billed at the full catalog rate, every time. The model's reasoning tokens (the "thinking" some models do) are counted as output. The result is a cost number that depends only on the model and the task, not on timing — so when you compare two models, you're comparing them fairly.
+So Nasde prices each component separately:
+
+- **fresh input** tokens — the full input rate,
+- **cache writes** — the cache-write rate (for Anthropic's 1-hour cache: 2× the input rate),
+- **cache reads** — the cached-input rate (typically 0.1×),
+- **output** tokens (the model's reasoning/"thinking" included) — the output rate.
+
+The number is still reproducible: it is computed from the token volumes recorded on that trial, so recomputing always gives the same answer. And if you ever want the cache-free ceiling ("what would this cost with a cold cache every step?"), it's one multiplication away — the raw volumes stay in `token_usage`. See [ADR-014](https://github.com/NoesisVision/nasde-toolkit/blob/main/docs/adr/014-cache-aware-cost.md) for the full decision record.
+
+A model entry that lacks the cache rates simply bills those volumes at the full input rate — conservative, never a silent discount.
 
 ## Where pricing comes from
 
@@ -56,6 +65,8 @@ Rates live in a small, versioned `pricing.toml` bundled with Nasde, each model s
 [models."your-model-id"]
 input_per_1m = 3.0
 output_per_1m = 15.0
+cached_input_per_1m = 0.30   # cache-read rate; omit → reads billed at input_per_1m
+cache_write_per_1m = 6.0     # cache-write rate; omit → writes billed at input_per_1m
 as_of = "2026-06-08"
 source = "https://…"
 ```

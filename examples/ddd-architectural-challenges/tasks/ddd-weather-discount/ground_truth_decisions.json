@@ -1,0 +1,54 @@
+{
+  "source": "Human calibration review of 13 trials (sink PRs #9-#21, NoesisVision/nasde-calibration, 2026-06), reviewer: repo owner. These are the reference design decisions for this task; the rubric checks (DM/EN/AC/EX/TQ) operationalize them.",
+  "decisions": [
+    {
+      "id": "world-state-closure",
+      "decision": "The state of the world (weather) is resolved exactly once per price calculation, inside the OfferModifiers [DddFactory], and captured as a value in the returned modifier. ApplyOn stays [Pure].",
+      "rationale": "The base code encodes this intent three times: [Pure] on OfferModifier.ApplyOn, all-async-upfront parallel awaits in CalculatePrices, and [DddFactory] on OfferModifiers. If the state is not closed before application, the external service can be called multiple times while scanning the offer tree; needing memoization is evidence of closing in the wrong place.",
+      "canonical_example": "Weather awaited in ChooseFor in parallel with the discount-repository calls (house tuple-await style), captured by value.",
+      "anti_pattern": "Weather provider (or a rule collection) injected into CalculatePrices; a second .Apply(weatherModifier) pipeline step beside the factory chain. Note: ExchangeRate is a PriceModifier (denomination), not an OfferModifier (policy) - FX in CalculatePrices is not a precedent."
+    },
+    {
+      "id": "no-phantom-discounts",
+      "decision": "The weather modifier is added to the aggregation ONLY when the weather qualifies. No NoDiscount/NoOfferModifier null-object class - such a discount simply has no reason to exist.",
+      "rationale": "Null-objects here come from over-engineering. Quotes may later be used to explain which discounts were applied (discount-id tracking is a plausible future requirement); dead modifiers in the chain poison that.",
+      "canonical_example": "Rules filtered in the factory against the once-fetched conditions; nothing appended when no rule fires.",
+      "anti_pattern": "A NoDiscount class (worst: placed in the weather module instead of shared Discounts); a self-disabling modifier whose ApplyOn checks the condition; an always-appended empty aggregate."
+    },
+    {
+      "id": "canonical-discount-type",
+      "decision": "The weather discount is by nature an offer-level percentage discount: either a NEW generic OfferLevelDiscount type in Pricing/Discounts that spreads a PercentageDiscount over all quotes exactly like ClientLevelDiscounts' base-discount path, or simply ClientLevelDiscounts with an empty product list.",
+      "rationale": "Creating a WeatherPercentageDiscount whose only feature is applying a percentageDiscount to quotes is incorrect modeling - it invites duplication and is not consistent with the model.",
+      "canonical_example": "A generic OfferWideDiscount(Discount) in Pricing/Discounts reusing the Discount union.",
+      "anti_pattern": "Bespoke weather-named percentage type; the generic apply-to-all-quotes behavior hidden as a private nested class in the weather module."
+    },
+    {
+      "id": "explicit-interaction",
+      "decision": "The interaction between the weather discount and existing discounts must be an explicit, visible decision - never a silent assumption. The DIRECTION of the decision is free: the spec is silent and the agent cannot ask, so a tested accumulation assumption and a tested exclusivity decision are equally acceptable.",
+      "rationale": "Where the base model implements interaction it decides explicitly (ClientLevelDiscounts overrides, IndividualSalesConditions takes per-quote min(), SpecialOffer.Or names an exclusive fallback), but it also ships AggregatedModifier - an unused sequential-composition idiom - so the base points at both choosing and composing. It prescribes visibility, not a direction. The base has no Pricing tests, so the agent has no test precedent to imitate; writing the assumption down as a test is the correct engineering move. Applying weather BEFORE special offers remains the worst variant: discounted quotes flow into the min() comparisons.",
+      "canonical_example": "Interaction expressed with the model's idioms (Or / min / explicit aggregation) and covered by a composition test through OfferModifiers.ChooseFor - regardless of whether the tested decision is accumulation or exclusivity. The exemplary ceiling: the interaction policy itself reified as a configuration decision - exclusivity and accumulation both expressible and selectable at composition time (the way .Or and AggregatedModifier already embody the two directions), demonstrated both ways in tests. That is the suppleness this model is built to show off.",
+      "anti_pattern": "Silent stacking with no test or note covering the interaction with existing discounts; weather applied before the existing chain; code and tests that disagree about the interaction semantics."
+    },
+    {
+      "id": "failure-is-not-a-measurement",
+      "decision": "API failure must be distinguishable from a measured zero and must degrade to 'no discount' without breaking ordering.",
+      "rationale": "Unknown/Unavailable encoded as new(0) or Clear() makes the domain assert weather it never observed, and breaks the announced future rules: a temperature<0 rule would fire exactly when the API is down.",
+      "canonical_example": "Explicit unavailable state, or the factory omits the weather modifier on failure.",
+      "anti_pattern": "WeatherConditions.Unknown == WeatherConditions.Of(0) under value equality; adapter returning Clear() from a catch block."
+    },
+    {
+      "id": "resemble-existing-code",
+      "decision": "A separate weather module exposes offer modifiers analogously to SpecialOffers; port in the deep model mirrors the Forex/ExchangeRateProvider precedent, adapter in Sales.Adapters/Integrations/Weather.",
+      "rationale": "The rule is to resolve similar problems the way the surrounding code already resolves them. Weather types dumped into shared Pricing/Discounts couple that module to weather; Pricing/Discounts is for high-abstraction types reacting to offer configuration.",
+      "canonical_example": "Pricing/Weather (or Weather/) module exposing modifiers, wired into the factory chain.",
+      "anti_pattern": "Weather rules and modifiers placed inside Pricing/Discounts; wire vocabulary (temperature_2m) inside deep-model value objects."
+    },
+    {
+      "id": "restraint",
+      "decision": "Pre-existing files are modified only at the touchpoints (OfferModifiers.cs, DI module, csproj). The author's annotations ([DddDomainService] etc.) and signatures (AggregatedModifier(List<OfferModifier>)) are preserved; no behavior fabrication outside the feature; no agent artifacts committed.",
+      "rationale": "The author may have used List (and every annotation) for a reason - catching author intent is a trait of good domain modeling. Rewriting RiskManagementInMemoryCalls from NotImplementedException to Money.Of(decimal.MaxValue) silently grants unlimited credit in an unrelated bounded context.",
+      "canonical_example": "Additive-only wiring in the two touchpoint files.",
+      "anti_pattern": "[DddDomainService] stripped from six base files to appease DI scanning; List->IEnumerable signature rewrite; CLAUDE.md/AGENTS.md/decompile.csx committed."
+    }
+  ]
+}

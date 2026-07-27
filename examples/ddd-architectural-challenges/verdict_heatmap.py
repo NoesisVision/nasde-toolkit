@@ -1,4 +1,4 @@
-"""Verdict heatmap for the 24-trial grid: 18 rubric checks x 6 arms (PL + EN PNGs).
+"""Verdict heatmap, grid + Opus 5 arm: 18 rubric checks x 7 arms (PL + EN PNGs).
 
 Per-check verdicts (M1-M7 / R1-R6 / T1-T5, FULL/PARTIAL/NONE) are parsed from the
 judges' free-text dimension reasoning — the eval JSON stores scores per dimension
@@ -28,10 +28,15 @@ ARMS: dict[tuple[str, str], list[str]] = {
     ("Opus 4.8", "vanilla"): ["GoWvUz6", "cyQyXFc", "JTgey8p", "Lozfurr"],
     ("Opus 4.8", "hint"): ["YgcbZjf", "VoktgLb", "sSUYQp4", "a6okSgZ"],
     ("Opus 4.8", "skill"): ["ZMX6Xbq", "TsjcHWY", "Bkwiqom", "F5vYATs"],
+    ("Opus 5", "vanilla"): ["i9ivEds", "m82SdTE", "Yi8S8wA", "Wipg7XN"],
 }
 ARM_ORDER = [("Fable 5", "vanilla"), ("Fable 5", "hint"), ("Fable 5", "skill"),
-             ("Opus 4.8", "vanilla"), ("Opus 4.8", "hint"), ("Opus 4.8", "skill")]
-CODER_COLOR = {"Fable 5": "#2a78d6", "Opus 4.8": "#1baf7a"}
+             ("Opus 4.8", "vanilla"), ("Opus 4.8", "hint"), ("Opus 4.8", "skill"),
+             ("Opus 5", "vanilla")]
+CODER_COLOR = {"Fable 5": "#2a78d6", "Opus 4.8": "#1baf7a", "Opus 5": "#d97706"}
+# Panel frozen at 2x Fable + 2x Opus 4.8 per trial; evals by other judge models
+# (the claude-opus-5 judge pilot) share the fingerprint and must be excluded.
+JUDGES = {"claude-fable-5", "claude-opus-4-8"}
 INK = "#1a1a19"
 
 MAX = {"M1": 10, "M2": 9, "M3": 9, "M4": 7, "M5": 7, "M6": 4, "M7": 4,
@@ -86,14 +91,14 @@ LABELS = {
 }
 TEXT = {
     "pl": {
-        "title": "Profil werdyktów rubryki v2.3 — 18 checków × 6 ramion "
+        "title": "Profil werdyktów rubryki v2.3 — 18 checków × 7 ramion "
                  "(komórka = średnia z 16 ocen: 4 triale × 4 ewaluacje)",
         "scale": "0% = wszędzie NONE · 50% = przeciętnie PARTIAL · 100% = wszędzie FULL",
         "groups": {"M": "model i kompozycja", "R": "granice i powściągliwość", "T": "jakość testów"},
         "out": "verdict_heatmap.png",
     },
     "en": {
-        "title": "Rubric v2.3 verdict profile — 18 checks × 6 arms "
+        "title": "Rubric v2.3 verdict profile — 18 checks × 7 arms "
                  "(cell = mean of 16 evaluations: 4 trials × 4 evals)",
         "scale": "0% = NONE everywhere · 50% = PARTIAL on average · 100% = FULL everywhere",
         "groups": {"M": "model & composition fit", "R": "boundaries & restraint", "T": "test quality"},
@@ -119,6 +124,9 @@ P_V_LIST = re.compile(rf"\b({V})s?\s*(?:on)?:\s*([^.;]*)")
 P_POINTS = re.compile(rf"\b({ID})\s*(?:[=:]\s*|\s+)(\d+)(?:\s*/\s*(\d+))?(?=[\s,;.)\]])")
 # 6) "Lost 5 on M3"
 P_LOST = re.compile(rf"\b[Ll]ost\s+(\d+)\s+on\s+({ID})\b")
+# 7) unquantified deduction list: "Loses points on M3 (...) and M7 (...)" — a
+#    named deduction with no amount is a PARTIAL (a NONE is always spelled out)
+P_LOSES = re.compile(r"\b[Ll]oses?\s+points?\s+on\s+([^.;]*)")
 
 
 def classify(points: int, cid: str) -> str:
@@ -151,6 +159,9 @@ def parse_eval(d: dict) -> tuple[dict[str, str], list[str]]:
             local.setdefault(cid, classify(int(pts), cid))
         for lost, cid in P_LOST.findall(text):
             local.setdefault(cid, classify(MAX[cid] - int(lost), cid))
+        for tail in P_LOSES.findall(text):
+            for cid in re.findall(rf"\b{ID}\b", tail):
+                local.setdefault(cid, "PARTIAL")
         checks = DIM_CHECKS[name]
         for cid in checks:
             local.setdefault(cid, "FULL")  # judges enumerate deductions only
@@ -173,7 +184,7 @@ def collect() -> tuple[dict[tuple[str, str], list[dict]], list[str]]:
             (td,) = JOBS.glob(f"*/ddd-weather-discount__{t}")
             for f in sorted(td.glob("assessment_eval_*.json")):
                 d = json.loads(f.read_text())
-                if d.get("dimensions_fingerprint") != FP:
+                if d.get("dimensions_fingerprint") != FP or d.get("evaluator_model") not in JUDGES:
                     continue
                 verdicts, audit = parse_eval(d)
                 per_arm[arm].append(verdicts)
@@ -198,7 +209,7 @@ def heatmap(per_arm: dict, lang: str) -> None:
              for arm in ARM_ORDER] for c in CHECKS]
     rgba = [[CMAPS[c[0]](v) for v in row] for c, row in zip(CHECKS, grid)]
 
-    fig, ax = plt.subplots(figsize=(9.6, 8.8))
+    fig, ax = plt.subplots(figsize=(10.4, 8.8))
     fig.suptitle(t["title"], fontsize=11.5, color=INK, y=0.985)
     ax.imshow(rgba, aspect="auto")
 
@@ -222,7 +233,7 @@ def heatmap(per_arm: dict, lang: str) -> None:
 
     # white gridlines between cells; heavier breaks + side captions between M/R/T groups
     for xi in range(1, len(ARM_ORDER)):
-        lw = 3.4 if xi == 3 else 1.6
+        lw = 3.4 if xi in (3, 6) else 1.6
         ax.axvline(xi - 0.5, color="white", linewidth=lw)
     for yi in range(1, len(CHECKS)):
         ax.axhline(yi - 0.5, color="white", linewidth=1.6)
@@ -243,7 +254,7 @@ def heatmap(per_arm: dict, lang: str) -> None:
 if __name__ == "__main__":
     per_arm, flags = collect()
     n = sum(len(v) for v in per_arm.values())
-    print(f"evals parsed: {n} (expected 96)")
+    print(f"evals parsed: {n} (expected 112)")
     for fl in flags:
         print("FLAG", fl)
     for lang in ("pl", "en"):

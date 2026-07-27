@@ -28,6 +28,7 @@ ARMS: dict[tuple[str, str], list[str]] = {
     ("Opus 4.8", "skill"): ["ZMX6Xbq", "TsjcHWY", "Bkwiqom", "F5vYATs"],
     ("Opus 5", "vanilla"): ["i9ivEds", "m82SdTE", "Yi8S8wA", "Wipg7XN"],
     ("Opus 5", "hint"): ["UBsUYEb", "ycb5f8S", "24pWHEZ", "bC6TqMF"],
+    ("Opus 5", "skill"): ["mvexh8R", "X8Kb8T6", "f7DZgwd", "jRUpT56"],
 }
 MODEL_ID = {"Fable 5": "claude-fable-5", "Opus 4.8": "claude-opus-4-8", "Opus 5": "claude-opus-5"}
 # The article's judge panel is frozen at 2x Fable + 2x Opus 4.8; evals by other
@@ -81,6 +82,7 @@ LABEL_OFFSET = {
     ("Opus 4.8", "skill"): (14, -4, "left"),
     ("Opus 5", "vanilla"): (-14, 2, "right"),
     ("Opus 5", "hint"): (14, 2, "left"),
+    ("Opus 5", "skill"): (14, -4, "left"),
 }
 
 

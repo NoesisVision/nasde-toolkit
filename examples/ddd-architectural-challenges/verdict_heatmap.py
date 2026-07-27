@@ -29,10 +29,11 @@ ARMS: dict[tuple[str, str], list[str]] = {
     ("Opus 4.8", "hint"): ["YgcbZjf", "VoktgLb", "sSUYQp4", "a6okSgZ"],
     ("Opus 4.8", "skill"): ["ZMX6Xbq", "TsjcHWY", "Bkwiqom", "F5vYATs"],
     ("Opus 5", "vanilla"): ["i9ivEds", "m82SdTE", "Yi8S8wA", "Wipg7XN"],
+    ("Opus 5", "hint"): ["UBsUYEb", "ycb5f8S", "24pWHEZ", "bC6TqMF"],
 }
 ARM_ORDER = [("Fable 5", "vanilla"), ("Fable 5", "hint"), ("Fable 5", "skill"),
              ("Opus 4.8", "vanilla"), ("Opus 4.8", "hint"), ("Opus 4.8", "skill"),
-             ("Opus 5", "vanilla")]
+             ("Opus 5", "vanilla"), ("Opus 5", "hint")]
 CODER_COLOR = {"Fable 5": "#2a78d6", "Opus 4.8": "#1baf7a", "Opus 5": "#d97706"}
 # Panel frozen at 2x Fable + 2x Opus 4.8 per trial; evals by other judge models
 # (the claude-opus-5 judge pilot) share the fingerprint and must be excluded.
@@ -91,14 +92,14 @@ LABELS = {
 }
 TEXT = {
     "pl": {
-        "title": "Profil werdyktów rubryki v2.3 — 18 checków × 7 ramion "
+        "title": "Profil werdyktów rubryki v2.3 — 18 checków × 8 ramion "
                  "(komórka = średnia z 16 ocen: 4 triale × 4 ewaluacje)",
         "scale": "0% = wszędzie NONE · 50% = przeciętnie PARTIAL · 100% = wszędzie FULL",
         "groups": {"M": "model i kompozycja", "R": "granice i powściągliwość", "T": "jakość testów"},
         "out": "verdict_heatmap.png",
     },
     "en": {
-        "title": "Rubric v2.3 verdict profile — 18 checks × 7 arms "
+        "title": "Rubric v2.3 verdict profile — 18 checks × 8 arms "
                  "(cell = mean of 16 evaluations: 4 trials × 4 evals)",
         "scale": "0% = NONE everywhere · 50% = PARTIAL on average · 100% = FULL everywhere",
         "groups": {"M": "model & composition fit", "R": "boundaries & restraint", "T": "test quality"},
@@ -209,7 +210,7 @@ def heatmap(per_arm: dict, lang: str) -> None:
              for arm in ARM_ORDER] for c in CHECKS]
     rgba = [[CMAPS[c[0]](v) for v in row] for c, row in zip(CHECKS, grid)]
 
-    fig, ax = plt.subplots(figsize=(10.4, 8.8))
+    fig, ax = plt.subplots(figsize=(11.2, 8.8))
     fig.suptitle(t["title"], fontsize=11.5, color=INK, y=0.985)
     ax.imshow(rgba, aspect="auto")
 
@@ -254,7 +255,7 @@ def heatmap(per_arm: dict, lang: str) -> None:
 if __name__ == "__main__":
     per_arm, flags = collect()
     n = sum(len(v) for v in per_arm.values())
-    print(f"evals parsed: {n} (expected 112)")
+    print(f"evals parsed: {n} (expected 128)")
     for fl in flags:
         print("FLAG", fl)
     for lang in ("pl", "en"):

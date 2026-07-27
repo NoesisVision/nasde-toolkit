@@ -32,6 +32,14 @@ cached_input_per_1m = 0.25
 as_of = "2026-06-08"
 source = "https://developers.openai.com/api/docs/pricing"
 
+[models."claude-opus-5"]
+input_per_1m = 5.0
+output_per_1m = 25.0
+cached_input_per_1m = 0.50
+cache_write_per_1m = 10.0
+as_of = "2026-07-24"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"
+
 [models."claude-opus-4-8"]
 input_per_1m = 5.0
 output_per_1m = 25.0

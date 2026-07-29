@@ -40,7 +40,7 @@ INK = "#1a1a19"
 
 TEXT = {
     "pl": {
-        "title": "Koszt runu a jakość modelu domenowego — ddd-weather-discount",
+        "title": "Koszt runu a jakość rozwiązania — ddd-weather-discount",
         "xlabel": "koszt runu w USD — stawki API z rozliczeniem prompt cache",
         "ylabel": "jakość (średnia 4 ewaluacji, rubryka v2.3)",
         "coder": "model kodujący",
@@ -48,6 +48,7 @@ TEXT = {
         "outlier": "pojedynczy run za ${cost:.0f}",
         # \$ keeps matplotlib from treating $...$ pairs as mathtext
         "footnote": (
+            "jakość = pełna rubryka v2.3: dopasowanie modelu 50 pkt + granice i powściągliwość 25 pkt + jakość testów 25 pkt\n"
             "koszt = świeże wejście × stawka + zapisy cache × stawka zapisu (2×) "
             "+ odczyty cache × stawka odczytu (0.1×) + wyjście × stawka wyjścia\n"
             "stawki API z {as_of}: Fable 5 \\${fi:.0f} / \\${fo:.0f}, "
@@ -56,13 +57,14 @@ TEXT = {
         "out": "cost_quality_plane.png",
     },
     "en": {
-        "title": "Run cost vs domain-model quality — ddd-weather-discount",
+        "title": "Run cost vs solution quality — ddd-weather-discount",
         "xlabel": "run cost in USD — API rates with prompt caching",
         "ylabel": "quality (mean of 4 evaluations, rubric v2.3)",
         "coder": "coding model",
         "mean": "large marker = arm mean (n=4)",
         "outlier": "a single ${cost:.0f} run",
         "footnote": (
+            "quality = the full v2.3 rubric: model fit 50 pts + boundaries & restraint 25 pts + test quality 25 pts\n"
             "cost = fresh input × input rate + cache writes × write rate (2×) "
             "+ cache reads × read rate (0.1×) + output × output rate\n"
             "API rates as of {as_of}: Fable 5 \\${fi:.0f} / \\${fo:.0f}, "

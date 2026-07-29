@@ -9,6 +9,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- Bundled price catalog: `claude-opus-5` ($5/$25 per 1M tokens, cache read
+  $0.50 / 1-hour cache write $10), verified against the official Anthropic
+  pricing page 2026-07-24; the other Claude entries re-verified at the same
+  date. ([#77])
+
 ### Changed
 - **Cost is now cache-aware ([ADR-014](docs/adr/014-cache-aware-cost.md)) — supersedes ADR-011's
   "as if every run were the first" formula.** `cost_usd` bills fresh input at the
@@ -632,4 +638,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#71]: https://github.com/NoesisVision/nasde-toolkit/pull/71
 [#73]: https://github.com/NoesisVision/nasde-toolkit/pull/73
 [#74]: https://github.com/NoesisVision/nasde-toolkit/pull/74
+[#77]: https://github.com/NoesisVision/nasde-toolkit/pull/77
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

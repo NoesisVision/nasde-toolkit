@@ -1,4 +1,4 @@
-"""Cost x quality plane for the 24-trial Fable/Opus grid (PL + EN publication PNGs).
+"""Cost x quality plane for the Fable/Opus grid + the Opus 5 vanilla arm (PL + EN PNGs).
 
 X = cache-aware run cost (ADR-014): fresh input at the full rate, cache writes at
 the 1h-cache write rate, cache reads at the cached rate, output at the output rate
@@ -26,15 +26,21 @@ ARMS: dict[tuple[str, str], list[str]] = {
     ("Opus 4.8", "vanilla"): ["GoWvUz6", "cyQyXFc", "JTgey8p", "Lozfurr"],
     ("Opus 4.8", "hint"): ["YgcbZjf", "VoktgLb", "sSUYQp4", "a6okSgZ"],
     ("Opus 4.8", "skill"): ["ZMX6Xbq", "TsjcHWY", "Bkwiqom", "F5vYATs"],
+    ("Opus 5", "vanilla"): ["i9ivEds", "m82SdTE", "Yi8S8wA", "Wipg7XN"],
+    ("Opus 5", "hint"): ["UBsUYEb", "ycb5f8S", "24pWHEZ", "bC6TqMF"],
+    ("Opus 5", "skill"): ["mvexh8R", "X8Kb8T6", "f7DZgwd", "jRUpT56"],
 }
-MODEL_ID = {"Fable 5": "claude-fable-5", "Opus 4.8": "claude-opus-4-8"}
-CODER_COLOR = {"Fable 5": "#2a78d6", "Opus 4.8": "#1baf7a"}
+MODEL_ID = {"Fable 5": "claude-fable-5", "Opus 4.8": "claude-opus-4-8", "Opus 5": "claude-opus-5"}
+# The article's judge panel is frozen at 2x Fable + 2x Opus 4.8; evals by other
+# judge models (e.g. the claude-opus-5 judge pilot) must not enter the means.
+JUDGES = {"claude-fable-5", "claude-opus-4-8"}
+CODER_COLOR = {"Fable 5": "#2a78d6", "Opus 4.8": "#1baf7a", "Opus 5": "#d97706"}
 CONFIG_MARKER = {"vanilla": "o", "hint": "^", "skill": "s"}
 INK = "#1a1a19"
 
 TEXT = {
     "pl": {
-        "title": "Koszt runu a jakość modelu domenowego — ddd-weather-discount",
+        "title": "Koszt runu a jakość rozwiązania — ddd-weather-discount",
         "xlabel": "koszt runu w USD — stawki API z rozliczeniem prompt cache",
         "ylabel": "jakość (średnia 4 ewaluacji, rubryka v2.3)",
         "coder": "model kodujący",
@@ -42,25 +48,27 @@ TEXT = {
         "outlier": "pojedynczy run za ${cost:.0f}",
         # \$ keeps matplotlib from treating $...$ pairs as mathtext
         "footnote": (
+            "jakość = pełna rubryka v2.3: dopasowanie modelu 50 pkt + granice i powściągliwość 25 pkt + jakość testów 25 pkt\n"
             "koszt = świeże wejście × stawka + zapisy cache × stawka zapisu (2×) "
             "+ odczyty cache × stawka odczytu (0.1×) + wyjście × stawka wyjścia\n"
             "stawki API z {as_of}: Fable 5 \\${fi:.0f} / \\${fo:.0f}, "
-            "Opus 4.8 \\${oi:.0f} / \\${oo:.0f} za mln tokenów"
+            "Opus 4.8 \\${oi:.0f} / \\${oo:.0f}, Opus 5 \\${o5i:.0f} / \\${o5o:.0f} za mln tokenów"
         ),
         "out": "cost_quality_plane.png",
     },
     "en": {
-        "title": "Run cost vs domain-model quality — ddd-weather-discount",
+        "title": "Run cost vs solution quality — ddd-weather-discount",
         "xlabel": "run cost in USD — API rates with prompt caching",
         "ylabel": "quality (mean of 4 evaluations, rubric v2.3)",
         "coder": "coding model",
         "mean": "large marker = arm mean (n=4)",
         "outlier": "a single ${cost:.0f} run",
         "footnote": (
+            "quality = the full v2.3 rubric: model fit 50 pts + boundaries & restraint 25 pts + test quality 25 pts\n"
             "cost = fresh input × input rate + cache writes × write rate (2×) "
             "+ cache reads × read rate (0.1×) + output × output rate\n"
             "API rates as of {as_of}: Fable 5 \\${fi:.0f} / \\${fo:.0f}, "
-            "Opus 4.8 \\${oi:.0f} / \\${oo:.0f} per MTok"
+            "Opus 4.8 \\${oi:.0f} / \\${oo:.0f}, Opus 5 \\${o5i:.0f} / \\${o5o:.0f} per MTok"
         ),
         "out": "cost_quality_plane_en.png",
     },
@@ -74,6 +82,9 @@ LABEL_OFFSET = {
     ("Opus 4.8", "vanilla"): (-14, -4, "right"),
     ("Opus 4.8", "hint"): (14, -4, "left"),
     ("Opus 4.8", "skill"): (14, -4, "left"),
+    ("Opus 5", "vanilla"): (-14, 2, "right"),
+    ("Opus 5", "hint"): (14, 2, "left"),
+    ("Opus 5", "skill"): (14, -4, "left"),
 }
 
 
@@ -84,7 +95,9 @@ def load_rates() -> dict:
         "fo": raw["claude-fable-5"]["output_per_1m"],
         "oi": raw["claude-opus-4-8"]["input_per_1m"],
         "oo": raw["claude-opus-4-8"]["output_per_1m"],
-        "as_of": raw["claude-fable-5"]["as_of"],
+        "o5i": raw["claude-opus-5"]["input_per_1m"],
+        "o5o": raw["claude-opus-5"]["output_per_1m"],
+        "as_of": raw["claude-opus-5"]["as_of"],
         "by_model": {
             m: (
                 raw[m]["input_per_1m"],
@@ -92,7 +105,7 @@ def load_rates() -> dict:
                 raw[m]["cached_input_per_1m"],
                 raw[m]["cache_write_per_1m"],
             )
-            for m in ("claude-fable-5", "claude-opus-4-8")
+            for m in ("claude-fable-5", "claude-opus-4-8", "claude-opus-5")
         },
     }
 
@@ -112,7 +125,7 @@ def collect(rates: dict) -> list[dict]:
             scores = []
             for f in sorted(trial_dir.glob("assessment_eval_*.json")):
                 d = json.loads(f.read_text())
-                if d.get("dimensions_fingerprint") == FP and d.get("evaluator_model") in MODEL_ID.values():
+                if d.get("dimensions_fingerprint") == FP and d.get("evaluator_model") in JUDGES:
                     scores.append(d["normalized_score"])
             if len(scores) != 4:
                 print(f"WARN: {trial} has {len(scores)} v2.3 evals (expected 4)")
@@ -154,14 +167,17 @@ def plane_plot(rows: list[dict], rates: dict, lang: str) -> None:
         ax.annotate(config, (mc, mq), textcoords="offset points", xytext=(dx, dy),
                     ha=ha, fontsize=9.5, color=col, fontweight="bold", zorder=6)
 
-    # per-coder trajectory through the arm means, in config order
+    # per-coder trajectory through the arm means, in config order (skip configs
+    # a coder was not run under — Opus 5 has a vanilla arm only)
     for coder in CODER_COLOR:
         pts = []
         for config in ("vanilla", "hint", "skill"):
             sub = [r for r in rows if r["coder"] == coder and r["config"] == config]
-            pts.append((sum(r["cost"] for r in sub) / len(sub), sum(r["q"] for r in sub) / len(sub)))
-        ax.plot([p[0] for p in pts], [p[1] for p in pts], color=CODER_COLOR[coder],
-                linewidth=1.1, linestyle=(0, (4, 3)), alpha=0.65, zorder=2)
+            if sub:
+                pts.append((sum(r["cost"] for r in sub) / len(sub), sum(r["q"] for r in sub) / len(sub)))
+        if len(pts) > 1:
+            ax.plot([p[0] for p in pts], [p[1] for p in pts], color=CODER_COLOR[coder],
+                    linewidth=1.1, linestyle=(0, (4, 3)), alpha=0.65, zorder=2)
 
     top = max(rows, key=lambda r: r["cost"])
     ax.annotate(t["outlier"].format(cost=top["cost"]), (top["cost"], top["q"]),
@@ -169,7 +185,7 @@ def plane_plot(rows: list[dict], rates: dict, lang: str) -> None:
                 fontsize=8.8, color="#666", zorder=6)
 
     ax.set_xlim(0, 26)
-    ax.set_ylim(0.55, 0.92)
+    ax.set_ylim(0.55, 0.95)
     ax.set_xlabel(t["xlabel"], fontsize=10, color="#444")
     ax.set_ylabel(t["ylabel"], fontsize=10, color="#444")
     ax.tick_params(labelsize=9, colors="#444")

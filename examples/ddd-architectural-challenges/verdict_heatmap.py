@@ -207,7 +207,7 @@ CMAPS = {g: LinearSegmentedColormap.from_list(f"verdict_{g}", ramp)
          for g, ramp in GROUP_RAMP.items()}
 
 
-def heatmap(per_arm: dict, lang: str) -> None:
+def heatmap(per_arm: dict, lang: str, highlight: str | None = None) -> None:
     t = TEXT[lang]
     grid = [[sum(VAL[evals[c]] for evals in per_arm[arm]) / len(per_arm[arm])
              for arm in ARM_ORDER] for c in CHECKS]
@@ -248,9 +248,20 @@ def heatmap(per_arm: dict, lang: str) -> None:
                     xycoords="axes fraction", ha="left", va="center", fontsize=8.6,
                     color=GROUP_RAMP[group][1], rotation=270)
 
+    if highlight:
+        yi = CHECKS.index(highlight)
+        ax.add_patch(plt.Rectangle((-0.5, yi - 0.5), len(ARM_ORDER), 1.0,
+                                   fill=False, edgecolor=INK, linewidth=2.4,
+                                   zorder=6, clip_on=False))
+        ax.get_yticklabels()[yi].set_fontweight("bold")
+        ax.get_yticklabels()[yi].set_color(INK)
+
     fig.text(0.5, 0.015, t["scale"], ha="center", fontsize=8.2, color="#777")
     fig.tight_layout(rect=(0, 0.035, 0.97, 0.905))
-    out = HERE / "assets" / t["out"]
+    name = t["out"]
+    if highlight:
+        name = name.replace(".png", f"_{highlight.lower()}.png")
+    out = HERE / "assets" / name
     fig.savefig(out, dpi=160, facecolor="white")
     print("saved:", out)
 
@@ -263,3 +274,6 @@ if __name__ == "__main__":
         print("FLAG", fl)
     for lang in ("pl", "en"):
         heatmap(per_arm, lang)
+        # article/social variant: the bounty row outlined (T2 - the check
+        # no model met for two generations until Opus 5)
+        heatmap(per_arm, lang, highlight="T2")

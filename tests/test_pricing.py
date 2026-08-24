@@ -171,6 +171,7 @@ def test_layered_three_layers_compose(tmp_path: Path, empty_user_layer: Path) ->
         "claude-opus-5",
         "claude-fable-5",
         "claude-opus-4-8",
+        "claude-sonnet-5",
         "claude-sonnet-4-6",
         "azure-gpt5",
         "enterprise-claude",

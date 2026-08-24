@@ -15,8 +15,10 @@
 # per-step cost accounting on the 2026-07 grid. OpenAI bills no write premium,
 # so gpt entries omit the field (writes fall back to the base input rate).
 #
-# Verified 2026-07-13 (Claude models re-checked against the official pricing page
-# before publishing) — CONFIRM before publishing any cost figures.
+# Claude models re-verified 2026-08-24 against the official pricing page (Fable 5,
+# Opus 5, Opus 4.8, Sonnet 4.6 unchanged since 2026-07-13; Sonnet 5 added) —
+# CONFIRM before publishing any cost figures. gpt entries not re-checked since
+# 2026-06-08.
 
 [models."gpt-5.5"]
 input_per_1m = 5.0
@@ -37,7 +39,7 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-07-24"
+as_of = "2026-08-24"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-opus-4-8"]
@@ -45,7 +47,7 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-07-24"
+as_of = "2026-08-24"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-fable-5"]
@@ -53,7 +55,15 @@ input_per_1m = 10.0
 output_per_1m = 50.0
 cached_input_per_1m = 1.0
 cache_write_per_1m = 20.0
-as_of = "2026-07-24"
+as_of = "2026-08-24"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"
+
+[models."claude-sonnet-5"]
+input_per_1m = 2.0
+output_per_1m = 10.0
+cached_input_per_1m = 0.20
+cache_write_per_1m = 4.0
+as_of = "2026-08-24"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-4-6"]
@@ -61,5 +71,5 @@ input_per_1m = 3.0
 output_per_1m = 15.0
 cached_input_per_1m = 0.30
 cache_write_per_1m = 6.0
-as_of = "2026-06-08"
+as_of = "2026-08-24"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"

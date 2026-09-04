@@ -10,6 +10,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Added
+- Bundled price catalog: `claude-fable-5-1` ($10/$50 per 1M tokens, 1-hour cache
+  write $20, **cache read $0.25 — 0.025x base input, not the 0.1x every other
+  Claude model uses**), verified against the official Anthropic pricing page
+  2026-09-04; the other Claude entries re-verified at the same date. ([#79])
+- Bundled price catalog: `claude-sonnet-5` ($2/$10 per 1M tokens, cache read
+  $0.20 / 1-hour cache write $4), verified against the official Anthropic
+  pricing page 2026-08-24. ([#78])
 - Bundled price catalog: `claude-opus-5` ($5/$25 per 1M tokens, cache read
   $0.50 / 1-hour cache write $10), verified against the official Anthropic
   pricing page 2026-07-24; the other Claude entries re-verified at the same
@@ -644,5 +651,7 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#73]: https://github.com/NoesisVision/nasde-toolkit/pull/73
 [#74]: https://github.com/NoesisVision/nasde-toolkit/pull/74
 [#77]: https://github.com/NoesisVision/nasde-toolkit/pull/77
+[#78]: https://github.com/NoesisVision/nasde-toolkit/pull/78
+[#79]: https://github.com/NoesisVision/nasde-toolkit/pull/79
 [#81]: https://github.com/NoesisVision/nasde-toolkit/pull/81
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

@@ -15,10 +15,14 @@
 # per-step cost accounting on the 2026-07 grid. OpenAI bills no write premium,
 # so gpt entries omit the field (writes fall back to the base input rate).
 #
-# Claude models re-verified 2026-08-24 against the official pricing page (Fable 5,
-# Opus 5, Opus 4.8, Sonnet 4.6 unchanged since 2026-07-13; Sonnet 5 added) —
-# CONFIRM before publishing any cost figures. gpt entries not re-checked since
-# 2026-06-08.
+# Cache reads are 0.1x the base input rate on every Claude model EXCEPT
+# Claude Fable 5.1 (and Mythos 5.1), where they are 0.025x — $0.25/MTok on a
+# $10/MTok input rate. That is a published per-model exception, not a typo.
+#
+# Claude models re-verified 2026-09-04 against the official pricing page (Fable 5,
+# Opus 5, Opus 4.8, Sonnet 5, Sonnet 4.6 unchanged since 2026-08-24; Fable 5.1
+# added) — CONFIRM before publishing any cost figures. gpt entries not re-checked
+# since 2026-06-08.
 
 [models."gpt-5.5"]
 input_per_1m = 5.0
@@ -39,7 +43,7 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-08-24"
+as_of = "2026-09-04"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-opus-4-8"]
@@ -47,7 +51,15 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-08-24"
+as_of = "2026-09-04"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"
+
+[models."claude-fable-5-1"]
+input_per_1m = 10.0
+output_per_1m = 50.0
+cached_input_per_1m = 0.25
+cache_write_per_1m = 20.0
+as_of = "2026-09-04"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-fable-5"]
@@ -55,7 +67,7 @@ input_per_1m = 10.0
 output_per_1m = 50.0
 cached_input_per_1m = 1.0
 cache_write_per_1m = 20.0
-as_of = "2026-08-24"
+as_of = "2026-09-04"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-5"]
@@ -63,7 +75,7 @@ input_per_1m = 2.0
 output_per_1m = 10.0
 cached_input_per_1m = 0.20
 cache_write_per_1m = 4.0
-as_of = "2026-08-24"
+as_of = "2026-09-04"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-4-6"]
@@ -71,5 +83,5 @@ input_per_1m = 3.0
 output_per_1m = 15.0
 cached_input_per_1m = 0.30
 cache_write_per_1m = 6.0
-as_of = "2026-08-24"
+as_of = "2026-09-04"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"

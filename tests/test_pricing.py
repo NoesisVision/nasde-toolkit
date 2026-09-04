@@ -87,6 +87,16 @@ def test_compute_cost_cache_aware_matches_harbor_accounting() -> None:
     assert cost == pytest.approx(8.841665, abs=0.0005)
 
 
+def test_fable_5_1_cache_reads_bill_at_the_published_quarter_rate() -> None:
+    # Fable 5.1 reads are 0.025x base input ($0.25 on $10), not the 0.1x every
+    # other Claude model uses — guards the entry against a "consistency" fix.
+    pricing = load_pricing()
+    assert pricing["claude-fable-5-1"].cached_input_per_1m == 0.25
+    # 1M prompt tokens, all cache reads, 0.1M output: 0.25 + 5.0
+    cost = compute_cost_usd(1_000_000, 100_000, "claude-fable-5-1", pricing, cache_read_tokens=1_000_000)
+    assert cost == pytest.approx(5.25)
+
+
 def test_compute_cost_missing_cache_rates_falls_back_to_full_rate(tmp_path: Path) -> None:
     custom = tmp_path / "pricing.toml"
     custom.write_text('[models."bare"]\ninput_per_1m = 2.0\noutput_per_1m = 10.0\n')
@@ -169,6 +179,7 @@ def test_layered_three_layers_compose(tmp_path: Path, empty_user_layer: Path) ->
         "gpt-5.5",
         "gpt-5.4",
         "claude-opus-5",
+        "claude-fable-5-1",
         "claude-fable-5",
         "claude-opus-4-8",
         "claude-sonnet-5",

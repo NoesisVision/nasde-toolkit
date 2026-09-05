@@ -87,6 +87,21 @@ def test_compute_cost_cache_aware_matches_harbor_accounting() -> None:
     assert cost == pytest.approx(8.841665, abs=0.0005)
 
 
+def test_compute_cost_cache_aware_matches_harbor_accounting_fable_5_1() -> None:
+    # Real trial qoVXn7k (claude-fable-5-1, xhigh): Harbor's own per-step total was
+    # $3.57704175 — it applies the same 0.025x read rate. Pricing reads at 0.1x
+    # like every other Claude model would land at $4.38 (+22% on this token mix).
+    cost = compute_cost_usd(
+        1_160_418,
+        30_522,
+        "claude-fable-5-1",
+        load_pricing(),
+        cache_read_tokens=1_070_967,
+        cache_write_tokens=88_869,
+    )
+    assert cost == pytest.approx(3.57704175, abs=0.0005)
+
+
 def test_fable_5_1_cache_reads_bill_at_the_published_quarter_rate() -> None:
     # Fable 5.1 reads are 0.025x base input ($0.25 on $10), not the 0.1x every
     # other Claude model uses — guards the entry against a "consistency" fix.

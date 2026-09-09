@@ -48,6 +48,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   concurrency group is now scoped per calling workflow so the publish-embedded
   gate no longer cancels the standalone push-triggered one. ([#74])
 
+### Security
+- **Pinned `aiohttp>=3.14.3`, `cryptography>=50.0.0` and `h2>=4.4.1`** (all
+  transitive) to address PYSEC-2026-3545 / 3546 / 3547 (aiohttp),
+  PYSEC-2026-3552 (cryptography) and PYSEC-2026-3628 (h2). ([#81])
+
 ## [0.5.0] — 2026-06-24
 
 ### Added
@@ -639,4 +644,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#73]: https://github.com/NoesisVision/nasde-toolkit/pull/73
 [#74]: https://github.com/NoesisVision/nasde-toolkit/pull/74
 [#77]: https://github.com/NoesisVision/nasde-toolkit/pull/77
+[#81]: https://github.com/NoesisVision/nasde-toolkit/pull/81
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

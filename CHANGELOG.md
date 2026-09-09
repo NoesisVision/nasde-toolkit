@@ -54,6 +54,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 - Quality Gate no longer shows a spurious red ✗ on `main` after a release: the
   concurrency group is now scoped per calling workflow so the publish-embedded
   gate no longer cancels the standalone push-triggered one. ([#74])
+- `uv tool install` / `pip install` from a fresh resolver no longer produces a
+  `nasde` that dies on `ModuleNotFoundError: No module named 'typer._click'`:
+  the `typer` floor is raised from `>=0.16` to `>=0.26` — `cli.py` has imported
+  `typer._click` (the vendored Click) since the harbor 0.13 bump, but the floor
+  was never lifted, so an unlocked resolve could still pick typer 0.25. ([#82])
 
 ### Security
 - **Pinned `aiohttp>=3.14.3`, `cryptography>=50.0.0` and `h2>=4.4.1`** (all
@@ -654,4 +659,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#78]: https://github.com/NoesisVision/nasde-toolkit/pull/78
 [#80]: https://github.com/NoesisVision/nasde-toolkit/pull/80
 [#81]: https://github.com/NoesisVision/nasde-toolkit/pull/81
+[#82]: https://github.com/NoesisVision/nasde-toolkit/pull/82
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

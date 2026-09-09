@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-    "typer>=0.16",
+    "typer>=0.26",
     "rich>=14.1,<16",
     "platformdirs>=4.0",
     "packaging>=25,<26",

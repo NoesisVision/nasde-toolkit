@@ -9,6 +9,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-11
+
 ### Added
 - Bundled price catalog: `claude-fable-5-1` ($10/$50 per 1M tokens, 1-hour cache
   write $20, **cache read $0.25 — 0.025x base input, not the 0.1x every other
@@ -21,6 +23,24 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   $0.50 / 1-hour cache write $10), verified against the official Anthropic
   pricing page 2026-07-24; the other Claude entries re-verified at the same
   date. ([#77])
+
+- **Judge inputs from calibration round 2 ([#75]).** The evaluator now
+  materializes the agent's full diff into `<trial>/agent_changes.diff` (shared
+  `workspace_diff.capture_patch`, the same code that produces `changes.patch` on
+  export); the judge prompt gets the diffstat inline plus the file for
+  Read/Grep, and the base "How to evaluate" procedure is diff-first whenever a
+  diff exists (the Claude backend grants `--add-dir` on the trial dir).
+  A task-level `assessment_dimensions.json` now overrides the benchmark-wide
+  file (`resolve_dimensions_path`) — a different rubric yields a different
+  fingerprint, so per-task evals are never averaged with old ones. An optional
+  task-level `precheck.sh` runs on the host before the judge: its JSON output
+  is injected into the prompt as ground facts and recorded in each
+  `assessment_eval_<N>.json`; a `normalized_score_cap` (0..1) in that JSON is
+  enforced as a hard ceiling, with the uncapped score kept alongside so a
+  capped result stays explainable. `nasde eval` gains `--eval-model` /
+  `--eval-backend` per-run judge overrides (judge-model comparison matrices),
+  and `nasde calibrate publish` bundles the resolved per-task dimensions plus
+  `ground_truth_decisions.json` into `.calibration/`.
 
 ### Changed
 - **Cost is now cache-aware ([ADR-014](docs/adr/014-cache-aware-cost.md)) — supersedes ADR-011's
@@ -35,7 +55,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   `input × input_rate + output × output_rate`). A model entry missing cache rates
   bills those volumes at the full input rate — conservative, never a silent
   discount. Historical exports need a one-shot economics backfill to reprice.
-- **Harbor bumped from 0.13 to 0.19** (`harbor[daytona,modal,e2b,runloop,gke]>=0.19,<0.20`).
+- **Harbor bumped from 0.13 to 0.19** (`harbor[daytona,modal,e2b,runloop,gke]>=0.19,<0.20`, [#76]).
   The Python-API surface nasde drives (`JobConfig.model_validate`, `Job.create`,
   `job.run()`, `AgentConfig` `import_path`/`kwargs`/`skills`/`mcp_servers`/`env`)
   is unchanged; the native skill-injection contract (ADR-012) moved from
@@ -610,7 +630,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.2...v0.3.3
@@ -655,6 +676,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#71]: https://github.com/NoesisVision/nasde-toolkit/pull/71
 [#73]: https://github.com/NoesisVision/nasde-toolkit/pull/73
 [#74]: https://github.com/NoesisVision/nasde-toolkit/pull/74
+[#75]: https://github.com/NoesisVision/nasde-toolkit/pull/75
+[#76]: https://github.com/NoesisVision/nasde-toolkit/pull/76
 [#77]: https://github.com/NoesisVision/nasde-toolkit/pull/77
 [#78]: https://github.com/NoesisVision/nasde-toolkit/pull/78
 [#80]: https://github.com/NoesisVision/nasde-toolkit/pull/80

@@ -9,61 +9,52 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-11
+
 ### Added
-- Bundled price catalog: `claude-fable-5-1` ($10/$50 per 1M tokens, 1-hour cache
-  write $20, **cache read $0.25 — 0.025x base input, not the 0.1x every other
-  Claude model uses**), verified against the official Anthropic pricing page
-  2026-09-04; the other Claude entries re-verified at the same date. ([#80])
-- Bundled price catalog: `claude-sonnet-5` ($2/$10 per 1M tokens, cache read
-  $0.20 / 1-hour cache write $4), verified against the official Anthropic
-  pricing page 2026-08-24. ([#78])
-- Bundled price catalog: `claude-opus-5` ($5/$25 per 1M tokens, cache read
-  $0.50 / 1-hour cache write $10), verified against the official Anthropic
-  pricing page 2026-07-24; the other Claude entries re-verified at the same
-  date. ([#77])
+- Bundled prices for `claude-fable-5-1` ($10/$50 per 1M tokens; cache read
+  $0.25 = 0.025x input, unlike the 0.1x of other Claude models),
+  `claude-sonnet-5` ($2/$10) and `claude-opus-5` ($5/$25), verified against the
+  Anthropic pricing page on 2026-09-04. Trials on these models get `cost_usd`
+  out of the box. ([#77], [#78], [#80])
+- The judge now reviews the agent's actual diff first: the evaluator writes it
+  to `<trial>/agent_changes.diff` and hands it to the judge, so scores are
+  grounded in what changed rather than in the agent's own narrative. ([#75])
+- Per-task `assessment_dimensions.json`: a task can override the benchmark-wide
+  dimensions. Different rubrics get different fingerprints and are never
+  averaged together. ([#75])
+- Optional task-level `precheck.sh`: deterministic host-side checks whose JSON
+  output is given to the judge as ground facts and recorded in every
+  evaluation. A `normalized_score_cap` in that output enforces a hard ceiling
+  for mechanically disqualified trials; the uncapped score is kept alongside.
+  ([#75])
+- `nasde eval --eval-model` / `--eval-backend` swap the judge for one run
+  without editing `nasde.toml`, for judge-model comparison matrices.
+  `nasde calibrate publish` now bundles the per-task dimensions and
+  `ground_truth_decisions.json` for reviewers. ([#75])
 
 ### Changed
-- **Cost is now cache-aware ([ADR-014](docs/adr/014-cache-aware-cost.md)) — supersedes ADR-011's
-  "as if every run were the first" formula.** `cost_usd` bills fresh input at the
-  full rate, cache writes at the new per-model `cache_write_per_1m` (Anthropic
-  1-hour mode: 2× input), cache reads at `cached_input_per_1m` (0.1×), and output
-  at the output rate — matching what the API would bill (verified against Harbor's
-  per-step accounting to the cent on 20 of 24 grid trials). Rationale: measured
-  cache read ratios are a stable 93–98% of input across a full 24-trial grid, and
-  the old full-rate figure sat ~4.4× above a real bill. `token_usage` gains
-  `cache_write_tokens`; the cache-free ceiling is no longer stored (derivable as
-  `input × input_rate + output × output_rate`). A model entry missing cache rates
-  bills those volumes at the full input rate — conservative, never a silent
-  discount. Historical exports need a one-shot economics backfill to reprice.
-- **Harbor bumped from 0.13 to 0.19** (`harbor[daytona,modal,e2b,runloop,gke]>=0.19,<0.20`).
-  The Python-API surface nasde drives (`JobConfig.model_validate`, `Job.create`,
-  `job.run()`, `AgentConfig` `import_path`/`kwargs`/`skills`/`mcp_servers`/`env`)
-  is unchanged; the native skill-injection contract (ADR-012) moved from
-  `BaseInstalledAgent._build_register_skills_command` to per-agent implementations
-  upstream but keeps the same `$HOME/.agents/skills` / `~/.gemini/skills` targets.
-  Unlocks ~10 new built-in Harbor agents (pi, grok-build, langgraph, deerflow,
-  eve, mimo, computer-1, acp, vibe, …) and agent `skills` entries as git
-  references (`org/name@ref`). The dependency tree also slims down (pandas,
-  numpy, pyarrow, mcp no longer pulled in). Verified: 463 tests green, pip-audit
-  clean, and a full smoke run (`ddd-threshold-discount`, claude-vanilla) with
-  non-null cache-aware token/cost economics on a fresh 0.19 trajectory.
-- Added the NASDE branding source assets and updated the README and
-  documentation website to use the new brand. ([#73])
+- Cost is now cache-aware ([ADR-014](docs/adr/014-cache-aware-cost.md)):
+  `cost_usd` bills cache reads and writes at their per-model rates, matching the
+  real API bill instead of a ~4x overestimate. `token_usage` gains
+  `cache_write_tokens`; a model without cache rates falls back to the full input
+  rate, never a silent discount. Historical exports need a one-shot backfill to
+  reprice.
+- Harbor bumped from 0.13 to 0.19 ([#76]): unlocks ~10 new built-in Harbor
+  agents and git-referenced agent skills (`org/name@ref`), with a smaller
+  dependency tree. Nothing changes in nasde's config or CLI.
+- NASDE branding applied to the README and the documentation website. ([#73])
 
 ### Fixed
-- Quality Gate no longer shows a spurious red ✗ on `main` after a release: the
-  concurrency group is now scoped per calling workflow so the publish-embedded
-  gate no longer cancels the standalone push-triggered one. ([#74])
-- `uv tool install` / `pip install` from a fresh resolver no longer produces a
-  `nasde` that dies on `ModuleNotFoundError: No module named 'typer._click'`:
-  the `typer` floor is raised from `>=0.16` to `>=0.26` — `cli.py` has imported
-  `typer._click` (the vendored Click) since the harbor 0.13 bump, but the floor
-  was never lifted, so an unlocked resolve could still pick typer 0.25. ([#82])
+- Fresh installs (`uv tool install`, `pip install`) could fail with
+  `ModuleNotFoundError: No module named 'typer._click'`; the `typer` floor is
+  raised to `>=0.26`. ([#82])
+- Quality Gate no longer shows a spurious red ✗ on `main` after a release.
+  ([#74])
 
 ### Security
-- **Pinned `aiohttp>=3.14.3`, `cryptography>=50.0.0` and `h2>=4.4.1`** (all
-  transitive) to address PYSEC-2026-3545 / 3546 / 3547 (aiohttp),
-  PYSEC-2026-3552 (cryptography) and PYSEC-2026-3628 (h2). ([#81])
+- Pinned `aiohttp>=3.14.3`, `cryptography>=50.0.0` and `h2>=4.4.1` (transitive)
+  for PYSEC-2026-3545/3546/3547, PYSEC-2026-3552 and PYSEC-2026-3628. ([#81])
 
 ## [0.5.0] — 2026-06-24
 
@@ -610,7 +601,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.2...v0.3.3
@@ -655,6 +647,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#71]: https://github.com/NoesisVision/nasde-toolkit/pull/71
 [#73]: https://github.com/NoesisVision/nasde-toolkit/pull/73
 [#74]: https://github.com/NoesisVision/nasde-toolkit/pull/74
+[#75]: https://github.com/NoesisVision/nasde-toolkit/pull/75
+[#76]: https://github.com/NoesisVision/nasde-toolkit/pull/76
 [#77]: https://github.com/NoesisVision/nasde-toolkit/pull/77
 [#78]: https://github.com/NoesisVision/nasde-toolkit/pull/78
 [#80]: https://github.com/NoesisVision/nasde-toolkit/pull/80

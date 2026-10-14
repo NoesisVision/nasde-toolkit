@@ -128,6 +128,18 @@ def test_opus_5_5_and_sonnet_5_5_cache_reads_bill_at_the_published_half_rate() -
     ) == pytest.approx(0.10 + 1.0)
 
 
+def test_gpt_5_6_and_gpt_6_families_bill_cache_writes() -> None:
+    # Unlike gpt-5.5 and older, the GPT-5.6 / GPT-6 families list a cache-write
+    # rate (1.25x base input) — it must be a live input, not the base-rate fallback.
+    pricing = load_pricing()
+    assert pricing["gpt-5.6-sol"].cache_write_per_1m == 5.0
+    assert pricing["gpt-6.1-sol"].cached_input_per_1m == 0.10
+    assert pricing["gpt-5.5"].cache_write_per_1m is None
+    assert compute_cost_usd(1_000_000, 100_000, "gpt-5.6-sol", pricing, cache_write_tokens=1_000_000) == pytest.approx(
+        5.0 + 2.0
+    )
+
+
 def test_claude_haiku_5_5_is_deliberately_unsupported() -> None:
     # Tiered pricing (<=100K vs >100K prompts) has no representation in
     # ModelPrice, so the model is absent on purpose: an unpriced model yields
@@ -150,7 +162,7 @@ def test_compute_cost_unknown_model_returns_none() -> None:
 
 def test_pricing_as_of_unknown_model_is_none() -> None:
     assert pricing_as_of("nonexistent-model", load_pricing()) is None
-    assert pricing_as_of("gpt-5.4", load_pricing()) == "2026-06-08"
+    assert pricing_as_of("gpt-5.4", load_pricing()) == "2026-10-14"
 
 
 def test_layered_no_overrides_returns_bundled(tmp_path: Path, empty_user_layer: Path) -> None:
@@ -213,20 +225,7 @@ def test_layered_three_layers_compose(tmp_path: Path, empty_user_layer: Path) ->
         + _model_block("enterprise-claude", 10.0, 20.0),
     )
     merged = load_pricing_layered(tmp_path)
-    assert set(merged) == {
-        "gpt-5.5",
-        "gpt-5.4",
-        "claude-opus-5-5",
-        "claude-opus-5",
-        "claude-fable-5-1",
-        "claude-fable-5",
-        "claude-opus-4-8",
-        "claude-sonnet-5-5",
-        "claude-sonnet-5",
-        "claude-sonnet-4-6",
-        "azure-gpt5",
-        "enterprise-claude",
-    }
+    assert set(merged) == set(load_pricing()) | {"azure-gpt5", "enterprise-claude"}
     assert merged["gpt-5.5"].input_per_1m == 5.0
     assert merged["gpt-5.4"].input_per_1m == 2.50
     assert merged["claude-opus-4-8"].input_per_1m == 4.0

@@ -17,6 +17,14 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   a later "consistency fix" to 0.1x cannot land silently. Every pre-existing
   rate re-verified and unchanged; `as_of` refreshed across the Claude entries.
   ([#85])
+- Bundled prices for the still-available Claude legacy models
+  `claude-opus-4-7` (the default judge model), `claude-opus-4-6`,
+  `claude-opus-4-5`, `claude-sonnet-4-5` and `claude-haiku-4-5`, and for the
+  OpenAI `gpt-5.6-sol` / `-terra` / `-luna`, `gpt-6-astra`, `gpt-6.1-sol`,
+  `gpt-6-sol`, `gpt-6-luna`, `gpt-5.4-mini` and `gpt-5.3-codex` — so a trial on
+  any of them gets a `cost_usd` instead of `null`. The GPT-5.6 / GPT-6 families
+  bill cache writes (1.25x input), which is now a live cost input for them.
+  OpenAI rates are the ≤272K-context tier. ([#85])
 
 ### Changed
 - `claude-haiku-5-5` is explicitly **unsupported**: it is the only current

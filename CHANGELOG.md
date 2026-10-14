@@ -9,6 +9,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Security
+- **Pinned `pyjwt>=2.15.0`, `urllib3>=2.8.0`, `anyio>=4.14.2`, `multidict>=6.9.1`,
+  `fsspec>=2026.6.0`, `litellm>=1.88.6` and `oauthlib>=4.0.0`** (all transitive)
+  to address 23 advisories, chiefly the October-2026 pyjwt batch
+  (PYSEC-2026-4140..4152, PYSEC-2026-4183) and PYSEC-2026-4175..4177 (urllib3).
+  Resolution also pulls `boto3`/`botocore` into the tree via litellm 1.105. ([#84])
+
 ## [0.6.0] — 2026-09-11
 
 ### Added
@@ -654,4 +661,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#80]: https://github.com/NoesisVision/nasde-toolkit/pull/80
 [#81]: https://github.com/NoesisVision/nasde-toolkit/pull/81
 [#82]: https://github.com/NoesisVision/nasde-toolkit/pull/82
+[#84]: https://github.com/NoesisVision/nasde-toolkit/pull/84
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

@@ -9,6 +9,30 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- Bundled prices for `claude-opus-5-5` ($4/$20 per 1M tokens) and
+  `claude-sonnet-5-5` ($2/$10), verified against the Anthropic pricing page on
+  2026-10-14. **Both bill cache reads at 0.05x base input** ($0.20 and $0.10),
+  a second published exception after Fable 5.1's 0.025x — guarded by a test so
+  a later "consistency fix" to 0.1x cannot land silently. Every pre-existing
+  rate re-verified and unchanged; `as_of` refreshed across the Claude entries.
+  ([#85])
+- Bundled prices for the still-available Claude legacy models
+  `claude-opus-4-7` (the default judge model), `claude-opus-4-6`,
+  `claude-opus-4-5`, `claude-sonnet-4-5` and `claude-haiku-4-5`, and for the
+  OpenAI `gpt-5.6-sol` / `-terra` / `-luna`, `gpt-6-astra`, `gpt-6.1-sol`,
+  `gpt-6-sol`, `gpt-6-luna`, `gpt-5.4-mini` and `gpt-5.3-codex` — so a trial on
+  any of them gets a `cost_usd` instead of `null`. The GPT-5.6 / GPT-6 families
+  bill cache writes (1.25x input), which is now a live cost input for them.
+  OpenAI rates are the ≤272K-context tier. ([#85])
+
+### Changed
+- `claude-haiku-5-5` is explicitly **unsupported**: it is the only current
+  Claude model with tiered pricing (≤100K vs >100K prompts), which `ModelPrice`
+  cannot express, so a trial on it reports `cost_usd = null` with a warning
+  instead of a figure that would understate cost ~5x at our prompt sizes.
+  ([#85])
+
 ### Security
 - **Pinned `pyjwt>=2.15.0`, `urllib3>=2.8.0`, `anyio>=4.14.2`, `multidict>=6.9.1`,
   `fsspec>=2026.6.0`, `litellm>=1.88.6` and `oauthlib>=4.0.0`** (all transitive)
@@ -662,4 +686,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#81]: https://github.com/NoesisVision/nasde-toolkit/pull/81
 [#82]: https://github.com/NoesisVision/nasde-toolkit/pull/82
 [#84]: https://github.com/NoesisVision/nasde-toolkit/pull/84
+[#85]: https://github.com/NoesisVision/nasde-toolkit/pull/85
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

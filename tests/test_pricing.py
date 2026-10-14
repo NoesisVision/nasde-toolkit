@@ -112,6 +112,41 @@ def test_fable_5_1_cache_reads_bill_at_the_published_quarter_rate() -> None:
     assert cost == pytest.approx(5.25)
 
 
+def test_opus_5_5_and_sonnet_5_5_cache_reads_bill_at_the_published_half_rate() -> None:
+    # Opus 5.5 and Sonnet 5.5 read at 0.05x base input ($0.20 on $4, $0.10 on
+    # $2) — the second published exception after Fable 5.1's 0.025x. Guards
+    # both entries against a "consistency" fix back to 0.1x.
+    pricing = load_pricing()
+    assert pricing["claude-opus-5-5"].cached_input_per_1m == 0.20
+    assert pricing["claude-sonnet-5-5"].cached_input_per_1m == 0.10
+    # 1M prompt tokens, all cache reads, 0.1M output
+    assert compute_cost_usd(
+        1_000_000, 100_000, "claude-opus-5-5", pricing, cache_read_tokens=1_000_000
+    ) == pytest.approx(0.20 + 2.0)
+    assert compute_cost_usd(
+        1_000_000, 100_000, "claude-sonnet-5-5", pricing, cache_read_tokens=1_000_000
+    ) == pytest.approx(0.10 + 1.0)
+
+
+def test_gpt_5_6_and_gpt_6_families_bill_cache_writes() -> None:
+    # Unlike gpt-5.5 and older, the GPT-5.6 / GPT-6 families list a cache-write
+    # rate (1.25x base input) — it must be a live input, not the base-rate fallback.
+    pricing = load_pricing()
+    assert pricing["gpt-5.6-sol"].cache_write_per_1m == 5.0
+    assert pricing["gpt-6.1-sol"].cached_input_per_1m == 0.10
+    assert pricing["gpt-5.5"].cache_write_per_1m is None
+    assert compute_cost_usd(1_000_000, 100_000, "gpt-5.6-sol", pricing, cache_write_tokens=1_000_000) == pytest.approx(
+        5.0 + 2.0
+    )
+
+
+def test_claude_haiku_5_5_is_deliberately_unsupported() -> None:
+    # Tiered pricing (<=100K vs >100K prompts) has no representation in
+    # ModelPrice, so the model is absent on purpose: an unpriced model yields
+    # cost_usd = None rather than a figure that understates cost ~5x.
+    assert "claude-haiku-5-5" not in load_pricing()
+
+
 def test_compute_cost_missing_cache_rates_falls_back_to_full_rate(tmp_path: Path) -> None:
     custom = tmp_path / "pricing.toml"
     custom.write_text('[models."bare"]\ninput_per_1m = 2.0\noutput_per_1m = 10.0\n')
@@ -127,7 +162,7 @@ def test_compute_cost_unknown_model_returns_none() -> None:
 
 def test_pricing_as_of_unknown_model_is_none() -> None:
     assert pricing_as_of("nonexistent-model", load_pricing()) is None
-    assert pricing_as_of("gpt-5.4", load_pricing()) == "2026-06-08"
+    assert pricing_as_of("gpt-5.4", load_pricing()) == "2026-10-14"
 
 
 def test_layered_no_overrides_returns_bundled(tmp_path: Path, empty_user_layer: Path) -> None:
@@ -190,18 +225,7 @@ def test_layered_three_layers_compose(tmp_path: Path, empty_user_layer: Path) ->
         + _model_block("enterprise-claude", 10.0, 20.0),
     )
     merged = load_pricing_layered(tmp_path)
-    assert set(merged) == {
-        "gpt-5.5",
-        "gpt-5.4",
-        "claude-opus-5",
-        "claude-fable-5-1",
-        "claude-fable-5",
-        "claude-opus-4-8",
-        "claude-sonnet-5",
-        "claude-sonnet-4-6",
-        "azure-gpt5",
-        "enterprise-claude",
-    }
+    assert set(merged) == set(load_pricing()) | {"azure-gpt5", "enterprise-claude"}
     assert merged["gpt-5.5"].input_per_1m == 5.0
     assert merged["gpt-5.4"].input_per_1m == 2.50
     assert merged["claude-opus-4-8"].input_per_1m == 4.0

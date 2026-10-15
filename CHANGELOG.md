@@ -22,6 +22,23 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   default, the `nasde-benchmark-runner` skill and the pricing-override docs
   follow suit. Published experiment results keep the models they were run on
   (recorded per trial); tag `v0.7.0` holds the previous example setup. ([#89])
+- **Harbor 0.19 → 0.24 and Opik 2.0 → 2.2.** No change to `nasde.toml`,
+  `variant.toml`, the benchmark layout or trial artifacts. Harbor 0.20–0.24
+  rework the installed-agent internals (options model, ACP mode) but keep every
+  contract nasde relies on: `config.agent.skills` native skill injection
+  (ADR-012), Codex `CODEX_FORCE_AUTH_JSON` OAuth opt-in, task `mcp_servers`,
+  trajectory `final_metrics`, and the `reasoning_effort` agent kwarg. Opik's
+  Harbor integration is unchanged apart from a once-per-process usage event
+  sent when `--with-opik` calls `track_harbor`; the ADR-006 token-usage patch
+  is still required. The Claude/Codex/Gemini agents declare their
+  `sandbox_files` kwarg on Harbor's `options_model`, which the 0.20+ job
+  preflight validates with unknown kwargs forbidden. ([#88])
+
+### Fixed
+- `--with-opik` records one span per agent step. Each step was emitted twice,
+  which doubled the token totals Opik shows for Codex runs; nasde's own
+  `assessment_summary.json` / `metrics.json` economics were not affected.
+  ([#88])
 
 ## [0.7.0] — 2026-10-15
 
@@ -717,6 +734,7 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#84]: https://github.com/NoesisVision/nasde-toolkit/pull/84
 [#85]: https://github.com/NoesisVision/nasde-toolkit/pull/85
 [#86]: https://github.com/NoesisVision/nasde-toolkit/pull/86
+[#88]: https://github.com/NoesisVision/nasde-toolkit/pull/88
 [#89]: https://github.com/NoesisVision/nasde-toolkit/pull/89
 [#90]: https://github.com/NoesisVision/nasde-toolkit/pull/90
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

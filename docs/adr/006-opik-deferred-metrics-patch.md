@@ -17,6 +17,7 @@ Apply the fix as a **runtime monkey-patch** in `runner.py` instead of a vendor `
 
 - `__init__`: stashes Opik trace context on the Step instance; emits spans immediately for non-agent steps (which never receive metrics).
 - `__setattr__`: when `metrics` is assigned, creates the Opik span with token usage data at that point.
+- The re-patch wraps Harbor's **original** `Step.__init__` (`Step.__init__.__wrapped__`, exposed by opik's `functools.wraps`), so it *replaces* opik's eager span instead of stacking on it. Wrapping opik's patched `__init__` emitted every step twice — and for agents that pass `metrics` to the constructor (Codex), both copies carried usage, doubling Opik's token totals. Guarded by `tests/test_opik_step_patch.py` (2026-10, PR #88).
 
 ## Rationale
 

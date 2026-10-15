@@ -42,8 +42,9 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from harbor.agents.installed.codex import Codex
+from harbor.agents.installed.codex import Codex, CodexOptions
 from harbor.environments.base import BaseEnvironment
+from pydantic import Field
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,21 @@ _DNS_FIX_COMMAND = (
     "timeout 5 getent hosts api.openai.com >/dev/null 2>&1"
     " || printf 'nameserver 8.8.8.8\\nnameserver 1.1.1.1\\n' > /etc/resolv.conf"
 )
+
+
+class ConfigurableCodexOptions(CodexOptions):
+    """CodexOptions plus nasde's ``sandbox_files`` kwarg.
+
+    Harbor's preflight validates raw kwargs against ``options_model`` with
+    ``extra="forbid"`` before the agent is constructed, so every nasde kwarg
+    must be declared here. The field has no ``Cli``/``Env`` annotation and is
+    therefore never rendered into the agent command or environment.
+    """
+
+    sandbox_files: dict[str, str] | None = Field(
+        default=None,
+        description="Container path -> host file path, uploaded into the sandbox during setup().",
+    )
 
 
 class ConfigurableCodex(Codex):
@@ -61,6 +77,8 @@ class ConfigurableCodex(Codex):
             Each entry is uploaded into the sandbox during setup() before
             the agent starts. Paths are resolved relative to CWD.
     """
+
+    options_model = ConfigurableCodexOptions
 
     def __init__(
         self,

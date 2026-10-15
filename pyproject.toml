@@ -34,8 +34,8 @@ dependencies = [
     # novita-sandbox==2.0.0a3 (no stable 2.x exists) and breaks `uv lock`. We
     # list only the providers nasde documents and supports. Add a provider here
     # if README's harbor-env table grows.
-    "harbor[daytona,modal,e2b,runloop,gke]>=0.19,<0.20",
-    "opik>=2,<3",
+    "harbor[daytona,modal,e2b,runloop,gke]>=0.24,<0.25",
+    "opik>=2.2,<3",
     # Transitive via harbor/opik. Lower bound satisfies both GHSA-xqmj-j6mv-4862
     # (litellm <1.83.7), harbor's own floor (>=1.83.14) and PYSEC-2026-4066
     # (litellm <1.88.6).

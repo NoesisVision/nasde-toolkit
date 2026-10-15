@@ -928,6 +928,9 @@ def _patch_opik_deferred_metrics() -> None:
 
     This re-patches Step so that ``__init__`` only stashes the Opik trace context,
     and span creation is deferred to ``__setattr__`` when ``metrics`` is set.
+    It wraps Harbor's original ``__init__`` (unwrapping opik's ``functools.wraps``
+    layer), replacing opik's eager span rather than stacking on it — otherwise
+    every step is emitted twice and Opik double-counts tokens.
 
     Origin: SDLC repo commit 66c2c11 (2026-03-09).
     Remove when: opik changelog mentions harbor token/metrics fix.
@@ -1021,7 +1024,7 @@ def _patch_opik_deferred_metrics() -> None:
         except Exception:
             pass
 
-    original_init = Step.__init__
+    original_init = getattr(Step.__init__, "__wrapped__", Step.__init__)
 
     def patched_init(self: Step, *args: Any, **kwargs: Any) -> None:
         original_init(self, *args, **kwargs)

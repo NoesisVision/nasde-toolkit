@@ -17,8 +17,8 @@ from nasde_toolkit.agents.configurable_codex import ConfigurableCodex
 from nasde_toolkit.agents.configurable_gemini import ConfigurableGemini
 
 AGENT_CASES = [
-    (ConfigurableClaude, "claude-sonnet-4-6", "/app/CLAUDE.md"),
-    (ConfigurableCodex, "gpt-5.4", "/app/AGENTS.md"),
+    (ConfigurableClaude, "claude-sonnet-5-5", "/app/CLAUDE.md"),
+    (ConfigurableCodex, "gpt-6.1-sol", "/app/AGENTS.md"),
     (ConfigurableGemini, "google/gemini-3-flash-preview", "/app/GEMINI.md"),
 ]
 

@@ -4,7 +4,7 @@ version = "1.0.0"
 
 [defaults]
 variant = "claude-vanilla"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 timeout_sec = 1800
 
 [docker]

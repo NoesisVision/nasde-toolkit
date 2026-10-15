@@ -78,7 +78,7 @@ def test_claude_backend_validate_auth_tolerates_missing_env_credentials(monkeypa
 
 def test_claude_backend_builds_command(tmp_path: Path) -> None:
     backend = ClaudeSubprocessBackend()
-    eval_config = EvaluationConfig(model="claude-sonnet-4-6", max_turns=10)
+    eval_config = EvaluationConfig(model="claude-sonnet-5-5", max_turns=10)
     cmd = backend._build_command(
         workspace_path=tmp_path,
         eval_config=eval_config,
@@ -90,7 +90,7 @@ def test_claude_backend_builds_command(tmp_path: Path) -> None:
     assert "--output-format" in cmd
     assert "json" in cmd
     assert "--model" in cmd
-    assert "claude-sonnet-4-6" in cmd
+    assert "claude-sonnet-5-5" in cmd
     assert "--max-turns" in cmd
     assert "10" in cmd
     assert "--bare" not in cmd

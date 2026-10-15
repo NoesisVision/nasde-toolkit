@@ -171,9 +171,9 @@ def test_layered_no_overrides_returns_bundled(tmp_path: Path, empty_user_layer: 
 
 
 def test_layered_project_overrides_bundled(tmp_path: Path, empty_user_layer: Path) -> None:
-    _write_pricing(tmp_path, _model_block("claude-sonnet-4-6", 99.0, 1.0))
+    _write_pricing(tmp_path, _model_block("claude-sonnet-5-5", 99.0, 1.0))
     merged = load_pricing_layered(tmp_path)
-    assert merged["claude-sonnet-4-6"].input_per_1m == 99.0
+    assert merged["claude-sonnet-5-5"].input_per_1m == 99.0
     assert merged["gpt-5.5"].input_per_1m == load_pricing()["gpt-5.5"].input_per_1m
 
 
@@ -186,17 +186,17 @@ def test_layered_project_adds_new_model(tmp_path: Path, empty_user_layer: Path) 
 
 def test_layered_user_layer_applied(tmp_path: Path, empty_user_layer: Path) -> None:
     empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
-    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0))
+    empty_user_layer.write_text(_model_block("claude-opus-5-5", 4.0, 1.0))
     merged = load_pricing_layered(tmp_path)
-    assert merged["claude-opus-4-8"].input_per_1m == 4.0
+    assert merged["claude-opus-5-5"].input_per_1m == 4.0
 
 
 def test_layered_project_beats_user(tmp_path: Path, empty_user_layer: Path) -> None:
     empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
-    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0))
-    _write_pricing(tmp_path, _model_block("claude-opus-4-8", 6.0, 2.0))
+    empty_user_layer.write_text(_model_block("claude-opus-5-5", 4.0, 1.0))
+    _write_pricing(tmp_path, _model_block("claude-opus-5-5", 6.0, 2.0))
     merged = load_pricing_layered(tmp_path)
-    assert merged["claude-opus-4-8"].input_per_1m == 6.0
+    assert merged["claude-opus-5-5"].input_per_1m == 6.0
 
 
 def test_layered_missing_user_file_skipped(tmp_path: Path, empty_user_layer: Path) -> None:
@@ -206,21 +206,21 @@ def test_layered_missing_user_file_skipped(tmp_path: Path, empty_user_layer: Pat
 
 
 def test_layered_whole_entry_replacement(tmp_path: Path, empty_user_layer: Path) -> None:
-    bundled = load_pricing()["claude-sonnet-4-6"]
+    bundled = load_pricing()["claude-sonnet-5-5"]
     assert bundled.cached_input_per_1m is not None and bundled.source
-    _write_pricing(tmp_path, _model_block("claude-sonnet-4-6", 2.0, 1.0))
+    _write_pricing(tmp_path, _model_block("claude-sonnet-5-5", 2.0, 1.0))
     merged = load_pricing_layered(tmp_path)
-    assert merged["claude-sonnet-4-6"].input_per_1m == 2.0
-    assert merged["claude-sonnet-4-6"].cached_input_per_1m is None
-    assert merged["claude-sonnet-4-6"].source == ""
+    assert merged["claude-sonnet-5-5"].input_per_1m == 2.0
+    assert merged["claude-sonnet-5-5"].cached_input_per_1m is None
+    assert merged["claude-sonnet-5-5"].source == ""
 
 
 def test_layered_three_layers_compose(tmp_path: Path, empty_user_layer: Path) -> None:
     empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
-    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0) + _model_block("azure-gpt5", 1.0, 2.0))
+    empty_user_layer.write_text(_model_block("claude-opus-5-5", 4.0, 1.0) + _model_block("azure-gpt5", 1.0, 2.0))
     _write_pricing(
         tmp_path,
-        _model_block("claude-sonnet-4-6", 2.0, 1.0)
+        _model_block("claude-sonnet-5-5", 2.0, 1.0)
         + _model_block("azure-gpt5", 0.5, 1.0)
         + _model_block("enterprise-claude", 10.0, 20.0),
     )
@@ -228,8 +228,8 @@ def test_layered_three_layers_compose(tmp_path: Path, empty_user_layer: Path) ->
     assert set(merged) == set(load_pricing()) | {"azure-gpt5", "enterprise-claude"}
     assert merged["gpt-5.5"].input_per_1m == 5.0
     assert merged["gpt-5.4"].input_per_1m == 2.50
-    assert merged["claude-opus-4-8"].input_per_1m == 4.0
-    assert merged["claude-sonnet-4-6"].input_per_1m == 2.0
+    assert merged["claude-opus-5-5"].input_per_1m == 4.0
+    assert merged["claude-sonnet-5-5"].input_per_1m == 2.0
     assert merged["azure-gpt5"].input_per_1m == 0.5
     assert merged["enterprise-claude"].input_per_1m == 10.0
 
@@ -253,22 +253,22 @@ def test_resolve_layers_no_overrides_is_bundled_only(tmp_path: Path, empty_user_
 
 def test_resolve_layers_three_present(tmp_path: Path, empty_user_layer: Path) -> None:
     empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
-    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0))
+    empty_user_layer.write_text(_model_block("claude-opus-5-5", 4.0, 1.0))
     _write_pricing(tmp_path, _model_block("my-model", 7.0, 8.0))
     layers = {layer.name: layer for layer in resolve_pricing_layers(tmp_path)}
     assert set(layers) == {"bundled", "user", "project"}
-    assert set(layers["user"].models) == {"claude-opus-4-8"}
+    assert set(layers["user"].models) == {"claude-opus-5-5"}
     assert set(layers["project"].models) == {"my-model"}
     assert layers["project"].path == tmp_path / "pricing.toml"
 
 
 def test_effective_pricing_with_source_three_layers(tmp_path: Path, empty_user_layer: Path) -> None:
     empty_user_layer.parent.mkdir(parents=True, exist_ok=True)
-    empty_user_layer.write_text(_model_block("claude-opus-4-8", 4.0, 1.0) + _model_block("azure-gpt5", 1.0, 2.0))
+    empty_user_layer.write_text(_model_block("claude-opus-5-5", 4.0, 1.0) + _model_block("azure-gpt5", 1.0, 2.0))
     _write_pricing(tmp_path, _model_block("azure-gpt5", 0.5, 1.0) + _model_block("enterprise-claude", 10.0, 20.0))
     eff = effective_pricing_with_source(tmp_path)
     assert eff["gpt-5.5"][1] == "bundled"
-    assert eff["claude-opus-4-8"][1] == "user"
+    assert eff["claude-opus-5-5"][1] == "user"
     assert eff["azure-gpt5"][1] == "project"
     assert eff["azure-gpt5"][0].input_per_1m == 0.5
     assert eff["enterprise-claude"][1] == "project"

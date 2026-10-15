@@ -1,5 +1,5 @@
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 # Repo-specific: this skill's examples reference the anemic-refactor codebase's
 # conventions, so it should ONLY run against that task. --all-variants honors this.

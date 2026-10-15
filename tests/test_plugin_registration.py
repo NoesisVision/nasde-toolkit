@@ -341,7 +341,7 @@ def test_stage_referenced_skills_carries_whole_dir(tmp_path: Path) -> None:
     variant_dir = tmp_path / "variants" / "with-skill"
     variant_dir.mkdir(parents=True)
     (variant_dir / "variant.toml").write_text(
-        'agent = "claude"\nmodel = "claude-sonnet-4-6"\n\n[[skill]]\npath = "../../src/skills/analyze-conversation"\n'
+        'agent = "claude"\nmodel = "claude-sonnet-5-5"\n\n[[skill]]\npath = "../../src/skills/analyze-conversation"\n'
     )
     sandbox: dict[str, str] = {}
 
@@ -355,7 +355,7 @@ def test_stage_referenced_skills_carries_whole_dir(tmp_path: Path) -> None:
 def test_stage_referenced_skills_no_entries_is_noop(tmp_path: Path) -> None:
     variant_dir = tmp_path / "variants" / "vanilla"
     variant_dir.mkdir(parents=True)
-    (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "claude-sonnet-4-6"\n')
+    (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "claude-sonnet-5-5"\n')
     sandbox: dict[str, str] = {}
 
     stage_referenced_skills(variant_dir, sandbox, create_ref_worktree)

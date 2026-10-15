@@ -39,7 +39,7 @@ from nasde_toolkit.pricing import load_pricing, load_pricing_layered
 
 def _make_evaluation(
     normalized_score: float,
-    evaluator_model: str = "claude-opus-4-7",
+    evaluator_model: str = "claude-opus-5-5",
     dim_score: int = 8,
     timestamp: str = "2026-06-03T10:00:00+00:00",
     dimensions_fingerprint: str = "fp-default",
@@ -107,36 +107,36 @@ def test_aggregate_mean_std_minmax() -> None:
 
 def test_aggregate_groups_by_evaluator_model_never_mixes() -> None:
     evals = [
-        _make_evaluation(0.6, evaluator_model="claude-opus-4-7", dim_score=6),
-        _make_evaluation(0.7, evaluator_model="claude-opus-4-7", dim_score=7),
+        _make_evaluation(0.6, evaluator_model="claude-opus-5-5", dim_score=6),
+        _make_evaluation(0.7, evaluator_model="claude-opus-5-5", dim_score=7),
         _make_evaluation(0.5, evaluator_model="codex-gpt-5", dim_score=4),
     ]
     summary = _aggregate_evaluations(evals)
 
     by_model = {g.evaluator_model: g for g in summary.groups}
-    assert set(by_model) == {"claude-opus-4-7", "codex-gpt-5"}
-    assert by_model["claude-opus-4-7"].n == 2
+    assert set(by_model) == {"claude-opus-5-5", "codex-gpt-5"}
+    assert by_model["claude-opus-5-5"].n == 2
     assert by_model["codex-gpt-5"].n == 1
-    assert by_model["claude-opus-4-7"].dimensions[0].mean == 6.5
+    assert by_model["claude-opus-5-5"].dimensions[0].mean == 6.5
 
 
 def test_dominant_group_is_max_n() -> None:
     evals = [
-        _make_evaluation(0.6, evaluator_model="claude-opus-4-7"),
-        _make_evaluation(0.7, evaluator_model="claude-opus-4-7"),
+        _make_evaluation(0.6, evaluator_model="claude-opus-5-5"),
+        _make_evaluation(0.7, evaluator_model="claude-opus-5-5"),
         _make_evaluation(0.5, evaluator_model="codex-gpt-5"),
     ]
     summary = _aggregate_evaluations(evals)
 
     dominant = [g for g in summary.groups if g.dominant]
     assert len(dominant) == 1
-    assert dominant[0].evaluator_model == "claude-opus-4-7"
+    assert dominant[0].evaluator_model == "claude-opus-5-5"
 
 
 def test_build_opik_scores_uses_dominant_group_with_std_and_n() -> None:
     evals = [
-        _make_evaluation(0.6, evaluator_model="claude-opus-4-7", dim_score=6),
-        _make_evaluation(0.7, evaluator_model="claude-opus-4-7", dim_score=8),
+        _make_evaluation(0.6, evaluator_model="claude-opus-5-5", dim_score=6),
+        _make_evaluation(0.7, evaluator_model="claude-opus-5-5", dim_score=8),
         _make_evaluation(0.5, evaluator_model="codex-gpt-5", dim_score=4),
     ]
     summary = _aggregate_evaluations(evals)
@@ -144,7 +144,7 @@ def test_build_opik_scores_uses_dominant_group_with_std_and_n() -> None:
     scores = _build_opik_scores("trace-1", group)
 
     by_name = {s["name"]: s for s in scores}
-    assert group.evaluator_model == "claude-opus-4-7"
+    assert group.evaluator_model == "claude-opus-5-5"
     assert by_name["arch_domain_modeling"]["value"] == 0.7
     assert "arch_domain_modeling_std" in by_name
     assert "arch_total" in by_name
@@ -174,7 +174,7 @@ def test_aggregate_same_model_different_fingerprints_yields_two_groups() -> None
     assert set(by_fp) == {"aaa", "bbb"}
     assert by_fp["aaa"].n == 2
     assert by_fp["bbb"].n == 1
-    assert by_fp["aaa"].evaluator_model == "claude-opus-4-7"
+    assert by_fp["aaa"].evaluator_model == "claude-opus-5-5"
 
 
 def test_aggregate_legacy_no_fingerprint_is_empty_cluster() -> None:
@@ -253,7 +253,7 @@ def test_write_assessment_summary_has_no_judge_reasoning_text(tmp_path: Path) ->
 
 def _seed_trajectory(trial_dir: Path) -> None:
     (trial_dir / "config.json").write_text(
-        json.dumps({"agent": {"name": "demo-variant", "model_name": "claude-sonnet-4-6"}})
+        json.dumps({"agent": {"name": "demo-variant", "model_name": "claude-sonnet-5-5"}})
     )
     agent_dir = trial_dir / "agent"
     agent_dir.mkdir()
@@ -278,10 +278,10 @@ def test_assessment_summary_includes_economics(tmp_path: Path) -> None:
 
     summary = _write_assessment_summary(tmp_path, load_pricing())
     assert summary is not None
-    assert summary.model_name == "claude-sonnet-4-6"
+    assert summary.model_name == "claude-sonnet-5-5"
     assert summary.token_usage["total_tokens"] == 1_060_000
-    # sonnet $3/$15/$0.30 cached (ADR-014): fresh 0.2M*3 + cached 0.8M*0.30 + 0.06M*15 = 1.74
-    assert summary.cost_usd == pytest.approx(1.74)
+    # sonnet-5-5 $2/$10/$0.10 cached (ADR-014): fresh 0.2M*2 + cached 0.8M*0.10 + 0.06M*10 = 1.08
+    assert summary.cost_usd == pytest.approx(1.08)
     assert summary.pricing_as_of == "2026-10-14"
     assert not hasattr(summary, "cost_efficiency")  # removed: arbitrary zero → use Pareto front
     assert not hasattr(summary, "token_efficiency")
@@ -299,7 +299,7 @@ def test_evaluator_picks_up_project_pricing_override(tmp_path: Path, monkeypatch
     _write_evaluation_result(trial, _make_evaluation(0.6, dim_score=6))
     project = tmp_path / "project"
     project.mkdir()
-    (project / "pricing.toml").write_text(_model_block("claude-sonnet-4-6", 30.0, 150.0))
+    (project / "pricing.toml").write_text(_model_block("claude-sonnet-5-5", 30.0, 150.0))
 
     summary = _write_assessment_summary(trial, load_pricing_layered(project))
     assert summary is not None
@@ -339,7 +339,7 @@ def test_assessment_summary_economics_null_without_trajectory(tmp_path: Path) ->
 
 def test_assessment_summary_stamps_reasoning_effort_from_config(tmp_path: Path) -> None:
     (tmp_path / "config.json").write_text(
-        json.dumps({"agent": {"name": "v", "model_name": "claude-sonnet-4-6", "kwargs": {"reasoning_effort": "xhigh"}}})
+        json.dumps({"agent": {"name": "v", "model_name": "claude-sonnet-5-5", "kwargs": {"reasoning_effort": "xhigh"}}})
     )
     _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
 
@@ -350,7 +350,7 @@ def test_assessment_summary_stamps_reasoning_effort_from_config(tmp_path: Path) 
 
 def test_assessment_summary_reasoning_effort_empty_when_unset(tmp_path: Path) -> None:
     (tmp_path / "config.json").write_text(
-        json.dumps({"agent": {"name": "v", "model_name": "claude-sonnet-4-6", "kwargs": {}}})
+        json.dumps({"agent": {"name": "v", "model_name": "claude-sonnet-5-5", "kwargs": {}}})
     )
     _write_evaluation_result(tmp_path, _make_evaluation(0.6, dim_score=6))
 

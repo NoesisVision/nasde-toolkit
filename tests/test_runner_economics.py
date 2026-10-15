@@ -49,9 +49,9 @@ def _write_trial(
 
 
 def test_short_label_strips_family_and_skill_prefixes() -> None:
-    assert _short_label("claude-vanilla", "claude-sonnet-4-6") == "vanilla / sonnet-4-6"
-    assert _short_label("claude-ntcoding-tactical-ddd-movie-tuned", "claude-sonnet-4-6") == "movie-tuned / sonnet-4-6"
-    assert _short_label("claude-ntcoding-tactical-ddd", "claude-sonnet-4-6") == "tactical-ddd / sonnet-4-6"
+    assert _short_label("claude-vanilla", "claude-sonnet-5-5") == "vanilla / sonnet-5-5"
+    assert _short_label("claude-ntcoding-tactical-ddd-movie-tuned", "claude-sonnet-5-5") == "movie-tuned / sonnet-5-5"
+    assert _short_label("claude-ntcoding-tactical-ddd", "claude-sonnet-5-5") == "tactical-ddd / sonnet-5-5"
     assert _short_label("codex-vanilla", "gpt-5.4") == "vanilla / gpt-5.4"
 
 
@@ -81,8 +81,8 @@ def test_fmt_tokens_scales_and_shows_spread() -> None:
 
 def test_economics_row_includes_score_std(tmp_path: Path) -> None:
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
-    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.8, 1_000_000, 2.0)
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-5-5", 0.6, 1_000_000, 2.0)
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-5-5", 0.8, 1_000_000, 2.0)
     row = _collect_economics_rows(job)[0]
     assert row["score"] == pytest.approx(0.7)
     assert row["score_std"] == pytest.approx(0.1414, rel=1e-3)
@@ -90,7 +90,7 @@ def test_economics_row_includes_score_std(tmp_path: Path) -> None:
 
 def test_economics_row_single_trial_has_no_std(tmp_path: Path) -> None:
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-5-5", 0.6, 1_000_000, 2.0)
     row = _collect_economics_rows(job)[0]
     assert row["score"] == pytest.approx(0.6)
     assert row["score_std"] is None  # n=1 → no spread
@@ -99,8 +99,8 @@ def test_economics_row_single_trial_has_no_std(tmp_path: Path) -> None:
 def test_economics_row_averages_per_trial(tmp_path: Path) -> None:
     job = tmp_path / "job"
     # two trials of the same (agent, model): tokens 1M and 3M, cost $2 and $6, score 0.6 and 0.8
-    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
-    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.8, 3_000_000, 6.0)
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-5-5", 0.6, 1_000_000, 2.0)
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-5-5", 0.8, 3_000_000, 6.0)
 
     rows = _collect_economics_rows(job)
     assert len(rows) == 1
@@ -109,16 +109,16 @@ def test_economics_row_averages_per_trial(tmp_path: Path) -> None:
     assert row["score"] == pytest.approx(0.7)  # mean of 0.6, 0.8
     assert row["tokens"] == pytest.approx(2_000_000)  # mean tokens, NOT sum
     assert row["cost"] == pytest.approx(4.0)  # mean cost, NOT sum
-    assert row["short_label"] == "vanilla / sonnet-4-6"
-    assert row["full_label"] == "claude-vanilla / claude-sonnet-4-6"
+    assert row["short_label"] == "vanilla / sonnet-5-5"
+    assert row["full_label"] == "claude-vanilla / claude-sonnet-5-5"
     assert "cost_efficiency" not in row  # removed: arbitrary zero → use Pareto front
     assert "token_efficiency" not in row
 
 
 def test_economics_row_raw_metric_std_needs_two_trials(tmp_path: Path) -> None:
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
-    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.8, 3_000_000, 6.0)
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-5-5", 0.6, 1_000_000, 2.0)
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-5-5", 0.8, 3_000_000, 6.0)
     row = _collect_economics_rows(job)[0]
     assert row["tokens_std"] == pytest.approx(_sample_std([1_000_000, 3_000_000]))
     assert row["cost_std"] == pytest.approx(_sample_std([2.0, 6.0]))
@@ -126,7 +126,7 @@ def test_economics_row_raw_metric_std_needs_two_trials(tmp_path: Path) -> None:
 
 def test_economics_row_single_trial_has_no_raw_metric_std(tmp_path: Path) -> None:
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-5-5", 0.6, 1_000_000, 2.0)
     row = _collect_economics_rows(job)[0]
     assert row["tokens_std"] is None  # n=1 → no spread
     assert row["cost_std"] is None
@@ -144,8 +144,8 @@ def test_economics_groups_split_by_model(tmp_path: Path) -> None:
 
 def test_economics_groups_split_by_effort(tmp_path: Path) -> None:
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.7, 1_000_000, 2.0, effort="high")
-    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.9, 1_000_000, 2.0, effort="xhigh")
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-5-5", 0.7, 1_000_000, 2.0, effort="high")
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-5-5", 0.9, 1_000_000, 2.0, effort="xhigh")
 
     rows = _collect_economics_rows(job)
     assert len(rows) == 2  # same agent+model, different effort → two rows, never averaged
@@ -163,7 +163,7 @@ def test_job_dir_from_config_ignores_newer_concurrent_job(tmp_path: Path) -> Non
     jobs_dir = tmp_path / "jobs"
     own = jobs_dir / "2026-06-09__20-29-49__claude-sonnet__own456"
     newer_concurrent = jobs_dir / "2026-06-09__20-30-03__codex-gpt__newer789"
-    _write_trial(own, "t__a", "claude-sonnet", "claude-sonnet-4-6", 0.7, 1_000_000, 2.0)
+    _write_trial(own, "t__a", "claude-sonnet", "claude-sonnet-5-5", 0.7, 1_000_000, 2.0)
     newer_concurrent.mkdir(parents=True)  # newer by name, still running → no result.json yet
 
     newest_by_name = sorted((d for d in jobs_dir.iterdir() if d.is_dir()), key=lambda p: p.name)[-1]
@@ -229,7 +229,7 @@ def test_print_job_summary_renders_economics_for_own_job(
 ) -> None:
     _wide_console(monkeypatch)
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-4-6", 0.6, 1_000_000, 2.0)
+    _write_trial(job, "t__a", "claude-vanilla", "claude-sonnet-5-5", 0.6, 1_000_000, 2.0)
 
     _print_job_summary(_job_result(n_completed=1), job)
 
@@ -241,7 +241,7 @@ def test_print_job_summary_renders_economics_for_own_job(
 def test_economics_row_carries_model_name(tmp_path: Path) -> None:
     job = tmp_path / "job"
     _write_trial(job, "t__a", "codex-vanilla", "gpt-5.4", 0.7, 1000, 1.0)
-    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-4-6", 0.8, 1000, 1.0)
+    _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-5-5", 0.8, 1000, 1.0)
 
     rows = _collect_economics_rows(job)
-    assert {row["model"] for row in rows} == {"gpt-5.4", "claude-sonnet-4-6"}
+    assert {row["model"] for row in rows} == {"gpt-5.4", "claude-sonnet-5-5"}

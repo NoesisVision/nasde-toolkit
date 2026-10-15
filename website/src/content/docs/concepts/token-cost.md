@@ -84,17 +84,17 @@ The precedence is **project > user > bundled**, merged **per model**: each overr
 
 ```toml
 # ~/.nasde/pricing.toml — your enterprise rate for one model; the rest stays bundled
-[models."claude-opus-4-8"]
-input_per_1m = 4.0      # prices use a decimal point (4.0), not a comma
-output_per_1m = 12.0
-as_of = "2026-06-22"    # optional — when you confirmed this rate
+[models."claude-opus-5-5"]
+input_per_1m = 3.5      # prices use a decimal point (3.5), not a comma
+output_per_1m = 17.0
+as_of = "2026-10-15"    # optional — when you confirmed this rate
 source = "internal contract"   # optional — where it came from
 ```
 
 `nasde init` drops a fully-commented `pricing.toml.example` in a new project — copy it to `pricing.toml` and edit, rather than writing one from scratch.
 
 :::caution[The model name must match exactly]
-The key (`claude-opus-4-8` above) must match the `model` in your `variant.toml` — i.e. the `model_name` recorded in each trial. If it doesn't (a typo like `claude-opus-4.8`, or a model you don't actually run), the override is **silently ignored** and the trial keeps the bundled rate — no error. Confirm your override took effect with `--show-source` (below): your model should show layer `project`/`user`, not `bundled`.
+The key (`claude-opus-5-5` above) must match the `model` in your `variant.toml` — i.e. the `model_name` recorded in each trial. If it doesn't (a typo like `claude-opus-5.5`, or a model you don't actually run), the override is **silently ignored** and the trial keeps the bundled rate — no error. Confirm your override took effect with `--show-source` (below): your model should show layer `project`/`user`, not `bundled`.
 :::
 
 ### Verifying the effective catalog
@@ -105,28 +105,28 @@ After dropping an override, **always check it took effect** — run `pricing sho
 nasde pricing show -C ./my-benchmark --show-source
 ```
 
-With a project override of `claude-sonnet-4-6` (to $2.5 / $11), you'll see it win the `project` layer while everything else stays `bundled`:
+With a project override of `claude-sonnet-5-5` (to $1.5 / $8), you'll see it win the `project` layer while everything else stays `bundled`:
 
 ```
                         Effective pricing
 ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
 ┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━┩
-│ claude-opus-4-8   │      $5 │      $15 │ bundled │ 2026-06-08 │
-│ claude-sonnet-4-6 │    $2.5 │      $11 │ project │ 2026-06-24 │
-│ gpt-5.4           │    $2.5 │      $15 │ bundled │ 2026-06-08 │
-│ gpt-5.5           │      $5 │      $30 │ bundled │ 2026-06-08 │
+│ claude-opus-5-5   │      $4 │      $20 │ bundled │ 2026-10-14 │
+│ claude-sonnet-5-5 │    $1.5 │       $8 │ project │ 2026-10-15 │
+│ gpt-5.4           │    $2.5 │      $15 │ bundled │ 2026-10-14 │
+│ gpt-5.5           │      $5 │      $30 │ bundled │ 2026-10-14 │
 └───────────────────┴─────────┴──────────┴─────────┴────────────┘
 ```
 
 #### Catching a silent miss (wrong model name)
 
-This is the failure mode to watch for. Suppose you typo'd the key as `claude-sonnet-4.6` (dot) instead of `claude-sonnet-4-6` (dashes). The override **loads fine — no error** — but it doesn't match the model you actually run, so it just sits there as an extra, unused row while the real model keeps the bundled rate:
+This is the failure mode to watch for. Suppose you typo'd the key as `claude-sonnet-5.5` (dot) instead of `claude-sonnet-5-5` (dashes). The override **loads fine — no error** — but it doesn't match the model you actually run, so it just sits there as an extra, unused row while the real model keeps the bundled rate:
 
 ```
 ┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
-│ claude-sonnet-4-6 │      $3 │      $15 │ bundled │ 2026-06-08 │   ← the model you run: NOT overridden
-│ claude-sonnet-4.6 │    $2.5 │      $11 │ project │ —          │   ← your typo: a dead, unused entry
+│ claude-sonnet-5-5 │      $2 │      $10 │ bundled │ 2026-10-14 │   ← the model you run: NOT overridden
+│ claude-sonnet-5.5 │    $1.5 │       $8 │ project │ —          │   ← your typo: a dead, unused entry
 ```
 
 The tell-tale: **the model you meant to override shows `bundled`, not `project`.** Fix the key to match the `model` in your `variant.toml` and re-run `pricing show`.
@@ -156,10 +156,10 @@ Every `nasde results-export` also writes a `pricing_used.json` next to the expor
 
 ```json
 {
-  "claude-sonnet-4-6": {
-    "input_per_1m": 2.5,
-    "output_per_1m": 11.0,
-    "as_of": "2026-06-24",
+  "claude-sonnet-5-5": {
+    "input_per_1m": 1.5,
+    "output_per_1m": 8.0,
+    "as_of": "2026-10-15",
     "layer": "project"
   }
 }

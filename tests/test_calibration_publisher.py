@@ -24,7 +24,7 @@ from nasde_toolkit.git_platform_backends.git_ops import _apply_agent_patch
 
 def _summary_with_dominant() -> AssessmentSummary:
     dominant = EvaluatorGroupSummary(
-        evaluator_model="claude-opus-4-7",
+        evaluator_model="claude-opus-5-5",
         dimensions_fingerprint="abc123",
         n=3,
         dominant=True,
@@ -52,7 +52,7 @@ def _summary_with_dominant() -> AssessmentSummary:
 
 
 def test_render_pr_body_shows_dominant_dimensions() -> None:
-    body = _render_pr_body(_summary_with_dominant(), {"model_name": "claude-sonnet-4-6", "harbor_reward": 1.0})
+    body = _render_pr_body(_summary_with_dominant(), {"model_name": "claude-sonnet-5-5", "harbor_reward": 1.0})
     assert "domain_modeling" in body
     assert "18.00 ± 1.50" in body
     assert "22.00 ± 0.50" in body

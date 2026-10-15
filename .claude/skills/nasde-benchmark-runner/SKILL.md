@@ -371,16 +371,16 @@ uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
 
 # Or explicit points: name,effort,score,cost_usd,output_tokens (cost may be empty for unpriced).
 uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
-  --point "claude-opus-4-8,,0.92,26.30,69055" \
-  --point "claude-sonnet-4-6,,0.80,8.55,33430" \
+  --point "claude-opus-5-5,,0.92,26.30,69055" \
+  --point "claude-sonnet-5-5,,0.80,8.55,33430" \
   --out /tmp/quality_chart.png
 ```
 
-`--token-axis {output,total}` picks the token panel's x-axis (default `output`, log scale). Trials are grouped by `(agent_name, model_name, reasoning_effort)` — the same key the toolkit uses for run-summary economics — so two variants of the *same* model (e.g. `claude-vanilla` vs `claude-ntcoding-tactical-ddd`, both on `claude-sonnet-4-6`) stay separate points, not one averaged blob. Each group's per-axis std is printed to stdout (n≥2), with an `[n=1 preliminary signal]` flag otherwise. (With `--point` you have no separate agent field, so the point name doubles as the variant.)
+`--token-axis {output,total}` picks the token panel's x-axis (default `output`, log scale). Trials are grouped by `(agent_name, model_name, reasoning_effort)` — the same key the toolkit uses for run-summary economics — so two variants of the *same* model (e.g. `claude-vanilla` vs `claude-ntcoding-tactical-ddd`, both on `claude-sonnet-5-5`) stay separate points, not one averaged blob. Each group's per-axis std is printed to stdout (n≥2), with an `[n=1 preliminary signal]` flag otherwise. (With `--point` you have no separate agent field, so the point name doubles as the variant.)
 
 ### Chart rule — full model version strings, always
 
-- **Never** use bare family names ("sonnet", "opus", "gpt") in labels or legends. **Always** the full version string: `claude-sonnet-4-6`, `claude-opus-4-8`, `gpt-5.3-codex`, `google/gemini-3-flash-preview`.
+- **Never** use bare family names ("sonnet", "opus", "gpt") in labels or legends. **Always** the full version string: `claude-sonnet-5-5`, `claude-opus-5-5`, `gpt-5.3-codex`, `google/gemini-3-flash-preview`.
 - **The reasoning effort must be visible** on the chart/legend too (the generator prints `effort=<value>` per point; `default` when the stamp is empty).
 
 ### Why no scalar "efficiency"
@@ -493,7 +493,7 @@ head -20 jobs/<ts>/<trial>/agent/codex.txt
 Common causes:
 - **`Incorrect API key provided: ''`** — no auth configured. Either run `codex login` (ChatGPT subscription) or set `CODEX_API_KEY`: `export $(grep CODEX_API_KEY .env)`
 - **`model 'X' does not exist`** — wrong model name. Use `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, or `gpt-5.3-codex-spark`
-- **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-4-6`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-5.3-codex"` to `variant.toml` or using `--model gpt-5.3-codex`
+- **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-5-5`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-5.3-codex"` to `variant.toml` or using `--model gpt-5.3-codex`
 - **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools
 - **`Model metadata for 'X' not found`** — warning only, usually followed by the real error
 

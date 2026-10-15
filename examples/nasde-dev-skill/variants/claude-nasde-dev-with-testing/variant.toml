@@ -1,5 +1,5 @@
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 # nasde-dev: referenced from the live source. python-testing: stays as a
 # copy (no live source in this repo).

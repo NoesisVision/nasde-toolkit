@@ -22,7 +22,7 @@ def benchmark_project(tmp_path: Path) -> Path:
         variant_dir = tmp_path / "variants" / variant_name
         variant_dir.mkdir(parents=True)
         (variant_dir / "CLAUDE.md").write_text(f"# {variant_name}")
-        (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "claude-sonnet-4-6"\n')
+        (variant_dir / "variant.toml").write_text('agent = "claude"\nmodel = "claude-sonnet-5-5"\n')
 
     task_dir = tmp_path / "tasks" / "sample"
     task_dir.mkdir(parents=True)
@@ -104,7 +104,7 @@ def test_single_variant_task_scope_aborts_when_no_task_in_scope(mock_run: AsyncM
     scoped.mkdir(parents=True)
     (scoped / "CLAUDE.md").write_text("# scoped")
     (scoped / "variant.toml").write_text(
-        'agent = "claude"\nmodel = "claude-sonnet-4-6"\ntasks = ["nasde/other-task"]\n'
+        'agent = "claude"\nmodel = "claude-sonnet-5-5"\ntasks = ["nasde/other-task"]\n'
     )
     result = runner.invoke(
         app,
@@ -122,7 +122,7 @@ def test_single_variant_task_scope_passes_only_scoped_tasks(mock_run: AsyncMock,
     (scoped / "CLAUDE.md").write_text("# scoped")
     # task names are stored stripped of Harbor's "org/" prefix (nasde/sample -> sample),
     # so the scope must reference the stripped name — same as the --tasks filter does.
-    (scoped / "variant.toml").write_text('agent = "claude"\nmodel = "claude-sonnet-4-6"\ntasks = ["sample"]\n')
+    (scoped / "variant.toml").write_text('agent = "claude"\nmodel = "claude-sonnet-5-5"\ntasks = ["sample"]\n')
     result = runner.invoke(
         app,
         ["run", "--variant", "scoped", "-C", str(benchmark_project)],
@@ -224,13 +224,13 @@ def test_pricing_show_lists_bundled_models(tmp_path: Path) -> None:
     result = runner.invoke(app, ["pricing", "show", "-C", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
-    assert "claude-sonnet-4-6" in result.output
+    assert "claude-sonnet-5-5" in result.output
     assert "Effective pricing" in result.output
 
 
 def test_pricing_show_reflects_project_override(tmp_path: Path) -> None:
     (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n')
-    (tmp_path / "pricing.toml").write_text('[models."claude-sonnet-4-6"]\ninput_per_1m = 42.0\noutput_per_1m = 99.0\n')
+    (tmp_path / "pricing.toml").write_text('[models."claude-sonnet-5-5"]\ninput_per_1m = 42.0\noutput_per_1m = 99.0\n')
 
     result = runner.invoke(app, ["pricing", "show", "-C", str(tmp_path)])
 
@@ -255,8 +255,8 @@ def test_override_eval_judge_sets_model_and_backend() -> None:
     from nasde_toolkit.config import EvaluationConfig, ProjectConfig
 
     config = ProjectConfig(name="test", evaluation=EvaluationConfig())
-    _override_eval_judge(config, model="claude-fable-5", backend="codex")
-    assert config.evaluation.model == "claude-fable-5"
+    _override_eval_judge(config, model="claude-fable-5-1", backend="codex")
+    assert config.evaluation.model == "claude-fable-5-1"
     assert config.evaluation.backend == "codex"
 
 

@@ -9,6 +9,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Changed
+- **Bundled examples run on Claude 5.5.** Every Claude variant in
+  `examples/ddd-architectural-challenges`, `examples/refactoring-skill` and
+  `examples/nasde-dev-skill` uses `claude-sonnet-5-5`, and their reviewer is
+  `claude-opus-5-5`, matching the toolkit defaults. The dogfooding workflow
+  default, the `nasde-benchmark-runner` skill and the pricing-override docs
+  follow suit. Published experiment results keep the models they were run on
+  (recorded per trial); tag `v0.7.0` holds the previous example setup. ([#89])
+
 ## [0.7.0] — 2026-10-15
 
 ### Added
@@ -703,4 +712,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#84]: https://github.com/NoesisVision/nasde-toolkit/pull/84
 [#85]: https://github.com/NoesisVision/nasde-toolkit/pull/85
 [#86]: https://github.com/NoesisVision/nasde-toolkit/pull/86
+[#89]: https://github.com/NoesisVision/nasde-toolkit/pull/89
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

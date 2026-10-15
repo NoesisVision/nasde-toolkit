@@ -46,8 +46,8 @@ From a `nasde results-export` dir (one subdir per trial), scoped to one task:
 Or with explicit points `name,effort,score,cost_usd,output_tokens`:
 
     python pareto.py \
-        --point "claude-opus-4-8,,0.92,26.30,69055" \
-        --point "claude-sonnet-4-6,,0.80,8.55,33430" \
+        --point "claude-opus-5-5,,0.92,26.30,69055" \
+        --point "claude-sonnet-5-5,,0.80,8.55,33430" \
         --out /tmp/quality_vs_cost.png
 
 Trials sharing one (agent, model, effort) are averaged; per-axis inter-trial std

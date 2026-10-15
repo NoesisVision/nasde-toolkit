@@ -10,7 +10,7 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
-model = "claude-opus-4-7"
+model = "claude-opus-5-5"
 dimensions_file = "assessment_dimensions.json"
 skills_dir = "./evaluator_skills"
 

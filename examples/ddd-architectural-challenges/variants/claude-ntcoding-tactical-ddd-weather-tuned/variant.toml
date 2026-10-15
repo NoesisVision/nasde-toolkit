@@ -1,5 +1,5 @@
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 # Repo-specific: this skill's examples reference the DDD-starter codebase's value
 # objects, so it should ONLY run against the DDD-starter tasks. --all-variants honors this.

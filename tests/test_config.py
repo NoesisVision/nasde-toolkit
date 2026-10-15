@@ -87,7 +87,7 @@ def test_evaluation_all_fields_from_toml(tmp_path: Path) -> None:
 name = "test"
 
 [evaluation]
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 dimensions_file = "custom_dims.json"
 max_turns = 50
 allowed_tools = ["Read", "Glob", "Grep", "Bash"]
@@ -99,7 +99,7 @@ eval_repetitions = 5
 """,
     )
     config = load_project_config(tmp_path)
-    assert config.evaluation.model == "claude-sonnet-4-6"
+    assert config.evaluation.model == "claude-sonnet-5-5"
     assert config.evaluation.eval_repetitions == 5
     assert config.evaluation.dimensions_file == "custom_dims.json"
     assert config.evaluation.max_turns == 50
@@ -133,12 +133,12 @@ def test_evaluation_partial_override(tmp_path: Path) -> None:
 name = "test"
 
 [evaluation]
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 max_turns = 15
 """,
     )
     config = load_project_config(tmp_path)
-    assert config.evaluation.model == "claude-sonnet-4-6"
+    assert config.evaluation.model == "claude-sonnet-5-5"
     assert config.evaluation.max_turns == 15
     assert config.evaluation.mcp_config is None
     assert config.evaluation.skills_dir is None

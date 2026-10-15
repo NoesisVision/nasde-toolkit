@@ -1,5 +1,5 @@
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 # nasde-dev is dogfooded — referenced from the live source at
 # .claude/skills/nasde-dev/. The others (python-best-practices, python-testing)

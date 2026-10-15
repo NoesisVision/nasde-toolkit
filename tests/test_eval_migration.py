@@ -10,7 +10,7 @@ import pytest
 from nasde_toolkit.eval_migration import migrate_job_evals, migrate_trial_evals
 
 
-def _eval_payload(normalized_score: float, evaluator_model: str = "claude-opus-4-7") -> dict:
+def _eval_payload(normalized_score: float, evaluator_model: str = "claude-opus-5-5") -> dict:
     return {
         "task_name": "demo-task",
         "trial_name": "demo-task__abc",
@@ -113,7 +113,7 @@ def test_migrate_dry_run_touches_nothing(tmp_path: Path) -> None:
 
 
 def test_migrate_mixed_models_yields_two_groups(tmp_path: Path) -> None:
-    _write(tmp_path, "assessment_eval_1.json", _eval_payload(0.6, evaluator_model="claude-opus-4-7"))
+    _write(tmp_path, "assessment_eval_1.json", _eval_payload(0.6, evaluator_model="claude-opus-5-5"))
     _write(tmp_path, "assessment_eval_2.json", _eval_payload(0.5, evaluator_model="codex-gpt-5"))
 
     outcome = migrate_trial_evals(tmp_path)
@@ -121,12 +121,12 @@ def test_migrate_mixed_models_yields_two_groups(tmp_path: Path) -> None:
     assert outcome == "summarized"
     summary = json.loads((tmp_path / "assessment_summary.json").read_text())
     models = {g["evaluator_model"] for g in summary["groups"]}
-    assert models == {"claude-opus-4-7", "codex-gpt-5"}
+    assert models == {"claude-opus-5-5", "codex-gpt-5"}
 
 
 def _seed_trajectory(trial_dir: Path) -> None:
     (trial_dir / "config.json").write_text(
-        json.dumps({"agent": {"name": "demo-variant", "model_name": "claude-sonnet-4-6"}})
+        json.dumps({"agent": {"name": "demo-variant", "model_name": "claude-sonnet-5-5"}})
     )
     (trial_dir / "result.json").write_text(json.dumps({"trial_name": trial_dir.name}))
     agent_dir = trial_dir / "agent"
@@ -152,7 +152,7 @@ def test_migrate_job_evals_threads_project_pricing(tmp_path: Path) -> None:
     _write(trial, "assessment_eval.json", _eval_payload(0.6))
     project = tmp_path / "project"
     project.mkdir()
-    (project / "pricing.toml").write_text('[models."claude-sonnet-4-6"]\ninput_per_1m = 30.0\noutput_per_1m = 150.0\n')
+    (project / "pricing.toml").write_text('[models."claude-sonnet-5-5"]\ninput_per_1m = 30.0\noutput_per_1m = 150.0\n')
 
     migrate_job_evals(job, project_dir=project)
 

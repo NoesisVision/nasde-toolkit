@@ -197,7 +197,7 @@ def test_load_variant_agent_type_invalid_value_raises(tmp_path: Path) -> None:
 
 
 def test_load_variant_agent_type_missing_field_raises(tmp_path: Path) -> None:
-    (tmp_path / "variant.toml").write_text('model = "o3"')
+    (tmp_path / "variant.toml").write_text('model = "gpt-6.1-sol"')
     with pytest.raises(SystemExit):
         load_variant_agent_type(tmp_path)
 

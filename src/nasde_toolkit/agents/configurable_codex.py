@@ -26,7 +26,7 @@ Usage in harbor_config.json::
     {
       "agents": [{
         "import_path": "nasde_toolkit.agents.configurable_codex:ConfigurableCodex",
-        "model_name": "o3",
+        "model_name": "gpt-6.1-sol",
         "kwargs": {
           "sandbox_files": {
             "/app/AGENTS.md": "path/to/AGENTS.md"

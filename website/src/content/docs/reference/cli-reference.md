@@ -15,7 +15,7 @@ nasde init my-benchmark
 nasde run --variant vanilla -C my-benchmark
 
 # Codex variant (model name is OpenAI-side)
-nasde run --variant codex-baseline --model gpt-5.3-codex -C my-benchmark
+nasde run --variant codex-baseline --model gpt-6.1-sol -C my-benchmark
 
 # Gemini CLI variant
 nasde run --variant gemini-baseline --model google/gemini-3-flash-preview -C my-benchmark

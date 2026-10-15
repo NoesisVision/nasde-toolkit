@@ -269,7 +269,7 @@ def test_codex_backend_validate_auth_fails_without_credentials(monkeypatch: pyte
 
 def test_codex_backend_builds_command(tmp_path: Path) -> None:
     backend = CodexSubprocessBackend()
-    eval_config = EvaluationConfig(backend="codex", model="o3")
+    eval_config = EvaluationConfig(backend="codex", model="gpt-6.1-sol")
     cmd = backend._build_command(
         workspace_path=tmp_path,
         eval_config=eval_config,
@@ -282,7 +282,7 @@ def test_codex_backend_builds_command(tmp_path: Path) -> None:
     assert "--color" in cmd
     assert "never" in cmd
     assert "--model" in cmd
-    assert "o3" in cmd
+    assert "gpt-6.1-sol" in cmd
     assert "--quiet" not in cmd
 
 

@@ -20,7 +20,7 @@ def test_constructor_stores_sandbox_files() -> None:
     agent = ConfigurableCodex(
         sandbox_files=files,
         logs_dir=Path("/tmp/logs"),
-        model_name="o3",
+        model_name="gpt-6.1-sol",
     )
     assert agent._sandbox_files == files
 
@@ -28,7 +28,7 @@ def test_constructor_stores_sandbox_files() -> None:
 def test_constructor_defaults_to_empty_sandbox_files() -> None:
     agent = ConfigurableCodex(
         logs_dir=Path("/tmp/logs"),
-        model_name="o3",
+        model_name="gpt-6.1-sol",
     )
     assert agent._sandbox_files == {}
 
@@ -37,7 +37,7 @@ def test_setup_calls_dns_fix_then_parent_then_upload() -> None:
     agent = ConfigurableCodex(
         sandbox_files={"/app/AGENTS.md": __file__},
         logs_dir=Path("/tmp/logs"),
-        model_name="o3",
+        model_name="gpt-6.1-sol",
     )
 
     env = AsyncMock()
@@ -56,7 +56,7 @@ def test_upload_raises_on_missing_source() -> None:
     agent = ConfigurableCodex(
         sandbox_files={"/app/AGENTS.md": "/nonexistent/path.md"},
         logs_dir=Path("/tmp/logs"),
-        model_name="o3",
+        model_name="gpt-6.1-sol",
     )
 
     env = AsyncMock()

@@ -41,7 +41,7 @@ my-benchmark/
         my-skill/
           SKILL.md
     codex-baseline/            # Codex variant
-      variant.toml             # agent = "codex", model = "gpt-5.3-codex"
+      variant.toml             # agent = "codex", model = "gpt-6.1-sol"
       AGENTS.md                # Codex instructions (injected to /app/AGENTS.md)
     gemini-baseline/           # Gemini CLI variant
       variant.toml             # agent = "gemini", model = "google/gemini-3-flash-preview"

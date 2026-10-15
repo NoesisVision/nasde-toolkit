@@ -188,27 +188,28 @@ Codex variants use `AGENTS.md` (instead of `CLAUDE.md`) and require either `code
 
 ```bash
 # Option A: ChatGPT subscription (no env vars needed after codex login)
-nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark
+nasde run --variant codex-vanilla --model gpt-6.1-sol -C path/to/benchmark
 
-# Option B: API key
+# Option B: API key (takes priority over the subscription whenever CODEX_API_KEY/OPENAI_API_KEY is set)
 export $(grep CODEX_API_KEY .env)
-nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark
+nasde run --variant codex-vanilla --model gpt-6.1-sol -C path/to/benchmark
 ```
 
-**Codex models** (recommended first, as of 2026-03):
-- `gpt-5.4` — flagship frontier model, best overall for professional work
-- `gpt-5.4-mini` — fast, efficient mini model for responsive coding and subagents
-- `gpt-5.3-codex` — industry-leading coding model for complex software engineering
-- `gpt-5.3-codex-spark` — near-instant real-time coding iteration (ChatGPT Pro only)
+**Codex models** (recommended first, as of 2026-10):
+- `gpt-6.1-sol` — latest workhorse model for coding and everyday work (default choice)
+- `gpt-6-astra` — frontier intelligence for the most demanding work
+- `gpt-6-luna` — fast and affordable, for easier tasks
 
-Older alternatives: `gpt-5.2-codex`, `gpt-5.1-codex`, `gpt-5-codex`, `gpt-5-codex-mini`
+Older: `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
+
+The models your account can actually use are listed in `~/.codex/models_cache.json` (written by the Codex CLI) — a model missing there fails at run time.
 
 Codex supports any model compatible with the Responses API. Chat Completions API support is deprecated.
 
 **Setting model in variant.toml** (preferred over --model flag):
 ```toml
 agent = "codex"
-model = "gpt-5.4"
+model = "gpt-6.1-sol"
 ```
 This avoids accidentally inheriting the Claude model from `nasde.toml`.
 
@@ -247,7 +248,7 @@ source scripts/export_oauth_token.sh && export $(grep CODEX_API_KEY .env) && sou
 
 # Run Claude, Codex, and Gemini variants — non-Claude MUST have --model override
 nasde run --variant claude-vanilla -C path/to/benchmark --with-opik &
-nasde run --variant codex-vanilla --model gpt-5.3-codex -C path/to/benchmark --with-opik &
+nasde run --variant codex-vanilla --model gpt-6.1-sol -C path/to/benchmark --with-opik &
 nasde run --variant gemini-vanilla --model google/gemini-3-flash-preview -C path/to/benchmark --with-opik &
 wait
 ```
@@ -332,7 +333,7 @@ Compare points **only** within:
 
 - **ONE task.** Never aggregate across tasks of different difficulty into a single number. This is the **paired-difference principle**: report per-task deltas against a shared baseline, never a cross-task mean. An easy task and a hard task averaged together is a meaningless number.
 - **The same `dimensions_fingerprint`.** A changed rubric (added/removed dimension, changed `max_score`, changed `description`) is a different benchmark and its scores are not comparable.
-- **The same `reasoning_effort`.** Effort is part of the comparison axis. The toolkit groups economics by `(agent_name, model_name, reasoning_effort)`. A trial's artifacts carry a `reasoning_effort` stamp (a string; empty `""` means "not overridden — the Harbor family default"). `gpt-5.3-codex` at `high` and at `low` are two different points, not one.
+- **The same `reasoning_effort`.** Effort is part of the comparison axis. The toolkit groups economics by `(agent_name, model_name, reasoning_effort)`. A trial's artifacts carry a `reasoning_effort` stamp (a string; empty `""` means "not overridden — the Harbor family default"). `gpt-6.1-sol` at `high` and at `low` are two different points, not one.
 
 If the points you are about to plot span more than one task, fingerprint, or effort, **split them into separate charts** — one Pareto chart per `(task, fingerprint, effort)` cell.
 
@@ -380,7 +381,7 @@ uv run --with matplotlib python <SKILL_SCRIPTS>/pareto.py \
 
 ### Chart rule — full model version strings, always
 
-- **Never** use bare family names ("sonnet", "opus", "gpt") in labels or legends. **Always** the full version string: `claude-sonnet-5-5`, `claude-opus-5-5`, `gpt-5.3-codex`, `google/gemini-3-flash-preview`.
+- **Never** use bare family names ("sonnet", "opus", "gpt") in labels or legends. **Always** the full version string: `claude-sonnet-5-5`, `claude-opus-5-5`, `gpt-6.1-sol`, `google/gemini-3-flash-preview`.
 - **The reasoning effort must be visible** on the chart/legend too (the generator prints `effort=<value>` per point; `default` when the stamp is empty).
 
 ### Why no scalar "efficiency"
@@ -492,8 +493,8 @@ head -20 jobs/<ts>/<trial>/agent/codex.txt
 
 Common causes:
 - **`Incorrect API key provided: ''`** — no auth configured. Either run `codex login` (ChatGPT subscription) or set `CODEX_API_KEY`: `export $(grep CODEX_API_KEY .env)`
-- **`model 'X' does not exist`** — wrong model name. Use `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, or `gpt-5.3-codex-spark`
-- **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-5-5`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-5.3-codex"` to `variant.toml` or using `--model gpt-5.3-codex`
+- **`model 'X' does not exist`** — wrong model name. Use one listed in `~/.codex/models_cache.json`, e.g. `gpt-6.1-sol`, `gpt-6-astra` or `gpt-6-luna`
+- **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-5-5`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-6.1-sol"` to `variant.toml` or using `--model gpt-6.1-sol`
 - **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools
 - **`Model metadata for 'X' not found`** — warning only, usually followed by the real error
 

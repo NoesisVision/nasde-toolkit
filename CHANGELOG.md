@@ -9,6 +9,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-15
+
 ### Added
 - Bundled prices for `claude-opus-5-5` ($4/$20 per 1M tokens) and
   `claude-sonnet-5-5` ($2/$10), verified against the Anthropic pricing page on
@@ -644,7 +646,8 @@ Initial release under the **nasde-toolkit** name (rebrand from
 - `v0.1.0` represents the first public-oriented baseline; earlier commits
   on the `sdlc-eval-kit` history are not cataloged here.
 
-[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/NoesisVision/nasde-toolkit/compare/v0.3.3...v0.4.0

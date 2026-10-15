@@ -34,6 +34,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   `sandbox_files` kwarg on Harbor's `options_model`, which the 0.20+ job
   preflight validates with unknown kwargs forbidden. ([#88])
 
+### Fixed
+- `--with-opik` records one span per agent step. Each step was emitted twice,
+  which doubled the token totals Opik shows for Codex runs; nasde's own
+  `assessment_summary.json` / `metrics.json` economics were not affected.
+  ([#88])
+
 ## [0.7.0] — 2026-10-15
 
 ### Added

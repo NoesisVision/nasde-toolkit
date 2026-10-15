@@ -33,6 +33,16 @@ One `nasde run` command executes the whole chain.
 
 You're the one defining "what good looks like." NASDE just automates running the experiment and assessing it the same way every time.
 
+**Your benchmark stays private.** Tasks, code, trial results and scores live on your machine (or in the sandbox provider you pick). The only things that leave it are the model calls your agents and the reviewer already make, plus Opik uploads if you opt in with `--with-opik`.
+
+## What you get
+
+One task, three Claude models × three configurations (vanilla, a hint in `CLAUDE.md`, a dedicated skill), 4 trials each — every point is one agent run, scored by the reviewer and priced at API rates:
+
+<p align="center"><img src="https://raw.githubusercontent.com/NoesisVision/nasde-toolkit/main/examples/ddd-architectural-challenges/assets/cost_quality_plane_en.png" alt="Run cost vs solution quality for three Claude models and three configurations on a DDD task" width="820"></p>
+
+On this task Opus 5 with a `CLAUDE.md` hint outscores every Fable 5 configuration at roughly half the cost, and the same skill helps one model while hurting another — the kind of answer you only get by measuring on your own tasks. Full experiment: [`examples/ddd-architectural-challenges`](https://github.com/NoesisVision/nasde-toolkit/tree/main/examples/ddd-architectural-challenges).
+
 ## 📖 Documentation
 
 **Full documentation lives at → [noesisvision.github.io/nasde-toolkit](https://noesisvision.github.io/nasde-toolkit/)**

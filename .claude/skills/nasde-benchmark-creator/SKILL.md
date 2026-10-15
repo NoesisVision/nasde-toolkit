@@ -274,7 +274,7 @@ model = "gpt-5.3-codex"   # Required for Codex — use an OpenAI model ID
 - `gpt-5.3-codex-spark` — near-instant real-time coding iteration (ChatGPT Pro only)
 - Older: `gpt-5.2-codex`, `gpt-5.1-codex`, `gpt-5-codex`, `gpt-5-codex-mini`
 
-Without `model` in variant.toml, Codex inherits `nasde.toml`'s default (e.g. `claude-sonnet-4-6`), which silently produces garbage results.
+Without `model` in variant.toml, Codex inherits `nasde.toml`'s default (e.g. `claude-sonnet-5-5`), which silently produces garbage results.
 
 For Gemini CLI variants, **always** set the model with the `google/` prefix:
 
@@ -296,7 +296,7 @@ to those tasks so `--all-variants` never runs it against the wrong codebase:
 
 ```toml
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 tasks = ["my-benchmark/task-a"]   # only runs against these tasks
 ```
 

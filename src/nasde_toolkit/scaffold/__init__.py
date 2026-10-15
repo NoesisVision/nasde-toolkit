@@ -21,7 +21,7 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
-model = "claude-sonnet-4-6"
+model = "claude-opus-5-5"
 dimensions_file = "assessment_dimensions.json"
 # eval_repetitions = 3  # judge runs per trial; reported as a mean (the judge is non-deterministic)
 
@@ -95,7 +95,7 @@ VARIANT_CLAUDE_MD_TEMPLATE = """\
 
 VARIANT_TOML_TEMPLATE = """\
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 # Optional: restrict this variant to specific tasks (e.g. a repo-specific skill).
 # Omit for a general-purpose variant that runs against every task.
@@ -117,7 +117,7 @@ PRICING_TOML_EXAMPLE = """\
 #
 # Uncomment and edit to activate. Prices use a decimal POINT (2.5), not a comma.
 #
-# [models."claude-sonnet-4-6"]
+# [models."claude-sonnet-5-5"]
 # input_per_1m = 2.5
 # output_per_1m = 11.0
 # cached_input_per_1m = 0.25      # optional: cache-read rate; omitted -> reads billed at input_per_1m

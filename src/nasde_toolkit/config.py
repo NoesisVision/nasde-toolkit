@@ -54,7 +54,7 @@ class EvaluationConfig:
     """Assessment evaluation settings."""
 
     backend: str = "claude"
-    model: str = "claude-opus-4-7"
+    model: str = "claude-opus-5-5"
     dimensions_file: str = "assessment_dimensions.json"
     max_turns: int = 60
     allowed_tools: list[str] | None = None
@@ -168,7 +168,7 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
         ),
         evaluation=EvaluationConfig(
             backend=eval_raw.get("backend", "claude"),
-            model=eval_raw.get("model", "claude-opus-4-7"),
+            model=eval_raw.get("model", "claude-opus-5-5"),
             dimensions_file=eval_raw.get("dimensions_file", "assessment_dimensions.json"),
             max_turns=eval_raw.get("max_turns", 60),
             allowed_tools=eval_raw.get("allowed_tools"),

@@ -30,7 +30,9 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   trajectory `final_metrics`, and the `reasoning_effort` agent kwarg. Opik's
   Harbor integration is unchanged apart from a once-per-process usage event
   sent when `--with-opik` calls `track_harbor`; the ADR-006 token-usage patch
-  is still required. ([#88])
+  is still required. The Claude/Codex/Gemini agents declare their
+  `sandbox_files` kwarg on Harbor's `options_model`, which the 0.20+ job
+  preflight validates with unknown kwargs forbidden. ([#88])
 
 ## [0.7.0] — 2026-10-15
 

@@ -42,8 +42,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-from harbor.agents.installed.gemini_cli import GeminiCli
+from harbor.agents.installed.gemini_cli import GeminiCli, GeminiCliOptions
 from harbor.environments.base import BaseEnvironment
+from pydantic import Field
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,21 @@ async def _write_oauth_to_sandbox(environment: BaseEnvironment, oauth_creds_json
         tmp_settings.unlink(missing_ok=True)
 
 
+class ConfigurableGeminiOptions(GeminiCliOptions):
+    """GeminiCliOptions plus nasde's ``sandbox_files`` kwarg.
+
+    Harbor's preflight validates raw kwargs against ``options_model`` with
+    ``extra="forbid"`` before the agent is constructed, so every nasde kwarg
+    must be declared here. The field has no ``Cli``/``Env`` annotation and is
+    therefore never rendered into the agent command or environment.
+    """
+
+    sandbox_files: dict[str, str] | None = Field(
+        default=None,
+        description="Container path -> host file path, uploaded into the sandbox during setup().",
+    )
+
+
 class ConfigurableGemini(GeminiCli):
     """GeminiCli with declarative file injection into the sandbox.
 
@@ -114,6 +130,8 @@ class ConfigurableGemini(GeminiCli):
             Each entry is uploaded into the sandbox during setup() before
             the agent starts. Paths are resolved relative to CWD.
     """
+
+    options_model = ConfigurableGeminiOptions
 
     def __init__(
         self,

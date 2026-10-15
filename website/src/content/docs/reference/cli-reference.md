@@ -65,7 +65,7 @@ Authentication is covered in [Authentication & Opik](/nasde-toolkit/reference/au
 | `--variant` | Variant to run (defaults to config default) |
 | `--all-variants` | Run every available variant (Cartesian product with tasks) |
 | `--tasks` | Comma-separated task names to run |
-| `--model` | Model override (e.g. `claude-sonnet-4-6`, `o3`, `google/gemini-3-flash-preview`) |
+| `--model` | Model override (e.g. `claude-sonnet-5-5`, `o3`, `google/gemini-3-flash-preview`) |
 | `--effort` | Reasoning-effort override (overrides `variant.toml reasoning_effort`; see [Configuration → Reasoning effort](/nasde-toolkit/reference/configuration/#reasoning-effort)) |
 | `--attempts`, `-n` | Independent agent attempts per task (Harbor `n_attempts`) — the sample size behind the `mean ±std` |
 | `--timeout` | Agent timeout in seconds |

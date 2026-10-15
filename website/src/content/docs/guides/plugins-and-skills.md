@@ -28,7 +28,7 @@ If a variant just needs to test one skill, point at its source path instead of c
 
 ```toml
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 [[skill]]
 path = "../../../src/plugins/my-plugin/skills/my-skill"
@@ -56,7 +56,7 @@ Some variants only make sense for one task — for example, a skill whose code e
 
 ```toml
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 # This variant's skill references this repo's value objects, so it should only
 # run against that task.

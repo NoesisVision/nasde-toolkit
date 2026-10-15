@@ -32,7 +32,7 @@ my-benchmark/
         test.sh                # Harbor verification script
   variants/
     vanilla/                   # Claude Code variant
-      variant.toml             # agent = "claude", model = "claude-sonnet-4-6"
+      variant.toml             # agent = "claude", model = "claude-sonnet-5-5"
       CLAUDE.md                # Agent system prompt (injected to /app/CLAUDE.md)
     guided/                    # Claude Code variant with skills
       variant.toml             # may also list [[skill]] entries (skill-by-reference)
@@ -92,7 +92,7 @@ build_commands = []
 
 [evaluation]
 backend = "claude"                            # "claude" (default) | "codex"
-model = "claude-opus-4-7"
+model = "claude-opus-5-5"
 dimensions_file = "assessment_dimensions.json"
 # eval_repetitions = 3                        # Judge evaluations per trial (default 3)
 # max_turns = 60                              # Max evaluator conversation turns (default 60)
@@ -115,7 +115,7 @@ Every variant directory must contain a `variant.toml` declaring the agent type *
 
 ```toml
 agent = "claude"                   # "claude" | "codex" | "gemini"
-model = "claude-sonnet-4-6"        # model appropriate for the agent family
+model = "claude-sonnet-5-5"        # model appropriate for the agent family
 reasoning_effort = "high"          # optional — see Reasoning effort below
 ```
 
@@ -135,7 +135,7 @@ A variant can reference a skill by its source path instead of copying it in, and
 
 ```toml
 agent = "claude"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 
 tasks = ["csharp-anemic-to-rich-domain"]   # optional: restrict this variant to specific tasks
 

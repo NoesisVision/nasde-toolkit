@@ -14,7 +14,7 @@ Usage in harbor_config.json::
     {
       "agents": [{
         "import_path": "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
-        "model_name": "claude-sonnet-4-6",
+        "model_name": "claude-sonnet-5-5",
         "kwargs": {
           "sandbox_files": {
             "/app/CLAUDE.md": "path/to/CLAUDE.md"

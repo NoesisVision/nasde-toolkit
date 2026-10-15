@@ -184,7 +184,7 @@ nasde run --variant vanilla --job-suffix run1 -C path/to/benchmark
 
 Codex variants use `AGENTS.md` (instead of `CLAUDE.md`) and require either `codex login` (ChatGPT subscription) or `CODEX_API_KEY`/`OPENAI_API_KEY` (API billing).
 
-**CRITICAL: Codex model must be set explicitly.** The `nasde.toml` default model (e.g. `claude-sonnet-4-6`) is designed for Claude and will be passed to Codex if not overridden. Codex CLI will silently accept invalid model names but produce garbage results (0% pass rate). Always set the model via `--model` flag or in `variant.toml`.
+**CRITICAL: Codex model must be set explicitly.** The `nasde.toml` default model (e.g. `claude-sonnet-5-5`) is designed for Claude and will be passed to Codex if not overridden. Codex CLI will silently accept invalid model names but produce garbage results (0% pass rate). Always set the model via `--model` flag or in `variant.toml`.
 
 ```bash
 # Option A: ChatGPT subscription (no env vars needed after codex login)
@@ -257,7 +257,7 @@ wait
 ### Custom model and timeout
 
 ```bash
-nasde run --variant baseline --model claude-opus-4-7 --timeout 1200 -C path/to/benchmark
+nasde run --variant baseline --model claude-opus-5-5 --timeout 1200 -C path/to/benchmark
 ```
 
 **Timeout priority**: `--timeout` flag overrides everything. Without it, Harbor uses `task.toml [agent] timeout_sec` per task. Timeouts are per-task only — there is no project-wide default in nasde.toml.

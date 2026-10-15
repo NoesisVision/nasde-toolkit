@@ -27,6 +27,18 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   OpenAI rates are the ≤272K-context tier. ([#85])
 
 ### Changed
+- **Default models moved to the current Claude generation.** The reviewer
+  (judge) default is now `claude-opus-5-5` (was `claude-opus-4-7`), and
+  `nasde init` scaffolds `[evaluation] model = "claude-opus-5-5"` and a
+  `claude-sonnet-5-5` vanilla variant (was `claude-sonnet-4-6` for both).
+  Projects that set `[evaluation] model` explicitly are unaffected. If yours
+  relies on the default, new evaluations land in a separate
+  `(evaluator_model, dimensions_fingerprint)` cluster and are never averaged
+  with older `claude-opus-4-7` scores — pin `model = "claude-opus-4-7"` to keep
+  comparing against them. A test now guards that every scaffolded default has a
+  bundled price. ([#86])
+- README shows a real cost-vs-quality result from the bundled DDD example and
+  states what data leaves your machine. ([#86])
 - `claude-haiku-5-5` is explicitly **unsupported**: it is the only current
   Claude model with tiered pricing (≤100K vs >100K prompts), which `ModelPrice`
   cannot express, so a trial on it reports `cost_usd = null` with a warning
@@ -687,4 +699,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#82]: https://github.com/NoesisVision/nasde-toolkit/pull/82
 [#84]: https://github.com/NoesisVision/nasde-toolkit/pull/84
 [#85]: https://github.com/NoesisVision/nasde-toolkit/pull/85
+[#86]: https://github.com/NoesisVision/nasde-toolkit/pull/86
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

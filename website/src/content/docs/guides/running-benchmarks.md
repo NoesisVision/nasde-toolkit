@@ -44,7 +44,7 @@ export DAYTONA_API_KEY=...
 nasde run --variant vanilla --harbor-env daytona -C my-benchmark
 
 # Or use the Harbor pass-through for full control
-nasde harbor run --dataset my-benchmark@1.0 --agent claude-code --model claude-sonnet-4-6 --env daytona -n 32
+nasde harbor run --dataset my-benchmark@1.0 --agent claude-code --model claude-sonnet-5-5 --env daytona -n 32
 ```
 
 The cloud sandbox provider affects **only the Harbor trial execution** (Stage 1). The assessment evaluation (Stage 2) always runs locally on the host machine. You can set a default provider in `nasde.toml`:
@@ -88,7 +88,7 @@ Restrict a variant to specific tasks with `tasks = [...]` in `variant.toml` — 
 
 ## Configuring the reviewer agent
 
-The reviewer agent (assessment evaluator) is the mirror image of the agent under test: same axes (model, skills, MCP, system prompt), configured via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-4-7` with read-only tools (`Read`, `Glob`, `Grep`).
+The reviewer agent (assessment evaluator) is the mirror image of the agent under test: same axes (model, skills, MCP, system prompt), configured via the `[evaluation]` section in `nasde.toml`. By default it uses `claude-opus-5-5` with read-only tools (`Read`, `Glob`, `Grep`).
 
 ### Backend and model
 
@@ -143,7 +143,7 @@ MCP tool names follow the `mcp__<server>__<tool>` convention. If you override `a
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `backend` | `claude` | Subprocess backend: `claude` or `codex` |
-| `model` | `claude-opus-4-7` | Evaluator model |
+| `model` | `claude-opus-5-5` | Evaluator model |
 | `dimensions_file` | `assessment_dimensions.json` | Scoring dimensions file |
 | `max_turns` | `60` | Max evaluator conversation turns (raise for DDD-rich workspaces with many small files) |
 | `allowed_tools` | `["Read", "Glob", "Grep"]` | Tool whitelist |

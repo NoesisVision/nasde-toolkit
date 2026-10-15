@@ -171,12 +171,12 @@ name = "test"
 
 [evaluation]
 backend = "codex"
-model = "o3"
+model = "gpt-6.1-sol"
 """
     (tmp_path / "nasde.toml").write_text(toml_content)
     config = load_project_config(tmp_path)
     assert config.evaluation.backend == "codex"
-    assert config.evaluation.model == "o3"
+    assert config.evaluation.model == "gpt-6.1-sol"
 
 
 def test_calibration_defaults_when_section_absent(tmp_path: Path) -> None:

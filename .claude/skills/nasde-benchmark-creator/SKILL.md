@@ -264,15 +264,16 @@ For Codex variants, **always** set the model explicitly to avoid inheriting the 
 
 ```toml
 agent = "codex"
-model = "gpt-5.3-codex"   # Required for Codex — use an OpenAI model ID
+model = "gpt-6.1-sol"     # Required for Codex — use an OpenAI model ID
 ```
 
-**Codex models** (recommended first, as of 2026-03):
-- `gpt-5.4` — flagship frontier model, best overall for professional work
-- `gpt-5.4-mini` — fast, efficient mini model for responsive coding and subagents
-- `gpt-5.3-codex` — industry-leading coding model for complex software engineering
-- `gpt-5.3-codex-spark` — near-instant real-time coding iteration (ChatGPT Pro only)
-- Older: `gpt-5.2-codex`, `gpt-5.1-codex`, `gpt-5-codex`, `gpt-5-codex-mini`
+**Codex models** (recommended first, as of 2026-10):
+- `gpt-6.1-sol` — latest workhorse model for coding and everyday work (default choice)
+- `gpt-6-astra` — frontier intelligence for the most demanding work
+- `gpt-6-luna` — fast and affordable, for easier tasks
+- Older: `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
+
+The models your account can actually use are listed in `~/.codex/models_cache.json` (written by the Codex CLI) — a model missing there fails at run time.
 
 Without `model` in variant.toml, Codex inherits `nasde.toml`'s default (e.g. `claude-sonnet-5-5`), which silently produces garbage results.
 

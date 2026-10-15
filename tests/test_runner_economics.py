@@ -52,7 +52,7 @@ def test_short_label_strips_family_and_skill_prefixes() -> None:
     assert _short_label("claude-vanilla", "claude-sonnet-5-5") == "vanilla / sonnet-5-5"
     assert _short_label("claude-ntcoding-tactical-ddd-movie-tuned", "claude-sonnet-5-5") == "movie-tuned / sonnet-5-5"
     assert _short_label("claude-ntcoding-tactical-ddd", "claude-sonnet-5-5") == "tactical-ddd / sonnet-5-5"
-    assert _short_label("codex-vanilla", "gpt-5.4") == "vanilla / gpt-5.4"
+    assert _short_label("codex-vanilla", "gpt-6.1-sol") == "vanilla / gpt-6.1-sol"
 
 
 def test_sample_std_needs_two_points() -> None:
@@ -134,12 +134,12 @@ def test_economics_row_single_trial_has_no_raw_metric_std(tmp_path: Path) -> Non
 
 def test_economics_groups_split_by_model(tmp_path: Path) -> None:
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "codex-vanilla", "gpt-5.4", 0.7, 1_000_000, 2.0)
-    _write_trial(job, "t__b", "codex-vanilla", "gpt-5.5", 0.7, 1_000_000, 5.0)
+    _write_trial(job, "t__a", "codex-vanilla", "gpt-6.1-sol", 0.7, 1_000_000, 2.0)
+    _write_trial(job, "t__b", "codex-vanilla", "gpt-6-astra", 0.7, 1_000_000, 5.0)
 
     rows = _collect_economics_rows(job)
     assert len(rows) == 2  # same agent_name, different model_name → two rows
-    assert {r["full_label"] for r in rows} == {"codex-vanilla / gpt-5.4", "codex-vanilla / gpt-5.5"}
+    assert {r["full_label"] for r in rows} == {"codex-vanilla / gpt-6.1-sol", "codex-vanilla / gpt-6-astra"}
 
 
 def test_economics_groups_split_by_effort(tmp_path: Path) -> None:
@@ -240,8 +240,8 @@ def test_print_job_summary_renders_economics_for_own_job(
 
 def test_economics_row_carries_model_name(tmp_path: Path) -> None:
     job = tmp_path / "job"
-    _write_trial(job, "t__a", "codex-vanilla", "gpt-5.4", 0.7, 1000, 1.0)
+    _write_trial(job, "t__a", "codex-vanilla", "gpt-6.1-sol", 0.7, 1000, 1.0)
     _write_trial(job, "t__b", "claude-vanilla", "claude-sonnet-5-5", 0.8, 1000, 1.0)
 
     rows = _collect_economics_rows(job)
-    assert {row["model"] for row in rows} == {"gpt-5.4", "claude-sonnet-5-5"}
+    assert {row["model"] for row in rows} == {"gpt-6.1-sol", "claude-sonnet-5-5"}

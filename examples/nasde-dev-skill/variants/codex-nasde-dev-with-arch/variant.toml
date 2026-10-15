@@ -1,5 +1,5 @@
 agent = "codex"
-model = "gpt-5.4"
+model = "gpt-6.1-sol"
 
 # nasde-dev skill by-reference (ADR-009) from the live source. For a Codex
 # variant this is registered through Harbor's native config.agent.skills so

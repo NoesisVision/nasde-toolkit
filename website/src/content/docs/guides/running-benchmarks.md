@@ -97,7 +97,7 @@ By default, nasde uses the Claude Code CLI for assessment evaluation. You can sw
 ```toml
 [evaluation]
 backend = "codex"      # "claude" (default) | "codex"
-model = "gpt-5.3-codex"
+model = "gpt-6.1-sol"
 ```
 
 Both backends use your existing CLI authentication (subscription OAuth or API key) — no additional setup. The evaluator spawns the CLI as a subprocess, so you get the same billing treatment as interactive use. See [`examples/nasde-dev-skill/nasde.codex.toml`](https://github.com/NoesisVision/nasde-toolkit/blob/main/examples/nasde-dev-skill/nasde.codex.toml) for a ready-to-use Codex configuration.

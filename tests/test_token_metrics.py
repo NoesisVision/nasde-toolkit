@@ -95,19 +95,19 @@ def test_read_trajectory_missing_is_none(tmp_path: Path) -> None:
 def test_build_trial_economics_priced_model(tmp_path: Path) -> None:
     (tmp_path / "agent").mkdir()
     (tmp_path / "agent" / "trajectory.json").write_text(json.dumps(CODEX_TRAJ))
-    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing())
+    econ = build_trial_economics(tmp_path, "gpt-6.1-sol", load_pricing())
 
-    assert econ["model_name"] == "gpt-5.4"
+    assert econ["model_name"] == "gpt-6.1-sol"
     assert econ["token_usage"]["total_tokens"] == 2_854_816
-    # gpt-5.4 = $2.50 in / $15 out / $0.25 cached (ADR-014): fresh input at full
+    # gpt-6.1-sol = $2 in / $10 out / $0.10 cached (ADR-014): fresh input at full
     # rate, the 2_646_272 cached reads at the cached rate, no write premium.
     fresh = 2_817_494 - 2_646_272
-    assert econ["cost_usd"] == pytest.approx(fresh / 1e6 * 2.5 + 2_646_272 / 1e6 * 0.25 + 37_322 / 1e6 * 15)
+    assert econ["cost_usd"] == pytest.approx(fresh / 1e6 * 2.0 + 2_646_272 / 1e6 * 0.10 + 37_322 / 1e6 * 10)
     assert econ["pricing_as_of"] == "2026-10-14"
 
 
 def test_build_trial_economics_no_trajectory_is_empty(tmp_path: Path) -> None:
-    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing())
+    econ = build_trial_economics(tmp_path, "gpt-6.1-sol", load_pricing())
     assert econ["token_usage"] is None
     assert econ["cost_usd"] is None
     assert econ["pricing_as_of"] is None
@@ -125,6 +125,6 @@ def test_build_trial_economics_unpriced_model_keeps_tokens(tmp_path: Path) -> No
 def test_build_trial_economics_has_no_scalar_efficiency_keys(tmp_path: Path) -> None:
     (tmp_path / "agent").mkdir()
     (tmp_path / "agent" / "trajectory.json").write_text(json.dumps(CODEX_TRAJ))
-    econ = build_trial_economics(tmp_path, "gpt-5.4", load_pricing())
+    econ = build_trial_economics(tmp_path, "gpt-6.1-sol", load_pricing())
     assert "token_efficiency" not in econ  # removed: arbitrary zero → use Pareto front
     assert "cost_efficiency" not in econ

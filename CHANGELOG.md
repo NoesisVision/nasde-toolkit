@@ -10,6 +10,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 ## [Unreleased]
 
 ### Changed
+- **Bundled Codex examples run on `gpt-6.1-sol`.** Every Codex variant in the
+  examples moves from `gpt-5.4` (no longer offered to ChatGPT-plan accounts) to
+  OpenAI's current coding workhorse; the authoring skills list the current
+  model line-up and point to `~/.codex/models_cache.json` for what your account
+  can run. ([#90])
 - **Bundled examples run on Claude 5.5.** Every Claude variant in
   `examples/ddd-architectural-challenges`, `examples/refactoring-skill` and
   `examples/nasde-dev-skill` uses `claude-sonnet-5-5`, and their reviewer is
@@ -713,4 +718,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#85]: https://github.com/NoesisVision/nasde-toolkit/pull/85
 [#86]: https://github.com/NoesisVision/nasde-toolkit/pull/86
 [#89]: https://github.com/NoesisVision/nasde-toolkit/pull/89
+[#90]: https://github.com/NoesisVision/nasde-toolkit/pull/90
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

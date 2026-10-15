@@ -368,7 +368,7 @@ Codex variant:
     {
       "import_path": "nasde_toolkit.agents.configurable_codex:ConfigurableCodex",
       "name": "variant-name",
-      "model_name": "gpt-5.3-codex",
+      "model_name": "gpt-6.1-sol",
       "kwargs": {
         "sandbox_files": {
           "/app/AGENTS.md": "/absolute/path/to/variants/variant-name/AGENTS.md"

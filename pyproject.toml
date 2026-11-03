@@ -53,8 +53,10 @@ dependencies = [
     # CVE-2026-54273..54280 (aiohttp <3.14.1) and the August-2026 batch
     # PYSEC-2026-3545/3546/3547 (aiohttp <3.14.3): WebSocket-upgrade request
     # smuggling, an out-of-bounds heap read in the C response parser, and
-    # RSV1 frames decompressed without a negotiated permessage-deflate.
-    "aiohttp>=3.14.3",
+    # RSV1 frames decompressed without a negotiated permessage-deflate. The
+    # November-2026 batch CVE-2026-111063..111066, CVE-2026-111748..111750 and
+    # GHSA-2g87-pp6c-29x5 is fixed in 3.14.4.
+    "aiohttp>=3.14.4",
     # Transitive via harbor → supabase / opik. Pinned to fix
     # GHSA-537c-gmf6-5ccf (cryptography <48.0.1) and PYSEC-2026-3552
     # (cryptography 44.0.0..49.x): pkcs7_decrypt_* distinguished RSA
@@ -93,6 +95,16 @@ dependencies = [
     # Transitive via harbor → requests-oauthlib. Pinned to fix PYSEC-2026-4114
     # (oauthlib <4.0.0) — a major release of a dep nasde never calls directly.
     "oauthlib>=4.0.0",
+    # Transitive via harbor/httpx/requests. Pinned to fix PYSEC-2026-4320
+    # (certifi <2026.10.18).
+    "certifi>=2026.10.18",
+    # Transitive via harbor / litellm / huggingface-hub. Pinned to fix the
+    # November-2026 batch CVE-2026-112907..112915 and CVE-2026-112935..112940
+    # (filelock <4.2.1) — a major release of a dep nasde never calls directly.
+    "filelock>=4.2.1",
+    # Transitive via opik / harbor (OpenTelemetry tracing). Pinned to fix
+    # CVE-2026-114603 (opentelemetry-api <1.45.1).
+    "opentelemetry-api>=1.45.1",
 ]
 
 [project.urls]

@@ -737,4 +737,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#88]: https://github.com/NoesisVision/nasde-toolkit/pull/88
 [#89]: https://github.com/NoesisVision/nasde-toolkit/pull/89
 [#90]: https://github.com/NoesisVision/nasde-toolkit/pull/90
+[#91]: https://github.com/NoesisVision/nasde-toolkit/pull/91
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

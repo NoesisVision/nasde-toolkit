@@ -23,7 +23,7 @@ Before running any benchmark, set up authentication tokens for the agents you pl
 
 **Always ask the user before running, never assume.** Two questions:
 
-1. **Which agents will you run?** (Claude / Codex / Gemini, any combination)
+1. **Which agents will you run?** (Claude / Codex / Gemini / Cursor, any combination)
 2. **For each agent, OAuth (subscription) or API key (per-token billing)?** Default recommendation: OAuth where available — no per-token cost, no env vars to manage.
 
 Then detect their OS and pick the matching script row from the table below. On Windows, also ask whether they're in **PowerShell** or **WSL** (cmd.exe is not directly supported — see "Windows: cmd.exe" below).
@@ -40,7 +40,7 @@ Below, `<SKILL_SCRIPTS>` is shorthand for whichever absolute path applies. Resol
 
 ### Step 2 — Run the right script per agent × OS
 
-Priority order: **Claude → Codex → Gemini.** Claude is required even for non-Claude variants when `[evaluation] backend = "claude"` (default), because the assessment evaluator spawns `claude` CLI as a subprocess.
+Priority order: **Claude → Codex → Gemini → Cursor.** Claude is required even for non-Claude variants when `[evaluation] backend = "claude"` (default), because the assessment evaluator spawns `claude` CLI as a subprocess.
 
 #### Claude Code
 
@@ -77,6 +77,17 @@ The OAuth scripts only **validate** `~/.codex/auth.json` (or `%USERPROFILE%\.cod
 
 The OAuth scripts export `GEMINI_OAUTH_CREDS` (the raw JSON) — `ConfigurableGemini` reads that env var and injects credentials into the sandbox. API key always takes priority over OAuth.
 
+#### Cursor CLI
+
+Cursor variants authenticate with an API key only (no OAuth injection into the sandbox):
+
+| OS / shell | API key |
+|---|---|
+| macOS / Linux / WSL | `export CURSOR_API_KEY=...` (or put it in the project `.env`) |
+| Windows PowerShell | `$env:CURSOR_API_KEY = '...'` |
+
+Create the key in the Cursor dashboard. List the models your account can run with `cursor-agent --list-models`.
+
 ### Combined setup for cross-agent runs
 
 Resolve `<SKILL_SCRIPTS>` first, then run all three.
@@ -87,6 +98,7 @@ SKILL_SCRIPTS=~/.claude/skills/nasde-benchmark-runner/scripts   # adjust if --sc
 source $SKILL_SCRIPTS/export_oauth_token.sh         # Claude (subscription)
 source $SKILL_SCRIPTS/export_codex_oauth_token.sh   # Codex (subscription) — or: export CODEX_API_KEY=...
 source $SKILL_SCRIPTS/export_gemini_oauth_token.sh  # Gemini (Google account) — or: export GEMINI_API_KEY=...
+export CURSOR_API_KEY=...                         # Cursor (API key)
 ```
 
 **Windows PowerShell:**

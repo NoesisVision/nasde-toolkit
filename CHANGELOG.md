@@ -16,6 +16,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   uses). `assessment_summary.json` and `metrics.json` also record the agent's
   own cost figure as `agent_reported_cost_usd` / `agent_reported_cost_source`
   for audit; `cost_usd` is unchanged as the source of truth. ([#NN])
+- **Cursor CLI agent.** Variants can set `agent = "cursor"` to benchmark
+  Cursor's `cursor-agent`. They use `AGENTS.md` (injected into `/app/AGENTS.md`)
+  and `agents_skills/` (registered natively into `~/.cursor/skills`), like Codex
+  variants. Authenticate with `CURSOR_API_KEY`. Write the model as Cursor lists it
+  (`cursor-agent --list-models`); nasde records it as `cursor/<model>` and prices
+  it from the `cursor/` catalog entries. MCP servers declared by the task are
+  auto-approved. Example: `examples/ddd-architectural-challenges/variants/cursor-vanilla`. ([#NN])
 
 ### Changed
 - **Price lookup falls back through effort suffixes and provider prefixes.** A

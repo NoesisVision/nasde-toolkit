@@ -20,7 +20,7 @@ Your team runs AI coding agents — but **which setup is actually best for *your
 
 The decisions that matter are getting expensive: **which provider, which model, which configuration** — each with a different quality-per-dollar trade-off. NASDE measures your **whole harness** — the agent, its skills, its MCP servers, against *your* tasks — and reports not just **how good** the output is, but **how many tokens and how many dollars** it took, per model and per provider. That's the data behind a real decision: where to invest, which model to standardize on, and when a migration actually pays off.
 
-It runs on your own machine with a subscription you already have. **Today** it drives Claude Code, the Codex CLI, and the Gemini CLI; **planned:** Pi, Cursor, and router-based setups.
+It runs on your own machine with a subscription you already have. **Today** it drives Claude Code, the Codex CLI, the Gemini CLI, and the Cursor CLI; **planned:** Pi and router-based setups.
 
 ## What NASDE does — in four steps
 
@@ -59,7 +59,7 @@ Concepts (how the scoring works, the evaluation pipeline, token & cost, rubric c
 
 The core use is a **cost-and-quality decision** about your AI coding stack: *which agent, which model, which provider, which configuration — for our codebase and our budget?* NASDE answers it with numbers instead of vibes. Typical things you'd do with it:
 
-- **Compare providers and models on quality *and* cost** — Claude Code vs. Codex vs. Gemini, Sonnet vs. Opus, against *your* tasks; see the score *and* the tokens and dollars each one spends, and pick the best quality-per-dollar for your budget.
+- **Compare providers and models on quality *and* cost** — Claude Code vs. Codex vs. Gemini vs. Cursor, Sonnet vs. Opus, against *your* tasks; see the score *and* the tokens and dollars each one spends, and pick the best quality-per-dollar for your budget.
 - **Decide whether a migration pays off** — before standardizing on a new agent or model, measure what actually changes in output quality and in spend.
 - **Measure your whole harness, not just one skill** — run your real `CLAUDE.md` + skills + MCP servers as a unit and see how the full configuration performs.
 - **Tune a single skill or config** — baseline vs. "with my new skill"; see whether it moves the score up or down, and on which dimensions.
@@ -90,7 +90,7 @@ The `nasde-benchmark-from-history` skill proposes a good candidate and scaffolds
 nasde run --all-variants -C path/to/generated-benchmark
 ```
 
-**Start small** — one task is enough to validate the loop end to end. Your existing `claude` / `codex` / `gemini` CLI auth covers it (a Claude Max or ChatGPT Plus subscription is enough). API keys work too.
+**Start small** — one task is enough to validate the loop end to end. Your existing `claude` / `codex` / `gemini` CLI auth covers it (Cursor variants need a `CURSOR_API_KEY`) (a Claude Max or ChatGPT Plus subscription is enough). API keys work too.
 
 → Full walkthrough: **[Quick Start](https://noesisvision.github.io/nasde-toolkit/getting-started/quick-start/)** · **[Authentication & Opik](https://noesisvision.github.io/nasde-toolkit/reference/authentication/)**
 

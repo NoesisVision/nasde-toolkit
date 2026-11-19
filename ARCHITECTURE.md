@@ -20,7 +20,7 @@ flowchart TB
 
     subgraph HARBOR ["2. Harbor — trial execution (isolated sandbox)"]
         JOB --> SANDBOX["Sandbox environment\n(Docker, Daytona, Modal, E2B, etc.)"]
-        SANDBOX --> SETUP["Configurable{Claude,Codex,Gemini}.setup()\n→ upload instruction files, skills, config"]
+        SANDBOX --> SETUP["Configurable{Claude,Codex,Gemini,Cursor}.setup()\n→ upload instruction files, skills, config"]
         SETUP --> AGENT["AI coding agent\nworks on the task"]
         AGENT --> TEST["test.sh — functional verification"]
         TEST --> REWARD["reward: 0.0 or 1.0"]
@@ -266,6 +266,11 @@ classDiagram
         +setup(environment)
         +solve(task)
     }
+    class CursorCli {
+        <<Harbor built-in>>
+        +setup(environment)
+        +solve(task)
+    }
     class ConfigurableClaude {
         -_sandbox_files: dict~str, str~
         +setup(environment)
@@ -285,16 +290,25 @@ classDiagram
         +create_run_agent_commands(instruction) list
         +name() str
     }
+    class ConfigurableCursor {
+        -_sandbox_files: dict~str, str~
+        +setup(environment)
+        +build_cli_flags() str
+        -_upload_sandbox_files(environment)
+        +name() str
+    }
     ClaudeCode <|-- ConfigurableClaude
     Codex <|-- ConfigurableCodex
     GeminiCli <|-- ConfigurableGemini
+    CursorCli <|-- ConfigurableCursor
 
     note for ConfigurableClaude "Injects CLAUDE.md, .claude/skills/ into sandbox"
     note for ConfigurableCodex "Injects AGENTS.md, .agents/skills/ into sandbox"
     note for ConfigurableGemini "Injects GEMINI.md, .gemini/skills/ into sandbox\nAuto-injects OAuth creds from ~/.gemini/oauth_creds.json"
+    note for ConfigurableCursor "Injects AGENTS.md into sandbox\nAuto-approves task MCP servers"
 ```
 
-Harbor natively handles auth, MCP servers, model selection, and timeout for all agents. `ConfigurableClaude`, `ConfigurableCodex`, and `ConfigurableGemini` each add **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`. `ConfigurableGemini` additionally handles OAuth credential injection and DNS resolution for cloud sandboxes. The agent type is auto-detected from the variant's instruction file (`CLAUDE.md` → Claude, `AGENTS.md` → Codex, `GEMINI.md` → Gemini).
+Harbor natively handles auth, MCP servers, model selection, and timeout for all agents. `ConfigurableClaude`, `ConfigurableCodex`, `ConfigurableGemini`, and `ConfigurableCursor` each add **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`. `ConfigurableGemini` additionally handles OAuth credential injection and DNS resolution for cloud sandboxes. `ConfigurableCursor` additionally appends `--approve-mcps` when the task declares MCP servers. The agent type is auto-detected from the variant's instruction file (`CLAUDE.md` → Claude, `AGENTS.md` → Codex, `GEMINI.md` → Gemini).
 
 ---
 
@@ -303,7 +317,7 @@ Harbor natively handles auth, MCP servers, model selection, and timeout for all 
 Each benchmark defines its **own set of variants** — there are no globally shared variants. A variant represents a specific agent configuration to be compared against other variants on the same set of tasks.
 
 Each variant is a directory under `variants/<variant-name>/` containing:
-- `variant.toml` — **required**, declares the agent type (`agent = "claude"`, `agent = "codex"`, or `agent = "gemini"`)
+- `variant.toml` — **required**, declares the agent type (`agent = "claude"`, `agent = "codex"`, `agent = "cursor"`, or `agent = "gemini"`)
 - `CLAUDE.md` — Claude Code instructions injected into `/app/CLAUDE.md` (for Claude variants)
 - `AGENTS.md` — Codex instructions injected into `/app/AGENTS.md` (for Codex variants)
 - `GEMINI.md` — Gemini CLI instructions injected into `/app/GEMINI.md` (for Gemini variants)
@@ -449,4 +463,5 @@ src/nasde_toolkit/
     configurable_claude.py # Harbor-compatible Claude Code agent with sandbox file injection
     configurable_codex.py  # Harbor-compatible Codex agent with sandbox file injection
     configurable_gemini.py # Harbor-compatible Gemini CLI agent with sandbox file injection + OAuth
+    configurable_cursor.py # Harbor-compatible Cursor CLI agent with sandbox file injection
 ```

@@ -257,7 +257,7 @@ Each variant is a directory under `variants/<variant-name>/` with a required `va
 ### variant.toml (required)
 
 ```toml
-agent = "claude"   # or "codex" or "gemini"
+agent = "claude"   # or "codex", "cursor" or "gemini"
 ```
 
 For Codex variants, **always** set the model explicitly to avoid inheriting the Claude model from `nasde.toml`:
@@ -288,6 +288,15 @@ model = "google/gemini-3-flash-preview"   # Required format: google/<model-name>
 - `google/gemini-3.1-pro-preview` — advanced thinking model, best for deep reasoning
 - `google/gemini-3-flash-preview` — best quality/speed ratio, daily coding tasks
 - `google/gemini-3.1-flash-lite-preview` — fastest, simple and repetitive tasks
+
+For Cursor CLI variants, use a model exactly as `cursor-agent --list-models` prints it.
+nasde records it as `cursor/<model>`; Cursor puts effort in the name, so either pick
+`claude-opus-5-5-high` **or** set `reasoning_effort`, not both:
+
+```toml
+agent = "cursor"
+model = "composer-2.5"   # or e.g. "claude-opus-5-5-high", "gpt-5.6-sol-high"
+```
 
 ### Scoping a variant to specific tasks (optional)
 
@@ -335,10 +344,19 @@ variants/gemini-baseline/
       SKILL.md       # MUST start with --- YAML frontmatter (name + description)
 ```
 
-> **Codex/Gemini skills are registered natively** (Harbor `config.agent.skills`),
+### Cursor CLI variant
+
+```
+variants/cursor-baseline/
+  variant.toml       # agent = "cursor"
+  AGENTS.md          # Instructions (injected to /app/AGENTS.md)
+  agents_skills/     # Optional: skill snapshots (native injection -> ~/.cursor/skills/)
+```
+
+> **Codex/Cursor/Gemini skills are registered natively** (Harbor `config.agent.skills`),
 > not via `sandbox_files` — these CLIs auto-discover skills only from a
 > HOME-scoped dir, never from a `/app` cwd dir. This applies to **all** ways a
-> skill is supplied to a Codex/Gemini variant: the `agents_skills/` /
+> skill is supplied to a Codex/Cursor/Gemini variant: the `agents_skills/` /
 > `gemini_skills/` snapshot above, a `[[skill]]` by-reference entry in
 > `variant.toml`, and a `[nasde.plugin]`'s own `skills/`. Each `SKILL.md`
 > **must start with a `---` YAML frontmatter line**: Codex's loader rejects a

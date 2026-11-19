@@ -249,8 +249,8 @@ def test_economics_row_carries_model_name(tmp_path: Path) -> None:
     assert {row["model"] for row in rows} == {"gpt-6.1-sol", "claude-sonnet-5-5"}
 
 
-def test_print_pricing_used_labels_normalized_matches(monkeypatch: pytest.MonkeyPatch) -> None:
-    recorder = Console(width=250, record=True)
+def test_print_pricing_used_labels_normalized_matches(monkeypatch: pytest.MonkeyPatch, empty_user_layer: Path) -> None:
+    recorder = Console(width=250, height=25, record=True)
     monkeypatch.setattr("nasde_toolkit.runner.console", recorder)
 
     _print_pricing_used([{"model": "cursor/claude-opus-5-5-high"}], None)

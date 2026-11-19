@@ -25,7 +25,7 @@ def render_pricing_table(
 ) -> Table:
     """Build a Rich table of model rates, optionally with the source layer column."""
     table = Table(title=title)
-    table.add_column("Model", style="cyan", no_wrap=True)
+    table.add_column("Model", style="cyan")
     table.add_column("In / 1M", justify="right")
     table.add_column("Out / 1M", justify="right")
     if show_source:

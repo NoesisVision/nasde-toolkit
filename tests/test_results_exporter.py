@@ -382,7 +382,7 @@ def test_export_pricing_used_layer_bundled(job_dir: Path, tmp_path: Path, empty_
     assert report["claude-sonnet-5-5"]["input_per_1m"] == 2.0
 
 
-def test_export_pricing_used_records_catalog_key(job_dir: Path, tmp_path: Path) -> None:
+def test_export_pricing_used_records_catalog_key(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
     for trial in ("demo-task__aaa111", "demo-task__bbb222"):
         config_path = job_dir / trial / "config.json"
         config = json.loads(config_path.read_text())
@@ -399,7 +399,7 @@ def test_export_pricing_used_records_catalog_key(job_dir: Path, tmp_path: Path) 
     assert entry["input_per_1m"] == 4.0
 
 
-def test_export_pricing_used_exact_match_catalog_key(job_dir: Path, tmp_path: Path) -> None:
+def test_export_pricing_used_exact_match_catalog_key(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
     dest = tmp_path / "export"
     export_results([job_dir], dest)
     report = json.loads((dest / "pricing_used.json").read_text())

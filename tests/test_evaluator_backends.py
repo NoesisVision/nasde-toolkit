@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -8,6 +12,7 @@ from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator_backends import EvaluatorBackend, create_backend
 from nasde_toolkit.evaluator_backends.claude_subprocess import ClaudeSubprocessBackend
 from nasde_toolkit.evaluator_backends.codex_subprocess import CodexSubprocessBackend
+from nasde_toolkit.evaluator_backends.cursor_subprocess import CursorSubprocessBackend
 
 
 def test_create_backend_returns_claude_by_default() -> None:
@@ -335,3 +340,189 @@ def test_codex_backend_env_preserves_openai_key_priority(
 
     assert env["OPENAI_API_KEY"] == "sk-explicit-openai-key"
     assert env.get("CODEX_API_KEY") == "sk-stale-codex-key"
+
+
+CURSOR_MODULE = "nasde_toolkit.evaluator_backends.cursor_subprocess"
+
+
+def test_create_backend_returns_cursor_when_configured() -> None:
+    backend = create_backend(EvaluationConfig(backend="cursor"))
+    assert isinstance(backend, CursorSubprocessBackend)
+    assert isinstance(backend, EvaluatorBackend)
+
+
+def test_create_backend_unknown_lists_cursor() -> None:
+    with pytest.raises(ValueError, match="'cursor'"):
+        create_backend(EvaluationConfig(backend="unknown-agent"))
+
+
+def test_cursor_backend_validate_cli_installed_fails_with_install_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(f"{CURSOR_MODULE}.shutil.which", lambda _: None)
+    with pytest.raises(SystemExit):
+        CursorSubprocessBackend().validate_cli_installed()
+    out = capsys.readouterr().out
+    assert "cursor-agent" in out
+    assert "cli not found" in out.lower()
+    assert "[evaluation]" in out
+    assert "--without-eval" in out
+
+
+def test_cursor_backend_validate_auth_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CURSOR_API_KEY", "key_test")
+    monkeypatch.setattr(f"{CURSOR_MODULE}.subprocess.run", lambda *a, **k: pytest.fail("status must not run"))
+    CursorSubprocessBackend().validate_auth()
+
+
+def test_cursor_backend_validate_auth_with_login(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CURSOR_API_KEY", raising=False)
+    monkeypatch.setattr(
+        f"{CURSOR_MODULE}.subprocess.run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="✓ Logged in as dev@example.com\n", stderr=""),
+    )
+    CursorSubprocessBackend().validate_auth()
+
+
+def test_cursor_backend_validate_auth_fails_when_logged_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CURSOR_API_KEY", raising=False)
+    monkeypatch.setattr(
+        f"{CURSOR_MODULE}.subprocess.run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="Not logged in\n", stderr=""),
+    )
+    with pytest.raises(SystemExit):
+        CursorSubprocessBackend().validate_auth()
+
+
+def test_cursor_backend_builds_read_only_command(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    temp_workspace = tmp_path / "temp"
+    cmd = CursorSubprocessBackend()._build_command(
+        "PROMPT", workspace, EvaluationConfig(backend="cursor", model="claude-opus-5-5-high"), temp_workspace, None
+    )
+    assert cmd[:4] == ["cursor-agent", "-p", "--output-format", "json"]
+    assert cmd[cmd.index("--mode") + 1] == "ask"
+    assert "--trust" in cmd
+    assert cmd[cmd.index("--model") + 1] == "claude-opus-5-5-high"
+    assert cmd[cmd.index("--workspace") + 1] == str(temp_workspace)
+    assert cmd[cmd.index("--add-dir") + 1] == str(workspace)
+    assert "--approve-mcps" not in cmd
+    assert cmd[-2:] == ["--", "PROMPT"]
+
+
+def test_cursor_backend_adds_trial_dir_for_agent_diff(tmp_path: Path) -> None:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    (trial_dir / "agent_changes.diff").write_text("diff --git a/x b/x\n")
+    cmd = CursorSubprocessBackend()._build_command(
+        "P", tmp_path / "ws", EvaluationConfig(backend="cursor"), tmp_path / "tmp", trial_dir
+    )
+    add_dirs = [cmd[i + 1] for i, part in enumerate(cmd) if part == "--add-dir"]
+    assert add_dirs == [str(tmp_path / "ws"), str(trial_dir)]
+
+
+def test_cursor_backend_skips_trial_dir_without_trajectory_or_diff(tmp_path: Path) -> None:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    cmd = CursorSubprocessBackend()._build_command(
+        "P", tmp_path / "ws", EvaluationConfig(backend="cursor"), tmp_path / "tmp", trial_dir
+    )
+    assert cmd.count("--add-dir") == 1
+
+
+def test_cursor_backend_approves_mcps_when_configured(tmp_path: Path) -> None:
+    cmd = CursorSubprocessBackend()._build_command(
+        "P", tmp_path, EvaluationConfig(backend="cursor", mcp_config="./mcp.json"), tmp_path / "tmp", None
+    )
+    assert "--approve-mcps" in cmd
+
+
+def test_cursor_backend_prepends_system_prompt(tmp_path: Path) -> None:
+    cmd = CursorSubprocessBackend()._build_command(
+        "PROMPT", tmp_path, EvaluationConfig(backend="cursor", append_system_prompt="Be strict."), tmp_path / "t", None
+    )
+    assert cmd[-1] == "Be strict.\n\nPROMPT"
+
+
+def test_cursor_backend_temp_workspace_holds_skills_and_mcp(tmp_path: Path) -> None:
+    skill = tmp_path / "evaluator_skills" / "rubric-helper"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# helper")
+    (tmp_path / "evaluator_mcp.json").write_text('{"mcpServers": {}}')
+    eval_config = EvaluationConfig(backend="cursor", skills_dir="evaluator_skills", mcp_config="evaluator_mcp.json")
+
+    temp_workspace = CursorSubprocessBackend()._prepare_temp_workspace(eval_config, tmp_path)
+
+    try:
+        assert (temp_workspace / ".cursor" / "skills" / "rubric-helper" / "SKILL.md").exists()
+        assert json.loads((temp_workspace / ".cursor" / "mcp.json").read_text()) == {"mcpServers": {}}
+    finally:
+        shutil.rmtree(temp_workspace, ignore_errors=True)
+
+
+def test_cursor_backend_warns_on_allowed_tools(capsys: pytest.CaptureFixture[str]) -> None:
+    CursorSubprocessBackend()._warn_unsupported_options(EvaluationConfig(backend="cursor", allowed_tools=["Read"]))
+    assert "allowed_tools" in capsys.readouterr().out
+
+
+def _fake_cursor_process(stdout: str, returncode: int = 0) -> object:
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.returncode = returncode
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            return stdout.encode(), b"stderr line"
+
+    async def fake_exec(*_args: object, **_kwargs: object) -> FakeProcess:
+        return FakeProcess()
+
+    return fake_exec
+
+
+def _patch_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(CursorSubprocessBackend, "validate_cli_installed", lambda self: None)
+    monkeypatch.setattr(CursorSubprocessBackend, "validate_auth", lambda self: None)
+
+
+def test_cursor_backend_run_returns_result_and_cleans_up(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_preflight(monkeypatch)
+    created: list[Path] = []
+    real_prepare = CursorSubprocessBackend._prepare_temp_workspace
+
+    def tracking_prepare(self: CursorSubprocessBackend, eval_config: EvaluationConfig, project_root: Path) -> Path:
+        path = real_prepare(self, eval_config, project_root)
+        created.append(path)
+        return path
+
+    monkeypatch.setattr(CursorSubprocessBackend, "_prepare_temp_workspace", tracking_prepare)
+    payload = json.dumps({"type": "result", "is_error": False, "result": '{"score": 7}'})
+    monkeypatch.setattr(f"{CURSOR_MODULE}.asyncio.create_subprocess_exec", _fake_cursor_process(payload))
+
+    text = asyncio.run(
+        CursorSubprocessBackend().run_evaluation("P", tmp_path, EvaluationConfig(backend="cursor"), tmp_path)
+    )
+
+    assert text == '{"score": 7}'
+    assert created and not created[0].exists()
+
+
+def test_cursor_backend_run_raises_on_is_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_preflight(monkeypatch)
+    payload = json.dumps({"type": "result", "is_error": True, "result": "model not available"})
+    monkeypatch.setattr(f"{CURSOR_MODULE}.asyncio.create_subprocess_exec", _fake_cursor_process(payload))
+
+    with pytest.raises(RuntimeError, match="model not available"):
+        asyncio.run(
+            CursorSubprocessBackend().run_evaluation("P", tmp_path, EvaluationConfig(backend="cursor"), tmp_path)
+        )
+
+
+def test_cursor_backend_run_raises_on_nonzero_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_preflight(monkeypatch)
+    monkeypatch.setattr(f"{CURSOR_MODULE}.asyncio.create_subprocess_exec", _fake_cursor_process("", returncode=2))
+
+    with pytest.raises(RuntimeError, match="exit code 2"):
+        asyncio.run(
+            CursorSubprocessBackend().run_evaluation("P", tmp_path, EvaluationConfig(backend="cursor"), tmp_path)
+        )

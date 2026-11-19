@@ -17,5 +17,9 @@ def create_backend(eval_config: EvaluationConfig) -> EvaluatorBackend:
         from nasde_toolkit.evaluator_backends.codex_subprocess import CodexSubprocessBackend
 
         return CodexSubprocessBackend()
+    elif eval_config.backend == "cursor":
+        from nasde_toolkit.evaluator_backends.cursor_subprocess import CursorSubprocessBackend
+
+        return CursorSubprocessBackend()
     else:
-        raise ValueError(f"Unknown evaluator backend: '{eval_config.backend}'. Supported: 'claude', 'codex'")
+        raise ValueError(f"Unknown evaluator backend: '{eval_config.backend}'. Supported: 'claude', 'codex', 'cursor'")

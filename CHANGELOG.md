@@ -9,7 +9,21 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- **Cursor pricing.** The bundled price catalog gains `cursor/` entries
+  (Composer 2.5; Claude Opus 5.5, Sonnet 5.5, Fable 5 and Fable 5.1 at Cursor's
+  rates, which bill cache writes at 1.25x input instead of the 2x Claude Code
+  uses). `assessment_summary.json` and `metrics.json` also record the agent's
+  own cost figure as `agent_reported_cost_usd` / `agent_reported_cost_source`
+  for audit; `cost_usd` is unchanged as the source of truth. ([#NN])
+
 ### Changed
+- **Price lookup falls back through effort suffixes and provider prefixes.** A
+  model such as `cursor/claude-opus-5-5-high` is priced by the first of
+  `cursor/claude-opus-5-5-high`, `cursor/claude-opus-5-5`,
+  `claude-opus-5-5-high`, `claude-opus-5-5` found in the catalog; an exact entry
+  always wins. The "Pricing used" table and `pricing_used.json` (new
+  `catalog_key` field) show which entry was used. ([#NN])
 - **Bundled Codex examples run on `gpt-6.1-sol`.** Every Codex variant in the
   examples moves from `gpt-5.4` (no longer offered to ChatGPT-plan accounts) to
   OpenAI's current coding workhorse; the authoring skills list the current
@@ -35,6 +49,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   preflight validates with unknown kwargs forbidden. ([#88])
 
 ### Fixed
+- Cache writes reported by Cursor trajectories (`usage_totals.cacheWriteTokens`)
+  are now counted in `token_usage.cache_write_tokens` and priced. ([#NN])
 - `--with-opik` records one span per agent step. Each step was emitted twice,
   which doubled the token totals Opik shows for Codex runs; nasde's own
   `assessment_summary.json` / `metrics.json` economics were not affected.

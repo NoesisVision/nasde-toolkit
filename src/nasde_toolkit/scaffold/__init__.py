@@ -21,7 +21,7 @@ base_image = "ubuntu:22.04"
 build_commands = []
 
 [evaluation]
-# backend = "claude"  # "claude" | "codex" | "cursor" (cursor defaults model to claude-opus-5-5-high)
+# backend = "claude"  # "claude" | "codex" | "cursor" (for "cursor", also set model = "claude-opus-5-5-high")
 model = "claude-opus-5-5"
 dimensions_file = "assessment_dimensions.json"
 # eval_repetitions = 3  # judge runs per trial; reported as a mean (the judge is non-deterministic)

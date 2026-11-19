@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import os
 import shutil
@@ -71,10 +72,7 @@ class CursorSubprocessBackend:
 
     def _warn_unsupported_options(self, eval_config: EvaluationConfig) -> None:
         if eval_config.allowed_tools:
-            console.print(
-                "[yellow]WARNING: \\[evaluation] allowed_tools is ignored by the cursor backend — "
-                "it runs read-only via --mode ask.[/yellow]"
-            )
+            _warn_allowed_tools_ignored()
 
     def _prepare_temp_workspace(self, eval_config: EvaluationConfig, project_root: Path) -> Path:
         temp_workspace = Path(tempfile.mkdtemp(prefix="nasde_eval_cursor_"))
@@ -131,6 +129,15 @@ class CursorSubprocessBackend:
         return _extract_result_text(stdout_text)
 
 
+@functools.lru_cache(maxsize=1)
+def _warn_allowed_tools_ignored() -> None:
+    console.print(
+        "[yellow]WARNING: \\[evaluation] allowed_tools is ignored by the cursor backend — "
+        "it runs read-only via --mode ask.[/yellow]"
+    )
+
+
+@functools.lru_cache(maxsize=1)
 def _cursor_cli_logged_in() -> bool:
     try:
         completed = subprocess.run([_CURSOR_CLI, "status"], capture_output=True, text=True, timeout=30, check=False)

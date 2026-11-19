@@ -86,7 +86,10 @@ def _override_eval_judge(config: ProjectConfig, model: str | None, backend: str 
     """Apply per-run judge overrides (judge-model comparison matrices).
 
     Switching backend without ``--eval-model`` moves an un-customized judge model
-    to the new backend's default (Cursor slugs differ from Claude model IDs).
+    to the new backend's default (Cursor slugs differ from Claude model IDs). A
+    judge model equal to the current backend's default is treated as "not
+    customized" and is remapped to the new backend's default, even when it was
+    set explicitly in ``nasde.toml``.
     """
     from nasde_toolkit.config import default_evaluator_model
 

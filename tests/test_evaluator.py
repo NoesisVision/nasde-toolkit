@@ -24,6 +24,7 @@ from nasde_toolkit.evaluator import (
     _dominant_group,
     _evaluate_and_record_trial,
     _evaluation_from_dict,
+    _judge_model_stamp,
     _load_expected_dimensions,
     _materialize_agent_diff,
     _next_eval_index,
@@ -32,6 +33,7 @@ from nasde_toolkit.evaluator import (
     _run_precheck,
     _write_assessment_summary,
     _write_evaluation_result,
+    evaluate_trial,
     resolve_dimensions_path,
 )
 from nasde_toolkit.pricing import load_pricing, load_pricing_layered
@@ -498,13 +500,122 @@ def test_resolve_trajectory_path_returns_none_when_file_missing(tmp_path: Path) 
     assert result is None
 
 
-def test_resolve_trajectory_path_returns_relative_path_when_file_exists(tmp_path: Path) -> None:
+def test_resolve_trajectory_path_returns_absolute_path_when_file_exists(tmp_path: Path) -> None:
     (tmp_path / "agent").mkdir()
     (tmp_path / "agent" / "trajectory.json").write_text("{}")
 
     eval_config = EvaluationConfig(include_trajectory=True)
     result = _resolve_trajectory_path(tmp_path, eval_config)
-    assert result == "../../agent/trajectory.json"
+    assert result == str((tmp_path / "agent" / "trajectory.json").absolute())
+    assert Path(result).is_absolute()
+
+
+_JUDGE_RESPONSE = (
+    "```json\n"
+    + json.dumps(
+        {
+            "dimensions": [{"name": "correctness", "score": 7, "max_score": 10, "reasoning": "ok"}],
+            "summary": "fine",
+        }
+    )
+    + "\n```"
+)
+
+
+class _PromptCapturingBackend:
+    def __init__(self) -> None:
+        self.prompt = ""
+
+    async def run_evaluation(self, prompt: str, **kwargs: object) -> str:
+        self.prompt = prompt
+        return _JUDGE_RESPONSE
+
+
+def _make_judgeable_trial(tmp_path: Path) -> tuple[Path, Path]:
+    project_root = tmp_path / "project"
+    task_dir = project_root / "tasks" / "demo"
+    task_dir.mkdir(parents=True)
+    (task_dir / "assessment_criteria.md").write_text("Be correct")
+    (task_dir / "instruction.md").write_text("Fix the bug")
+    trial_dir = tmp_path / "jobs" / "job1" / "demo__abc"
+    (trial_dir / "artifacts" / "workspace").mkdir(parents=True)
+    (trial_dir / "agent").mkdir()
+    (trial_dir / "agent" / "trajectory.json").write_text("{}")
+    (trial_dir / "result.json").write_text(
+        json.dumps({"task_name": "demo", "trial_name": "demo__abc", "task_id": {"path": "tasks/demo"}})
+    )
+    return project_root, trial_dir
+
+
+def _run_judged_trial(
+    tmp_path: Path, eval_config: EvaluationConfig
+) -> tuple[_PromptCapturingBackend, EvaluationResult | None, Path]:
+    project_root, trial_dir = _make_judgeable_trial(tmp_path)
+    backend = _PromptCapturingBackend()
+    with patch("nasde_toolkit.evaluator.create_backend", return_value=backend):
+        result = asyncio.run(evaluate_trial(trial_dir, project_root, eval_config))
+    return backend, result, trial_dir
+
+
+def test_cursor_backend_prompt_carries_absolute_workspace_and_trajectory_paths(tmp_path: Path) -> None:
+    eval_config = EvaluationConfig(backend="cursor", include_trajectory=True)
+    backend, result, trial_dir = _run_judged_trial(tmp_path, eval_config)
+
+    assert result is not None
+    workspace = str((trial_dir / "artifacts" / "workspace").absolute())
+    trajectory = str((trial_dir / "agent" / "trajectory.json").absolute())
+    assert f"Analyze the artifacts in `{workspace}`." in backend.prompt
+    assert "current working directory" not in backend.prompt
+    assert f"`{trajectory}`" in backend.prompt
+    assert "../../agent/trajectory.json" not in backend.prompt
+
+
+def test_claude_backend_without_skills_dir_keeps_cwd_workspace_prompt(tmp_path: Path) -> None:
+    eval_config = EvaluationConfig(backend="claude")
+    backend, result, trial_dir = _run_judged_trial(tmp_path, eval_config)
+
+    assert result is not None
+    assert "Analyze the artifacts in the current working directory." in backend.prompt
+    assert str(trial_dir / "artifacts" / "workspace") not in backend.prompt
+
+
+def test_claude_backend_with_skills_dir_prompt_carries_absolute_workspace(tmp_path: Path) -> None:
+    eval_config = EvaluationConfig(backend="claude", skills_dir="evaluator_skills")
+    backend, _, trial_dir = _run_judged_trial(tmp_path, eval_config)
+
+    workspace = str((trial_dir / "artifacts" / "workspace").absolute())
+    assert f"Analyze the artifacts in `{workspace}`." in backend.prompt
+
+
+def test_cursor_backend_stamps_prefixed_judge_model(tmp_path: Path) -> None:
+    eval_config = EvaluationConfig(backend="cursor", model="claude-opus-5-5-high")
+    _, result, _ = _run_judged_trial(tmp_path, eval_config)
+
+    assert result is not None
+    assert result.evaluator_model == "cursor/claude-opus-5-5-high"
+
+
+def test_claude_backend_stamps_bare_judge_model(tmp_path: Path) -> None:
+    eval_config = EvaluationConfig(backend="claude", model="claude-opus-5-5")
+    _, result, _ = _run_judged_trial(tmp_path, eval_config)
+
+    assert result is not None
+    assert result.evaluator_model == "claude-opus-5-5"
+
+
+def test_judge_model_stamp_leaves_slash_models_alone() -> None:
+    eval_config = EvaluationConfig(backend="cursor", model="cursor/composer-2.5")
+    assert _judge_model_stamp(eval_config) == "cursor/composer-2.5"
+
+
+def test_cursor_and_claude_judges_with_same_model_never_share_a_cluster() -> None:
+    summary = _aggregate_evaluations(
+        [
+            _make_evaluation(0.6, evaluator_model="cursor/claude-opus-5-5", dim_score=6),
+            _make_evaluation(0.8, evaluator_model="claude-opus-5-5", dim_score=8),
+        ]
+    )
+    assert {g.evaluator_model for g in summary.groups} == {"cursor/claude-opus-5-5", "claude-opus-5-5"}
 
 
 # ---------------------------------------------------------------------------

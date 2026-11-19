@@ -11,6 +11,7 @@ import pytest
 
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator_backends import EvaluatorBackend, create_backend
+from nasde_toolkit.evaluator_backends import cursor_subprocess as cursor_module
 from nasde_toolkit.evaluator_backends.claude_subprocess import ClaudeSubprocessBackend
 from nasde_toolkit.evaluator_backends.codex_subprocess import CodexSubprocessBackend
 from nasde_toolkit.evaluator_backends.cursor_subprocess import CursorSubprocessBackend
@@ -346,6 +347,12 @@ def test_codex_backend_env_preserves_openai_key_priority(
 CURSOR_MODULE = "nasde_toolkit.evaluator_backends.cursor_subprocess"
 
 
+@pytest.fixture(autouse=True)
+def _reset_cursor_process_caches() -> None:
+    cursor_module._cursor_cli_logged_in.cache_clear()
+    cursor_module._warn_allowed_tools_ignored.cache_clear()
+
+
 def test_create_backend_returns_cursor_when_configured() -> None:
     backend = create_backend(EvaluationConfig(backend="cursor"))
     assert isinstance(backend, CursorSubprocessBackend)
@@ -394,6 +401,54 @@ def test_cursor_backend_validate_auth_fails_when_logged_out(monkeypatch: pytest.
     )
     with pytest.raises(SystemExit):
         CursorSubprocessBackend().validate_auth()
+
+
+def test_cursor_backend_validate_auth_checks_status_once_per_process(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CURSOR_API_KEY", raising=False)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], *args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="Logged in as dev@example.com\n", stderr="")
+
+    monkeypatch.setattr(f"{CURSOR_MODULE}.subprocess.run", fake_run)
+
+    CursorSubprocessBackend().validate_auth()
+    CursorSubprocessBackend().validate_auth()
+
+    assert calls == [["cursor-agent", "status"]]
+
+
+def test_cursor_cli_logged_in_false_on_os_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("not executable")
+
+    monkeypatch.setattr(f"{CURSOR_MODULE}.subprocess.run", raise_os_error)
+    assert cursor_module._cursor_cli_logged_in() is False
+
+
+def test_cursor_cli_logged_in_false_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_timeout(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="cursor-agent status", timeout=30)
+
+    monkeypatch.setattr(f"{CURSOR_MODULE}.subprocess.run", raise_timeout)
+    assert cursor_module._cursor_cli_logged_in() is False
+
+
+def test_extract_result_text_returns_non_json_stdout_as_is() -> None:
+    assert cursor_module._extract_result_text("plain text, not json") == "plain text, not json"
+
+
+def test_extract_result_text_returns_non_dict_json_as_is() -> None:
+    assert cursor_module._extract_result_text("[1, 2, 3]") == "[1, 2, 3]"
+
+
+def test_extract_result_text_non_string_result_becomes_empty() -> None:
+    assert cursor_module._extract_result_text('{"result": 42}') == ""
+
+
+def test_extract_result_text_returns_string_result() -> None:
+    assert cursor_module._extract_result_text('{"result": "scored"}') == "scored"
 
 
 def test_cursor_backend_builds_read_only_command(tmp_path: Path) -> None:
@@ -465,6 +520,14 @@ def test_cursor_backend_temp_workspace_holds_skills_and_mcp(tmp_path: Path) -> N
 def test_cursor_backend_warns_on_allowed_tools(capsys: pytest.CaptureFixture[str]) -> None:
     CursorSubprocessBackend()._warn_unsupported_options(EvaluationConfig(backend="cursor", allowed_tools=["Read"]))
     assert "allowed_tools" in capsys.readouterr().out
+
+
+def test_cursor_backend_warns_on_allowed_tools_only_once(capsys: pytest.CaptureFixture[str]) -> None:
+    eval_config = EvaluationConfig(backend="cursor", allowed_tools=["Read"])
+    backend = CursorSubprocessBackend()
+    backend._warn_unsupported_options(eval_config)
+    backend._warn_unsupported_options(eval_config)
+    assert capsys.readouterr().out.count("allowed_tools") == 1
 
 
 def _fake_cursor_process(stdout: str, returncode: int = 0) -> object:

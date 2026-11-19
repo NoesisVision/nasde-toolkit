@@ -306,7 +306,7 @@ async def evaluate_trial(
     agent_diff_path, agent_diffstat = _materialize_agent_diff(workspace_path, trial_dir)
 
     trajectory_path = _resolve_trajectory_path(trial_dir, eval_config)
-    artifacts_dir = str(workspace_path) if eval_config.skills_dir else None
+    artifacts_dir = str(workspace_path.absolute()) if _judge_runs_outside_workspace(eval_config) else None
     prompt = _build_evaluator_prompt(
         instruction,
         criteria,
@@ -341,7 +341,7 @@ async def evaluate_trial(
     evaluation.agent_name = agent_name
     evaluation.harbor_reward = harbor_reward
     evaluation.duration_sec = duration_sec
-    evaluation.evaluator_model = eval_config.model
+    evaluation.evaluator_model = _judge_model_stamp(eval_config)
     evaluation.timestamp = datetime.now(UTC).isoformat()
     evaluation.dimensions_fingerprint = _dimensions_fingerprint(dimensions_path)
     _apply_precheck(evaluation, precheck_raw)
@@ -554,7 +554,17 @@ def _resolve_trajectory_path(trial_dir: Path, eval_config: EvaluationConfig) -> 
     trajectory_file = trial_dir / "agent" / "trajectory.json"
     if not trajectory_file.exists():
         return None
-    return "../../agent/trajectory.json"
+    return str(trajectory_file.absolute())
+
+
+def _judge_runs_outside_workspace(eval_config: EvaluationConfig) -> bool:
+    return eval_config.backend == "cursor" or bool(eval_config.skills_dir)
+
+
+def _judge_model_stamp(eval_config: EvaluationConfig) -> str:
+    if eval_config.backend == "cursor" and "/" not in eval_config.model:
+        return f"cursor/{eval_config.model}"
+    return eval_config.model
 
 
 # ---------------------------------------------------------------------------

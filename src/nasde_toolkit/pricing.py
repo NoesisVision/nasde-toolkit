@@ -10,7 +10,9 @@ and ADR-014 (supersedes ADR-011's full-rate formula).
 
 from __future__ import annotations
 
+import re
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import as_file, files
@@ -20,6 +22,9 @@ from typing import NoReturn
 from rich.console import Console
 
 console = Console()
+
+_BRACKET_PARAMS_RE = re.compile(r"\[[^\[\]]*\]$")
+_EFFORT_SUFFIX_RE = re.compile(r"(?:-thinking)?-(?:none|minimal|low|medium|high|xhigh|max)$|-thinking$")
 
 
 @dataclass(frozen=True)
@@ -66,13 +71,14 @@ def compute_cost_usd(
     With zero cache volumes this reduces to the full-rate formula, which is also
     how the cache-free ceiling can be derived offline from ``token_usage``.
     """
-    price = pricing.get(model)
-    if price is None:
+    catalog_key = resolve_catalog_key(model, pricing)
+    if catalog_key is None:
         console.print(
             f"  [yellow]No pricing for model {model!r} — cost left unset. "
-            f"Add it to pricing.toml to enable cost metrics.[/yellow]"
+            f"Add it (or its base model) to pricing.toml to enable cost metrics.[/yellow]"
         )
         return None
+    price = pricing[catalog_key]
     read_rate = price.cached_input_per_1m if price.cached_input_per_1m is not None else price.input_per_1m
     write_rate = price.cache_write_per_1m if price.cache_write_per_1m is not None else price.input_per_1m
     fresh_tokens = max(input_tokens - cache_read_tokens - cache_write_tokens, 0)
@@ -132,10 +138,36 @@ def load_pricing_layered(project_dir: Path | None = None) -> dict[str, ModelPric
     return merged
 
 
+def normalize_model_slug(model: str) -> str:
+    """Strip bracket params and one trailing effort/thinking suffix from a model slug.
+
+    Cursor encodes effort in its slugs (``claude-opus-5-5-high``,
+    ``claude-fable-5-thinking-xhigh``) and accepts bracket overrides
+    (``composer-2.5[effort=high]``); neither changes the per-token price.
+    ``-fast`` is deliberately not stripped: fast modes bill at a higher rate.
+    """
+    without_params = _BRACKET_PARAMS_RE.sub("", model)
+    return _EFFORT_SUFFIX_RE.sub("", without_params)
+
+
 def pricing_as_of(model: str, pricing: dict[str, ModelPrice]) -> str | None:
-    """Return the as_of date stamped on the model's price, if priced."""
-    price = pricing.get(model)
-    return price.as_of if price is not None else None
+    """Return the as_of date stamped on the price that covers the model, if priced."""
+    catalog_key = resolve_catalog_key(model, pricing)
+    return pricing[catalog_key].as_of if catalog_key is not None else None
+
+
+def resolve_catalog_key(model: str, catalog: Mapping[str, object]) -> str | None:
+    """Return the catalog key that prices ``model``, or None if it is unpriced.
+
+    Candidates in order, first hit wins: the recorded name, its effort-normalized
+    form, the name without its provider prefix, and that effort-normalized. A
+    ``cursor/`` entry therefore overrides the vendor rate for Cursor trials only,
+    and an exact entry always beats a normalized one (ADR-015).
+    """
+    for candidate in _catalog_key_candidates(model):
+        if candidate in catalog:
+            return candidate
+    return None
 
 
 def resolve_pricing_layers(project_dir: Path | None = None) -> list[PricingLayer]:
@@ -148,6 +180,12 @@ def resolve_pricing_layers(project_dir: Path | None = None) -> list[PricingLayer
     layers = [PricingLayer(name="bundled", path=None, present=True, models=dict(load_pricing()))]
     layers.extend(_override_layers(project_dir))
     return layers
+
+
+def _catalog_key_candidates(model: str) -> list[str]:
+    unprefixed = model.split("/", 1)[-1]
+    candidates = [model, normalize_model_slug(model), unprefixed, normalize_model_slug(unprefixed)]
+    return list(dict.fromkeys(candidates))
 
 
 @lru_cache(maxsize=1)

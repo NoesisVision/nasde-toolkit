@@ -137,7 +137,7 @@ def _prepare_task_environments(config: ProjectConfig, variant_dir: Path) -> tupl
       **Claude** carrier (``/app/.claude/skills/...``), built unconditionally so
       Claude stays byte-identical and tested.
     - ``extra_skill_dirs`` — the same plugin / ``[[skill]]`` skill directories
-      as a host-path list, fed to **Codex/Gemini** through Harbor's native
+      as a host-path list, fed to **Codex/Cursor/Gemini** through Harbor's native
       ``config.agent.skills`` (those CLIs scan only a HOME-scoped dir, never the
       ``/app`` cwd the sandbox map targets). The claude-vs-native choice is made
       per agent at merge time in ``_refresh_agent_skills``. See ADR-012.
@@ -216,7 +216,7 @@ def _resolve_model(
     Priority: --model flag > variant.toml model. Every variant must
     declare a ``model`` field; the model defines the agent's behavior
     and cannot meaningfully default across agent families (claude,
-    codex, gemini). Raises SystemExit if no model is found.
+    codex, cursor, gemini). Raises SystemExit if no model is found.
     """
     if cli_model:
         return cli_model
@@ -251,7 +251,8 @@ def _resolve_effort(cli_effort: str | None, variant_dir: Path) -> str | None:
 
 
 def _ensure_auth(agent_import_path: str | None = None) -> None:
-    if _is_codex_agent(agent_import_path):
+    agent_type = _agent_type_from_import_path(agent_import_path)
+    if agent_type == "codex":
         if not os.environ.get("OPENAI_API_KEY") and os.environ.get("CODEX_API_KEY"):
             os.environ["OPENAI_API_KEY"] = os.environ["CODEX_API_KEY"]
         if os.environ.get("OPENAI_API_KEY"):
@@ -261,7 +262,7 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
             return
         console.print("[red]ERROR: Set CODEX_API_KEY, OPENAI_API_KEY, or run 'codex login' for OAuth[/red]")
         raise SystemExit(1)
-    if _is_gemini_agent(agent_import_path):
+    if agent_type == "gemini":
         if (
             os.environ.get("GEMINI_API_KEY")
             or os.environ.get("GOOGLE_API_KEY")
@@ -271,7 +272,7 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
             return
         console.print("[red]ERROR: Set GEMINI_API_KEY, GOOGLE_API_KEY, or run 'gemini login' for OAuth[/red]")
         raise SystemExit(1)
-    if _is_cursor_agent(agent_import_path):
+    if agent_type == "cursor":
         if os.environ.get("CURSOR_API_KEY"):
             return
         console.print("[red]ERROR: Set CURSOR_API_KEY (create a User API key in the Cursor dashboard)[/red]")
@@ -342,7 +343,7 @@ def _collect_sandbox_files(variant_dir: Path) -> dict[str, str]:
     """Build the sandbox_files map for a variant.
 
     Only Claude skills ride sandbox_files (its cwd ``.claude/skills/`` is a
-    discovery root). Codex/Gemini skills are NOT collected here — they go
+    discovery root). Codex/Cursor/Gemini skills are NOT collected here — they go
     through Harbor's native ``config.agent.skills`` list via
     ``_collect_native_skill_dirs`` / ``_refresh_agent_skills`` (see ADR-012).
     """
@@ -578,7 +579,7 @@ def _ensure_harbor_config(
     pointing at now-deleted worktree paths.
 
     ``extra_skill_dirs`` carries the same plugin / ``[[skill]]`` directories as
-    a host-path list for the Codex/Gemini native channel (``config.agent.skills``);
+    a host-path list for the Codex/Cursor/Gemini native channel (``config.agent.skills``);
     Claude ignores it (its copies ride ``extra_sandbox_files``). See ADR-012.
     """
     harbor_config_path = variant_dir / "harbor_config.json"
@@ -685,7 +686,7 @@ def _refresh_agent_skills(
     """Rebuild the agent's ``skills`` list, preserving hand-authored entries.
 
     nasde owns the entries derived from **two** sources, both routed through
-    Harbor's native ``config.agent.skills`` for Codex/Gemini:
+    Harbor's native ``config.agent.skills`` for Codex/Cursor/Gemini:
 
     1. the variant's ``agents_skills/`` / ``gemini_skills/`` snapshot subdirs
        (``_collect_native_skill_dirs``), and
@@ -725,7 +726,7 @@ def _referenced_skill_dirs_for_agent(effective_type: str, extra_skill_dirs: list
 
     Claude's referenced/plugin skills already ride ``sandbox_files`` to its
     cwd ``/app/.claude/skills`` discovery root, so feeding them here too would
-    double-inject. Codex/Gemini get the dir list and warn on bad frontmatter.
+    double-inject. Codex/Cursor/Gemini get the dir list and warn on bad frontmatter.
     """
     if effective_type == "claude":
         return []
@@ -882,15 +883,17 @@ def _build_merged_config(
 
 
 def _qualify_model_name(import_path: str | None, model_name: str) -> str:
-    """Prefix a bare Cursor slug with ``cursor/``.
+    """Qualify a Cursor model name as ``cursor/<slug>``.
 
     ``cursor/<slug>`` is the ``provider/model`` form Harbor's CursorCli requires,
     and it is what keys the harness-scoped ``cursor/`` price entries (ADR-015).
+    A bare slug is prefixed and any other provider prefix (``anthropic/<slug>``)
+    is replaced, so Cursor trials always reach the ``cursor/`` price entries.
     Other agents' model names pass through unchanged.
     """
-    if _is_cursor_agent(import_path) and "/" not in model_name:
-        return f"cursor/{model_name}"
-    return model_name
+    if _agent_type_from_import_path(import_path) != "cursor":
+        return model_name
+    return f"cursor/{model_name.split('/', 1)[-1]}"
 
 
 def _build_registry(config: ProjectConfig, tasks_filter: list[str] | None) -> list[dict]:

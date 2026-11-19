@@ -33,20 +33,22 @@ def test_constructor_defaults_to_empty_sandbox_files() -> None:
 def test_cli_flags_approve_mcps_when_servers_declared() -> None:
     server = MCPServerConfig(name="docs", transport="stdio", command="node")
     agent = ConfigurableCursor(logs_dir=Path("/tmp/logs"), model_name=MODEL, mcp_servers=[server])
-    assert "--approve-mcps" in agent.build_cli_flags()
+    assert agent.build_cli_flags() == "--approve-mcps"
 
 
 def test_cli_flags_omit_approve_mcps_without_servers() -> None:
     agent = ConfigurableCursor(logs_dir=Path("/tmp/logs"), model_name=MODEL)
-    assert "--approve-mcps" not in agent.build_cli_flags()
+    assert agent.build_cli_flags() == ""
 
 
 def test_cli_flags_keep_harbor_flags_alongside_approve_mcps() -> None:
     server = MCPServerConfig(name="docs", transport="stdio", command="node")
     agent = ConfigurableCursor(logs_dir=Path("/tmp/logs"), model_name=MODEL, mcp_servers=[server], mode="ask")
     flags = agent.build_cli_flags()
-    assert "--mode" in flags
-    assert "--approve-mcps" in flags
+    assert flags == "--mode ask --approve-mcps"
+    assert flags == flags.strip()
+    assert flags.count("--mode ask") == 1
+    assert flags.count("--approve-mcps") == 1
 
 
 def test_setup_uploads_sandbox_files_before_harbor_setup() -> None:
@@ -80,3 +82,6 @@ def test_setup_raises_on_missing_source() -> None:
         pytest.raises(FileNotFoundError, match="does not exist"),
     ):
         asyncio.run(agent.setup(env))
+
+    env.upload_file.assert_not_awaited()
+    env.upload_file.assert_not_called()

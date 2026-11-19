@@ -16,6 +16,7 @@ from nasde_toolkit.config import (
     TaskConfig,
 )
 from nasde_toolkit.runner import (
+    _agent_type_from_import_path,
     _build_merged_config,
     _collect_sandbox_files,
     _ensure_auth,
@@ -23,6 +24,8 @@ from nasde_toolkit.runner import (
     _is_codex_agent,
     _is_cursor_agent,
     _is_gemini_agent,
+    _qualify_model_name,
+    _refresh_agent_skills,
     collect_available_variants,
     load_variant_agent_type,
     load_variant_task_scope,
@@ -659,3 +662,56 @@ def test_build_merged_config_leaves_other_agents_models_alone(tmp_project: Proje
         tasks_filter=None,
     )
     assert result["agents"][0]["model_name"] == "claude-sonnet-5-5"
+
+
+def test_agent_type_from_import_path_classifies_cursor() -> None:
+    assert _agent_type_from_import_path(CURSOR_PATH) == "cursor"
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected"),
+    [
+        ("composer-2.5", "cursor/composer-2.5"),
+        ("cursor/composer-2.5", "cursor/composer-2.5"),
+        ("anthropic/claude-opus-5-5-high", "cursor/claude-opus-5-5-high"),
+        ("openai/gpt-5.6-sol-high", "cursor/gpt-5.6-sol-high"),
+    ],
+)
+def test_qualify_model_name_forces_cursor_prefix_for_cursor_agents(model_name: str, expected: str) -> None:
+    assert _qualify_model_name(CURSOR_PATH, model_name) == expected
+
+
+@pytest.mark.parametrize(
+    "import_path",
+    [
+        "nasde_toolkit.agents.configurable_claude:ConfigurableClaude",
+        "nasde_toolkit.agents.configurable_codex:ConfigurableCodex",
+        "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini",
+        None,
+    ],
+)
+def test_qualify_model_name_leaves_other_agents_untouched(import_path: str | None) -> None:
+    assert _qualify_model_name(import_path, "anthropic/claude-opus-5-5") == "anthropic/claude-opus-5-5"
+    assert _qualify_model_name(import_path, "gpt-6.1-sol") == "gpt-6.1-sol"
+
+
+AMBIGUOUS_GEMINI_CURSOR_PATH = "gemini_cursor_bridge.agent:BridgeAgent"
+
+
+def test_ambiguous_import_path_is_classified_once_for_auth_skills_and_model(tmp_path: Path) -> None:
+    assert _agent_type_from_import_path(AMBIGUOUS_GEMINI_CURSOR_PATH) == "cursor"
+
+    with patch.dict("os.environ", {"GEMINI_API_KEY": "gem-key"}, clear=True), pytest.raises(SystemExit):
+        _ensure_auth(AMBIGUOUS_GEMINI_CURSOR_PATH)
+    with patch.dict("os.environ", {"CURSOR_API_KEY": "key_test"}, clear=True):
+        _ensure_auth(AMBIGUOUS_GEMINI_CURSOR_PATH)
+
+    assert _qualify_model_name(AMBIGUOUS_GEMINI_CURSOR_PATH, "composer-2.5") == "cursor/composer-2.5"
+
+    variant_dir = tmp_path / "variants" / "ambiguous"
+    skill_dir = variant_dir / "agents_skills" / "my-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\nname: my-skill\ndescription: d\n---\nbody")
+    agent: dict = {"import_path": AMBIGUOUS_GEMINI_CURSOR_PATH, "name": "ambiguous"}
+    _refresh_agent_skills(agent, variant_dir, "gemini")
+    assert agent["skills"] == [str(skill_dir.resolve())]

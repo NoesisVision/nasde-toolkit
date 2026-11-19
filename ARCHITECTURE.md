@@ -308,7 +308,7 @@ classDiagram
     note for ConfigurableCursor "Injects AGENTS.md into sandbox\nAuto-approves task MCP servers"
 ```
 
-Harbor natively handles auth, MCP servers, model selection, and timeout for all agents. `ConfigurableClaude`, `ConfigurableCodex`, `ConfigurableGemini`, and `ConfigurableCursor` each add **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`. `ConfigurableGemini` additionally handles OAuth credential injection and DNS resolution for cloud sandboxes. `ConfigurableCursor` additionally appends `--approve-mcps` when the task declares MCP servers. The agent type is auto-detected from the variant's instruction file (`CLAUDE.md` → Claude, `AGENTS.md` → Codex, `GEMINI.md` → Gemini).
+Harbor natively handles auth, MCP servers, model selection, and timeout for all agents. `ConfigurableClaude`, `ConfigurableCodex`, `ConfigurableGemini`, and `ConfigurableCursor` each add **one thing**: declarative file mapping from host to the sandbox via `sandbox_files` in `harbor_config.json`. `ConfigurableGemini` additionally handles OAuth credential injection and DNS resolution for cloud sandboxes. `ConfigurableCursor` additionally appends `--approve-mcps` when the task declares MCP servers. The agent type is auto-detected from the variant's instruction file (`CLAUDE.md` → Claude, `AGENTS.md` → Codex or Cursor, `GEMINI.md` → Gemini).
 
 ---
 
@@ -319,10 +319,10 @@ Each benchmark defines its **own set of variants** — there are no globally sha
 Each variant is a directory under `variants/<variant-name>/` containing:
 - `variant.toml` — **required**, declares the agent type (`agent = "claude"`, `agent = "codex"`, `agent = "cursor"`, or `agent = "gemini"`)
 - `CLAUDE.md` — Claude Code instructions injected into `/app/CLAUDE.md` (for Claude variants)
-- `AGENTS.md` — Codex instructions injected into `/app/AGENTS.md` (for Codex variants)
+- `AGENTS.md` — Codex / Cursor instructions injected into `/app/AGENTS.md` (for Codex and Cursor variants)
 - `GEMINI.md` — Gemini CLI instructions injected into `/app/GEMINI.md` (for Gemini variants)
 - `skills/` — Claude skill snapshots, each `skills/<name>/SKILL.md` injected into `/app/.claude/skills/<name>/SKILL.md` (optional)
-- `agents_skills/` — Codex skill snapshots, each `agents_skills/<name>/` injected recursively into `/app/.agents/skills/<name>/` (optional)
+- `agents_skills/` — Codex / Cursor skill snapshots, each `agents_skills/<name>/` injected recursively into `/app/.agents/skills/<name>/` (optional)
 - `gemini_skills/` — Gemini skill snapshots, each `gemini_skills/<name>/` injected recursively into `/app/.gemini/skills/<name>/` and `~/.gemini/skills/<name>/` (optional)
 - `harbor_config.json` — agent import path + `sandbox_files` mapping (auto-generated from `variant.toml` if absent)
 - `claude_config.json` — MCP server configuration, Claude only (optional)

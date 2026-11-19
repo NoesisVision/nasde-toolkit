@@ -82,6 +82,7 @@ class ConfigurableCursor(CursorCli):
     def name() -> str:
         return "configurable-cursor-cli"
 
+    @override
     def build_cli_flags(self) -> str:
         """Harbor's flags, plus ``--approve-mcps`` when the task declares MCP servers."""
         harbor_flags: str = super().build_cli_flags()

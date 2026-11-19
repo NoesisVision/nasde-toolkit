@@ -98,7 +98,7 @@ SKILL_SCRIPTS=~/.claude/skills/nasde-benchmark-runner/scripts   # adjust if --sc
 source $SKILL_SCRIPTS/export_oauth_token.sh         # Claude (subscription)
 source $SKILL_SCRIPTS/export_codex_oauth_token.sh   # Codex (subscription) — or: export CODEX_API_KEY=...
 source $SKILL_SCRIPTS/export_gemini_oauth_token.sh  # Gemini (Google account) — or: export GEMINI_API_KEY=...
-export CURSOR_API_KEY=...                         # Cursor (API key)
+export CURSOR_API_KEY=...                           # Cursor (API key)
 ```
 
 **Windows PowerShell:**

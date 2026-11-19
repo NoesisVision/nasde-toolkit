@@ -4,7 +4,7 @@
 
 NASDE evaluates AI coding agents (e.g. Claude Code, OpenAI Codex, Gemini CLI) on programming tasks. It uses **Harbor** as the execution engine running agents in isolated sandbox environments and **Opik** as the observability platform for tracking results.
 
-Key design: evaluation is **two-stage** — Harbor assesses functional correctness (tests pass/fail), then a separate reviewer agent (the `claude` or `codex` CLI, spawned as a subprocess) assesses architectural quality of the generated code.
+Key design: evaluation is **two-stage** — Harbor assesses functional correctness (tests pass/fail), then a separate reviewer agent (the `claude`, `codex` or `cursor-agent` CLI, spawned as a subprocess) assesses architectural quality of the generated code.
 
 ---
 
@@ -33,7 +33,7 @@ flowchart TB
 
     subgraph ASSESSMENT ["3. Assessment evaluation (host machine, always local)"]
         ARTIFACTS -->|"Harbor done,\nsandboxes torn down"| EVAL["evaluator.evaluate_job()"]
-        EVAL --> SDK["Pluggable backend:\nClaudeSubprocessBackend ('claude -p')\nor CodexSubprocessBackend ('codex exec')\n(local subprocess, opus by default)\ntools: Read/Glob/Grep + MCP\ncwd = artifacts/workspace/\n+ optional skills & system prompt"]
+        EVAL --> SDK["Pluggable backend:\nClaudeSubprocessBackend ('claude -p')\nCodexSubprocessBackend ('codex exec')\nor CursorSubprocessBackend ('cursor-agent -p --mode ask')\n(local subprocess, opus by default)\ntools: Read/Glob/Grep + MCP (claude/codex)\ncwd = artifacts/workspace/ (claude/codex)\ncursor: cwd = temp workspace,\ntrial workspace via --add-dir\n+ optional skills & system prompt"]
         SDK --> SCORE["Score across N dimensions\n0-25 pts each"]
         SCORE --> JSON_OUT["assessment_eval.json"]
         SCORE --> OPIK_FB["Opik feedback scores\narch_*, reward, duration"]
@@ -161,7 +161,7 @@ flowchart TB
 
     subgraph Evaluator["CLI subprocess as evaluator (pluggable backend)"]
         PROMPT["Composite prompt:\ninstruction + rubric +\ndimension constraints"]
-        SDK_RUN["Backend subprocess call:\n  claude -p --output-format json (default)\n  codex exec --json --quiet --full-auto\nConfigurable:\nmodel (default: opus for claude)\ntools (default: Read/Glob/Grep)\nMCP servers (optional)\nskills (optional, via --add-dir + cwd)\nsystem prompt (optional)\nmax_turns (default: 30)"]
+        SDK_RUN["Backend subprocess call:\n  claude -p --output-format json (default)\n  codex exec --json --quiet --full-auto\n  cursor-agent -p --output-format json --mode ask\nConfigurable:\nmodel (default: opus for claude)\ntools (default: Read/Glob/Grep)\nMCP servers (optional)\nskills (optional, via --add-dir + cwd)\nsystem prompt (optional)\nmax_turns (default: 30)"]
         PARSE["Parse JSON from\nlast json code block"]
     end
 
@@ -220,7 +220,7 @@ The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All opti
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `backend` | `claude` | Subprocess backend: `claude` (`ClaudeSubprocessBackend`) or `codex` (`CodexSubprocessBackend`) |
+| `backend` | `claude` | Subprocess backend: `claude` (`ClaudeSubprocessBackend`), `codex` (`CodexSubprocessBackend`) or `cursor` (`CursorSubprocessBackend`; default model `claude-opus-5-5-high`) |
 | `model` | `claude-opus-5-5` | Evaluator model (Opus recommended for review quality) |
 | `dimensions_file` | `assessment_dimensions.json` | Path to scoring dimensions |
 | `max_turns` | `30` | Max conversation turns for evaluator |
@@ -230,10 +230,11 @@ The evaluator agent is configurable via `[evaluation]` in `nasde.toml`. All opti
 | `append_system_prompt` | — | Extra text appended to evaluator's system prompt |
 | `include_trajectory` | `false` | Include ATIF trajectory data in evaluation (opt-in) |
 
-Backends are pluggable via the `EvaluatorBackend` Protocol in `src/nasde_toolkit/evaluator_backends/protocol.py`. Both current backends spawn a CLI subprocess — not a Python SDK call — so the evaluator inherits the user's existing CLI authentication (OAuth subscription or API key). This avoids Anthropic's SDK-billing restrictions on subscription accounts: running `claude -p` under your shell is billed the same as interactive use.
+Backends are pluggable via the `EvaluatorBackend` Protocol in `src/nasde_toolkit/evaluator_backends/protocol.py`. All current backends spawn a CLI subprocess — not a Python SDK call — so the evaluator inherits the user's existing CLI authentication (OAuth subscription or API key). This avoids Anthropic's SDK-billing restrictions on subscription accounts: running `claude -p` under your shell is billed the same as interactive use.
 
 - `ClaudeSubprocessBackend` invokes `claude -p --output-format json --model <model> --allowed-tools ... [--append-system-prompt ...] [--mcp-config ...] [--add-dir ...]`. The `--bare` flag is deliberately omitted so the CLI reads OAuth tokens from the keychain and auto-discovers skills.
 - `CodexSubprocessBackend` invokes `codex exec --json --quiet --full-auto --model <model> [--sandbox ...]` and parses the JSONL event stream emitted to stdout.
+- `CursorSubprocessBackend` invokes `cursor-agent -p --output-format json --mode ask --trust --model <model> --workspace <temp> --add-dir <trial workspace> -- <prompt>` (read-only; no per-tool allow-list, so `allowed_tools`/`max_turns` are ignored). It runs from a throwaway temp workspace holding `.cursor/skills` and `.cursor/mcp.json`, and receives the trial workspace (plus the trial dir when a trajectory or agent diff is needed) via `--add-dir`; because its cwd is not the workspace, the evaluator prompt carries the absolute workspace and trajectory paths. Auth is `CURSOR_API_KEY` or `cursor-agent login`. Evaluations are stamped `evaluator_model = "cursor/<model>"` so they never cluster with a Claude judge of the same model name (ADR-015).
 
 When `include_trajectory` is set to `true`, the evaluator prompt includes a reference to the agent's ATIF trajectory file (`agent/trajectory.json`), and the trial directory is added to the backend's `--add-dir` set so the evaluator can read it. This enables assessment dimensions that evaluate the agent's process (tool usage, efficiency, decision-making) alongside the final output. The trajectory file is not preprocessed — the evaluator reads it directly via the Read tool.
 
@@ -443,6 +444,7 @@ src/nasde_toolkit/
     protocol.py            # EvaluatorBackend Protocol + factory
     claude_subprocess.py   # `claude -p --output-format json` backend (default)
     codex_subprocess.py    # `codex exec --json --quiet --full-auto` backend
+    cursor_subprocess.py   # `cursor-agent -p --output-format json --mode ask` backend (temp workspace + --add-dir)
   docker.py                # Docker environment helpers
   scaffold/                # Project scaffolding templates
   agents/

@@ -16,7 +16,9 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   ends up in the agent's diff. It uses `CURSOR_API_KEY` or your
   `cursor-agent login`, and defaults the judge model to `claude-opus-5-5-high`
   when `[evaluation] model` is not set. `allowed_tools` and `max_turns` have no
-  Cursor equivalent (the former prints a warning). ([#NN])
+  Cursor equivalent (the former prints a warning). Cursor-judged evaluations
+  are stamped `evaluator_model = "cursor/<model>"`, so they are averaged in a
+  separate cluster from a Claude judge with the same model name. ([#NN])
 
 ### Changed
 - **Bundled Codex examples run on `gpt-6.1-sol`.** Every Codex variant in the

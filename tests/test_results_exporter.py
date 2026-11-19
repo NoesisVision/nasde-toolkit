@@ -382,6 +382,31 @@ def test_export_pricing_used_layer_bundled(job_dir: Path, tmp_path: Path, empty_
     assert report["claude-sonnet-5-5"]["input_per_1m"] == 2.0
 
 
+def test_export_pricing_used_records_catalog_key(job_dir: Path, tmp_path: Path) -> None:
+    for trial in ("demo-task__aaa111", "demo-task__bbb222"):
+        config_path = job_dir / trial / "config.json"
+        config = json.loads(config_path.read_text())
+        config["agent"]["model_name"] = "cursor/claude-opus-5-5-high"
+        config_path.write_text(json.dumps(config))
+
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+    report = json.loads((dest / "pricing_used.json").read_text())
+
+    entry = report["cursor/claude-opus-5-5-high"]
+    assert entry["catalog_key"] == "cursor/claude-opus-5-5"
+    assert entry["layer"] == "bundled"
+    assert entry["input_per_1m"] == 4.0
+
+
+def test_export_pricing_used_exact_match_catalog_key(job_dir: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+    report = json.loads((dest / "pricing_used.json").read_text())
+
+    assert report["claude-sonnet-5-5"]["catalog_key"] == "claude-sonnet-5-5"
+
+
 def test_capture_patch_includes_non_ascii_untracked_filename(tmp_path: Path) -> None:
     workspace = tmp_path / "artifacts" / "workspace"
     workspace.mkdir(parents=True)

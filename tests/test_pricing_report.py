@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from nasde_toolkit.pricing import ModelPrice
-from nasde_toolkit.pricing_report import _fmt_rate, render_pricing_table
+from nasde_toolkit.pricing_report import _fmt_rate, priced_as_label, render_pricing_table
 
 
 @pytest.mark.parametrize(
@@ -31,3 +31,14 @@ def test_render_pricing_table_source_column_toggles() -> None:
     without_source = render_pricing_table(entries, show_source=False)
     assert with_source.columns[-2].header == "Layer"
     assert all(column.header != "Layer" for column in without_source.columns)
+
+
+def test_priced_as_label_exact_match_is_bare() -> None:
+    assert priced_as_label("claude-opus-5-5", "claude-opus-5-5") == "claude-opus-5-5"
+
+
+def test_priced_as_label_names_the_catalog_key() -> None:
+    assert (
+        priced_as_label("cursor/claude-opus-5-5-high", "cursor/claude-opus-5-5")
+        == "cursor/claude-opus-5-5-high (priced as cursor/claude-opus-5-5)"
+    )

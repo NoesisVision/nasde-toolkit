@@ -1169,14 +1169,18 @@ def _print_job_summary(result: JobResult, job_dir: Path | None = None, project_d
 
 
 def _print_pricing_used(rows: list[dict], project_dir: Path | None) -> None:
-    from nasde_toolkit.pricing import effective_pricing_with_source
-    from nasde_toolkit.pricing_report import render_pricing_table
+    from nasde_toolkit.pricing import ModelPrice, effective_pricing_with_source, resolve_catalog_key
+    from nasde_toolkit.pricing_report import priced_as_label, render_pricing_table
 
     used_models = {row["model"] for row in rows if row["model"]}
     if not used_models:
         return
     effective = effective_pricing_with_source(project_dir)
-    entries = {model: effective[model] for model in used_models if model in effective}
+    entries: dict[str, tuple[ModelPrice, str]] = {}
+    for model in used_models:
+        catalog_key = resolve_catalog_key(model, effective)
+        if catalog_key is not None:
+            entries[priced_as_label(model, catalog_key)] = effective[catalog_key]
     if not entries:
         return
     console.print(render_pricing_table(entries, show_source=True, title="Pricing used (effective)"))

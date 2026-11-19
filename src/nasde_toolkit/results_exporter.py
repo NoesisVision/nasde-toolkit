@@ -58,7 +58,7 @@ def export_results(
 
 
 def _write_pricing_used(dest: Path, trial_dirs: list[Path], project_dir: Path | None) -> None:
-    from nasde_toolkit.pricing import effective_pricing_with_source
+    from nasde_toolkit.pricing import effective_pricing_with_source, resolve_catalog_key
 
     used_models = {_resolve_model_name(td) for td in trial_dirs}
     used_models.discard("")
@@ -67,15 +67,16 @@ def _write_pricing_used(dest: Path, trial_dirs: list[Path], project_dir: Path | 
     effective = effective_pricing_with_source(project_dir)
     report = {}
     for model in sorted(used_models):
-        entry = effective.get(model)
-        if entry is None:
+        catalog_key = resolve_catalog_key(model, effective)
+        if catalog_key is None:
             continue
-        price, layer = entry
+        price, layer = effective[catalog_key]
         report[model] = {
             "input_per_1m": price.input_per_1m,
             "output_per_1m": price.output_per_1m,
             "as_of": price.as_of,
             "layer": layer,
+            "catalog_key": catalog_key,
         }
     if report:
         (dest / "pricing_used.json").write_text(json.dumps(report, indent=2))

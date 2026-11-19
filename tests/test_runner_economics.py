@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 
 from nasde_toolkit.runner import (
     _collect_economics_rows,
@@ -14,6 +15,7 @@ from nasde_toolkit.runner import (
     _fmt_tokens,
     _job_dir_from_config,
     _print_job_summary,
+    _print_pricing_used,
     _sample_std,
     _short_label,
 )
@@ -245,3 +247,13 @@ def test_economics_row_carries_model_name(tmp_path: Path) -> None:
 
     rows = _collect_economics_rows(job)
     assert {row["model"] for row in rows} == {"gpt-6.1-sol", "claude-sonnet-5-5"}
+
+
+def test_print_pricing_used_labels_normalized_matches(monkeypatch: pytest.MonkeyPatch) -> None:
+    recorder = Console(width=250, record=True)
+    monkeypatch.setattr("nasde_toolkit.runner.console", recorder)
+
+    _print_pricing_used([{"model": "cursor/claude-opus-5-5-high"}], None)
+
+    output = recorder.export_text()
+    assert "cursor/claude-opus-5-5-high (priced as cursor/claude-opus-5-5)" in output

@@ -347,3 +347,41 @@ def test_compute_cost_uses_normalized_key() -> None:
 def test_pricing_as_of_uses_normalized_key() -> None:
     pricing = {"m": ModelPrice(input_per_1m=1.0, output_per_1m=2.0, as_of="2026-11-19")}
     assert pricing_as_of("cursor/m-high", pricing) == "2026-11-19"
+
+
+CURSOR_CLAUDE_BASES = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5", "claude-fable-5-1")
+
+
+@pytest.mark.parametrize("base", CURSOR_CLAUDE_BASES)
+def test_cursor_claude_entries_bill_cache_writes_at_the_5_minute_rate(base: str) -> None:
+    pricing = load_pricing()
+    cursor_price = pricing[f"cursor/{base}"]
+    vendor_price = pricing[base]
+    assert cursor_price.cache_write_per_1m == pytest.approx(cursor_price.input_per_1m * 1.25)
+    assert cursor_price.input_per_1m == vendor_price.input_per_1m
+    assert cursor_price.output_per_1m == vendor_price.output_per_1m
+    assert cursor_price.cached_input_per_1m == vendor_price.cached_input_per_1m
+
+
+def test_cursor_trial_uses_cursor_rate_while_claude_code_keeps_vendor_rate() -> None:
+    pricing = load_pricing()
+    cursor_cost = compute_cost_usd(1_000_000, 0, "cursor/claude-opus-5-5-high", pricing, cache_write_tokens=1_000_000)
+    claude_code_cost = compute_cost_usd(1_000_000, 0, "claude-opus-5-5", pricing, cache_write_tokens=1_000_000)
+    assert cursor_cost == pytest.approx(5.0)
+    assert claude_code_cost == pytest.approx(8.0)
+
+
+def test_cursor_gpt_falls_through_to_vendor_entry() -> None:
+    assert resolve_catalog_key("cursor/gpt-5.6-sol-high", load_pricing()) == "gpt-5.6-sol"
+
+
+def test_cursor_auto_is_unpriced() -> None:
+    assert resolve_catalog_key("cursor/auto", load_pricing()) is None
+
+
+def test_cursor_composer_is_priced() -> None:
+    price = load_pricing()["cursor/composer-2.5"]
+    assert (price.input_per_1m, price.output_per_1m, price.cached_input_per_1m) == (0.5, 2.5, 0.2)
+    assert price.cache_write_per_1m is None
+    assert price.as_of == "2026-11-19"
+    assert price.source == "https://cursor.com/docs/models-and-pricing"

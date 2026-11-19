@@ -78,14 +78,11 @@ class CursorSubprocessBackend:
 
     def _prepare_temp_workspace(self, eval_config: EvaluationConfig, project_root: Path) -> Path:
         temp_workspace = Path(tempfile.mkdtemp(prefix="nasde_eval_cursor_"))
-        cursor_dir = temp_workspace / ".cursor"
-        cursor_dir.mkdir()
-        if eval_config.skills_dir:
-            skills_source = _resolve_path(eval_config.skills_dir, project_root)
-            if skills_source.is_dir():
-                shutil.copytree(skills_source, cursor_dir / "skills")
-        if eval_config.mcp_config:
-            shutil.copyfile(_resolve_path(eval_config.mcp_config, project_root), cursor_dir / "mcp.json")
+        try:
+            _populate_cursor_dir(temp_workspace / ".cursor", eval_config, project_root)
+        except BaseException:
+            shutil.rmtree(temp_workspace, ignore_errors=True)
+            raise
         return temp_workspace
 
     def _build_command(
@@ -140,6 +137,16 @@ def _cursor_cli_logged_in() -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return False
     return "logged in as" in completed.stdout.lower()
+
+
+def _populate_cursor_dir(cursor_dir: Path, eval_config: EvaluationConfig, project_root: Path) -> None:
+    cursor_dir.mkdir()
+    if eval_config.skills_dir:
+        skills_source = _resolve_path(eval_config.skills_dir, project_root)
+        if skills_source.is_dir():
+            shutil.copytree(skills_source, cursor_dir / "skills")
+    if eval_config.mcp_config:
+        shutil.copyfile(_resolve_path(eval_config.mcp_config, project_root), cursor_dir / "mcp.json")
 
 
 def _resolve_path(relative_or_absolute: str, project_root: Path) -> Path:

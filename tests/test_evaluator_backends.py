@@ -4,6 +4,7 @@ import asyncio
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -526,3 +527,54 @@ def test_cursor_backend_run_raises_on_nonzero_exit(tmp_path: Path, monkeypatch: 
         asyncio.run(
             CursorSubprocessBackend().run_evaluation("P", tmp_path, EvaluationConfig(backend="cursor"), tmp_path)
         )
+
+
+def _redirect_tempdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    scratch = tmp_path / "scratch_tmp"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    return scratch
+
+
+def test_cursor_backend_run_leaks_no_temp_workspace_when_preparation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_preflight(monkeypatch)
+    scratch = _redirect_tempdir(tmp_path, monkeypatch)
+    eval_config = EvaluationConfig(backend="cursor", mcp_config="missing_mcp.json")
+
+    with pytest.raises(FileNotFoundError):
+        asyncio.run(CursorSubprocessBackend().run_evaluation("P", tmp_path, eval_config, tmp_path))
+
+    assert list(scratch.glob("nasde_eval_cursor_*")) == []
+
+
+def test_cursor_backend_run_cleans_up_temp_workspace_on_is_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_preflight(monkeypatch)
+    scratch = _redirect_tempdir(tmp_path, monkeypatch)
+    payload = json.dumps({"type": "result", "is_error": True, "result": "boom"})
+    monkeypatch.setattr(f"{CURSOR_MODULE}.asyncio.create_subprocess_exec", _fake_cursor_process(payload))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        asyncio.run(
+            CursorSubprocessBackend().run_evaluation("P", tmp_path, EvaluationConfig(backend="cursor"), tmp_path)
+        )
+
+    assert list(scratch.glob("nasde_eval_cursor_*")) == []
+
+
+def test_cursor_backend_run_cleans_up_temp_workspace_on_nonzero_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_preflight(monkeypatch)
+    scratch = _redirect_tempdir(tmp_path, monkeypatch)
+    monkeypatch.setattr(f"{CURSOR_MODULE}.asyncio.create_subprocess_exec", _fake_cursor_process("", returncode=2))
+
+    with pytest.raises(RuntimeError, match="exit code 2"):
+        asyncio.run(
+            CursorSubprocessBackend().run_evaluation("P", tmp_path, EvaluationConfig(backend="cursor"), tmp_path)
+        )
+
+    assert list(scratch.glob("nasde_eval_cursor_*")) == []

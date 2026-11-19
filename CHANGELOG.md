@@ -11,9 +11,9 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Added
 - **Cursor pricing.** The bundled price catalog gains `cursor/` entries
-  (Composer 2.5; Claude Opus 5.5, Sonnet 5.5, Fable 5 and Fable 5.1 at Cursor's
-  rates, which bill cache writes at 1.25x input instead of the 2x Claude Code
-  uses). `assessment_summary.json` and `metrics.json` also record the agent's
+  (Composer 2.5, and every Claude model in the catalog that has a cache-write
+  rate, at Cursor's rates, which bill cache writes at 1.25x input instead of the
+  2x Claude Code uses; GPT models fall through to the vendor entries). `assessment_summary.json` and `metrics.json` also record the agent's
   own cost figure as `agent_reported_cost_usd` / `agent_reported_cost_source`
   for audit; `cost_usd` is unchanged as the source of truth. ([#NN])
 
@@ -22,7 +22,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   model such as `cursor/claude-opus-5-5-high` is priced by the first of
   `cursor/claude-opus-5-5-high`, `cursor/claude-opus-5-5`,
   `claude-opus-5-5-high`, `claude-opus-5-5` found in the catalog; an exact entry
-  always wins. The "Pricing used" table and `pricing_used.json` (new
+  always wins. A `[fast=true]` bracket option is never stripped, so fast-mode
+  slugs stay unpriced instead of taking the standard rate. The "Pricing used" table and `pricing_used.json` (new
   `catalog_key` field) show which entry was used. ([#NN])
 - **Bundled Codex examples run on `gpt-6.1-sol`.** Every Codex variant in the
   examples moves from `gpt-5.4` (no longer offered to ChatGPT-plan accounts) to

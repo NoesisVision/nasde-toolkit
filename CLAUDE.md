@@ -18,7 +18,7 @@ src/nasde_toolkit/
     claude_subprocess.py   # `claude -p` subprocess backend (default)
     codex_subprocess.py    # `codex exec` subprocess backend
   results_exporter.py      # `nasde results-export` — copy trial artifact essence to a plain dir
-  pricing.py / pricing.toml # Versioned model price catalog (ADR-011) — load + compute_cost_usd; layered override via load_pricing_layered + provenance via resolve_pricing_layers/effective_pricing_with_source (ADR-013); layered key lookup via resolve_catalog_key (ADR-015).
+  pricing.py / pricing.toml # Versioned model price catalog (ADR-011) — load + compute_cost_usd; layered override via load_pricing_layered + provenance via resolve_pricing_layers/effective_pricing_with_source (ADR-013); layered key lookup via resolve_catalog_key (ADR-015)
   pricing_report.py        # Shared Rich table renderer for the effective price catalog (nasde pricing show + run summary, ADR-013)
   token_metrics.py         # Token usage + cost economics from trajectory final_metrics (ADR-011)
   calibration_publisher.py # `nasde calibrate` — publish trial diffs+assessments as PRs/MRs (ADR-010)

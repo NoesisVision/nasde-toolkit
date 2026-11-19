@@ -297,6 +297,9 @@ def test_load_pricing_layered_matches_effective_keys(tmp_path: Path, empty_user_
         ("cursor/claude-opus-5-5-high", "cursor/claude-opus-5-5"),
         ("composer-2.5", "composer-2.5"),
         ("claude-opus-5-5-fast", "claude-opus-5-5-fast"),
+        ("claude-opus-4-8[fast=true]", "claude-opus-4-8[fast=true]"),
+        ("claude-opus-4-8[effort=high,fast=true]", "claude-opus-4-8[effort=high,fast=true]"),
+        ("claude-opus-4-8[fast=false]", "claude-opus-4-8"),
         ("gpt-5.4-mini", "gpt-5.4-mini"),
     ],
 )
@@ -324,6 +327,12 @@ def test_resolve_catalog_key_then_vendor_base() -> None:
     assert resolve_catalog_key("cursor/claude-opus-5-5-high", catalog) == "claude-opus-5-5"
 
 
+def test_resolve_catalog_key_fast_true_is_unpriced() -> None:
+    catalog = {"claude-opus-4-8": 3}
+    assert resolve_catalog_key("cursor/claude-opus-4-8[fast=true]", catalog) is None
+    assert resolve_catalog_key("cursor/claude-opus-4-8[effort=high,fast=true]", catalog) is None
+
+
 def test_resolve_catalog_key_unknown_is_none() -> None:
     assert resolve_catalog_key("cursor/auto", {"claude-opus-5-5": 3}) is None
 
@@ -349,7 +358,16 @@ def test_pricing_as_of_uses_normalized_key() -> None:
     assert pricing_as_of("cursor/m-high", pricing) == "2026-11-19"
 
 
-CURSOR_CLAUDE_BASES = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5", "claude-fable-5-1")
+CURSOR_CLAUDE_BASES = sorted(
+    name
+    for name, price in load_pricing().items()
+    if name.startswith("claude-") and price.cache_write_per_1m is not None
+)
+
+
+def test_cursor_claude_bases_cover_the_whole_claude_catalog() -> None:
+    assert {"claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5", "claude-fable-5-1"} <= set(CURSOR_CLAUDE_BASES)
+    assert "claude-haiku-4-5" in CURSOR_CLAUDE_BASES
 
 
 @pytest.mark.parametrize("base", CURSOR_CLAUDE_BASES)

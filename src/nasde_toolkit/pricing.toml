@@ -248,14 +248,16 @@ source = "https://platform.claude.com/docs/en/about-claude/pricing"
 # Cursor (agent = "cursor") — harness-scoped keys (ADR-015).
 # Cursor trials record model_name as "cursor/<slug>"; the lookup tries the
 # cursor/ key before the vendor key, so these entries apply to Cursor runs only.
-# Listed only where Cursor's rate differs from the vendor entry above: Cursor
-# bills Claude cache writes at the 5-minute rate (1.25x input), not the 1-hour
-# rate (2x) Claude Code uses. Cursor's OpenAI rates match the vendor entries, so
-# GPT models fall through. "auto" has no per-token rate (Cursor bills it as
-# whichever model serves the request) and is deliberately unpriced. Composer
-# lists no cache-write charge, so the field is omitted (writes fall back to the
-# input rate). Team/Enterprise plans add a $0.25/1M "Cursor Token Rate" on
-# third-party models; it is not modelled (individual plans do not pay it).
+# Every Claude model above that carries a cache-write rate has a cursor/ twin
+# here: same input/output/cached rates, but Cursor bills Claude cache writes at
+# the 5-minute rate (1.25x input), not the 1-hour rate (2x) Claude Code uses.
+# Composer is Cursor-native and has its own entry. Cursor's OpenAI rates match
+# the vendor entries, so GPT models fall through to them. "auto" has no
+# per-token rate (Cursor bills it as whichever model serves the request) and is
+# deliberately unpriced. Composer lists no cache-write charge, so the field is
+# omitted (writes fall back to the input rate). Team/Enterprise plans add a
+# $0.25/1M "Cursor Token Rate" on third-party models; it is not modelled
+# (individual plans do not pay it).
 
 [models."cursor/composer-2.5"]
 input_per_1m = 0.5
@@ -293,5 +295,77 @@ input_per_1m = 10.0
 output_per_1m = 50.0
 cached_input_per_1m = 0.25
 cache_write_per_1m = 12.5
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-opus-5"]
+input_per_1m = 5.0
+output_per_1m = 25.0
+cached_input_per_1m = 0.5
+cache_write_per_1m = 6.25
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-opus-4-8"]
+input_per_1m = 5.0
+output_per_1m = 25.0
+cached_input_per_1m = 0.5
+cache_write_per_1m = 6.25
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-opus-4-7"]
+input_per_1m = 5.0
+output_per_1m = 25.0
+cached_input_per_1m = 0.5
+cache_write_per_1m = 6.25
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-opus-4-6"]
+input_per_1m = 5.0
+output_per_1m = 25.0
+cached_input_per_1m = 0.5
+cache_write_per_1m = 6.25
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-opus-4-5"]
+input_per_1m = 5.0
+output_per_1m = 25.0
+cached_input_per_1m = 0.5
+cache_write_per_1m = 6.25
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-sonnet-5"]
+input_per_1m = 2.0
+output_per_1m = 10.0
+cached_input_per_1m = 0.2
+cache_write_per_1m = 2.5
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-sonnet-4-6"]
+input_per_1m = 3.0
+output_per_1m = 15.0
+cached_input_per_1m = 0.3
+cache_write_per_1m = 3.75
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-sonnet-4-5"]
+input_per_1m = 3.0
+output_per_1m = 15.0
+cached_input_per_1m = 0.3
+cache_write_per_1m = 3.75
+as_of = "2026-11-19"
+source = "https://cursor.com/docs/models-and-pricing"
+
+[models."cursor/claude-haiku-4-5"]
+input_per_1m = 1.0
+output_per_1m = 5.0
+cached_input_per_1m = 0.1
+cache_write_per_1m = 1.25
 as_of = "2026-11-19"
 source = "https://cursor.com/docs/models-and-pricing"

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from nasde_toolkit.config import EvaluationConfig, load_project_config
+from nasde_toolkit.config import EvaluationConfig, default_evaluator_model, load_project_config
 
 
 def _write_nasde_toml(project_dir: Path, content: str) -> None:
@@ -216,3 +216,24 @@ throttle_sec = 5
     assert config.calibration.platform == "gitlab"
     assert config.calibration.base_branch == "trunk"
     assert config.calibration.throttle_sec == 5.0
+
+
+def test_cursor_backend_defaults_to_cursor_judge_slug(tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text('[project]\nname = "test"\n\n[evaluation]\nbackend = "cursor"\n')
+    config = load_project_config(tmp_path)
+    assert config.evaluation.backend == "cursor"
+    assert config.evaluation.model == "claude-opus-5-5-high"
+
+
+def test_cursor_backend_keeps_explicit_model(tmp_path: Path) -> None:
+    (tmp_path / "nasde.toml").write_text(
+        '[project]\nname = "test"\n\n[evaluation]\nbackend = "cursor"\nmodel = "claude-opus-5-5"\n'
+    )
+    config = load_project_config(tmp_path)
+    assert config.evaluation.model == "claude-opus-5-5"
+
+
+def test_default_evaluator_model() -> None:
+    assert default_evaluator_model("cursor") == "claude-opus-5-5-high"
+    assert default_evaluator_model("claude") == "claude-opus-5-5"
+    assert default_evaluator_model("codex") == "claude-opus-5-5"

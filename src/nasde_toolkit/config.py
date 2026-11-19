@@ -12,6 +12,9 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+_DEFAULT_EVALUATOR_MODEL = "claude-opus-5-5"
+_BACKEND_DEFAULT_EVALUATOR_MODELS = {"cursor": "claude-opus-5-5-high"}
+
 
 @dataclass
 class SourceConfig:
@@ -123,6 +126,15 @@ class ProjectConfig:
     tasks: list[TaskConfig] = field(default_factory=list)
 
 
+def default_evaluator_model(backend: str) -> str:
+    """Judge model used when ``[evaluation] model`` is absent, per backend.
+
+    The Cursor CLI has no bare ``claude-opus-5-5`` slug (it encodes effort in
+    the name), so the cursor backend defaults to ``claude-opus-5-5-high``.
+    """
+    return _BACKEND_DEFAULT_EVALUATOR_MODELS.get(backend, _DEFAULT_EVALUATOR_MODEL)
+
+
 def load_project_config(project_dir: Path | None = None) -> ProjectConfig:
     """Load nasde.toml and discover task.toml files."""
     project_dir = _find_project_dir(project_dir)
@@ -153,6 +165,7 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
     defaults = raw.get("defaults", {})
     docker_raw = raw.get("docker", {})
     eval_raw = raw.get("evaluation", {})
+    eval_backend = eval_raw.get("backend", "claude")
     reporting_raw = raw.get("reporting", {})
     calibration_raw = raw.get("calibration", {})
 
@@ -167,8 +180,8 @@ def _parse_toml(raw: dict, project_dir: Path) -> ProjectConfig:
             build_commands=docker_raw.get("build_commands", []),
         ),
         evaluation=EvaluationConfig(
-            backend=eval_raw.get("backend", "claude"),
-            model=eval_raw.get("model", "claude-opus-5-5"),
+            backend=eval_backend,
+            model=eval_raw.get("model", default_evaluator_model(eval_backend)),
             dimensions_file=eval_raw.get("dimensions_file", "assessment_dimensions.json"),
             max_turns=eval_raw.get("max_turns", 60),
             allowed_tools=eval_raw.get("allowed_tools"),

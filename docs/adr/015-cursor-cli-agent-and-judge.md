@@ -31,9 +31,9 @@ matter to nasde:
   Harbor's `CursorCli` requires and it scopes price keys to the harness.
 - **Layered price-key lookup.** `pricing.resolve_catalog_key` tries the recorded
   name, its effort-normalized form, the name without its provider prefix, and
-  that normalized. The bundled catalog carries `cursor/` entries only where
-  Cursor's rate differs (Composer; Claude with 1.25x cache writes). OpenAI models
-  fall through to vendor entries. `auto` is deliberately unpriced (no per-token
+  that normalized. The bundled catalog carries `cursor/` entries for Composer and
+  for every Claude model with a cache-write rate (they carry Cursor's 1.25x
+  cache-write rate). OpenAI models fall through to vendor entries. `auto` is deliberately unpriced (no per-token
   rate). Effort normalization is not a validation gate: an unknown suffix
   degrades to "unpriced".
 - **Audit, not truth.** The harness-reported cost (`final_metrics.total_cost_usd`

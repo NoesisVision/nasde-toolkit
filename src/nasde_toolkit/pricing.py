@@ -23,7 +23,7 @@ from rich.console import Console
 
 console = Console()
 
-_BRACKET_PARAMS_RE = re.compile(r"\[[^\[\]]*\]$")
+_BRACKET_PARAMS_RE = re.compile(r"\[([^\[\]]*)\]$")
 _EFFORT_SUFFIX_RE = re.compile(r"(?:-thinking)?-(?:none|minimal|low|medium|high|xhigh|max)$|-thinking$")
 
 
@@ -139,14 +139,22 @@ def load_pricing_layered(project_dir: Path | None = None) -> dict[str, ModelPric
 
 
 def normalize_model_slug(model: str) -> str:
-    """Strip bracket params and one trailing effort/thinking suffix from a model slug.
+    """Strip the trailing bracket params and one trailing effort/thinking suffix from a model slug.
 
     Cursor encodes effort in its slugs (``claude-opus-5-5-high``,
     ``claude-fable-5-thinking-xhigh``) and accepts bracket overrides
     (``composer-2.5[effort=high]``); neither changes the per-token price.
     ``-fast`` is deliberately not stripped: fast modes bill at a higher rate.
+    Likewise a bracket group containing ``fast=true`` is a fast mode, so such a
+    slug is returned untouched and resolves as unpriced instead of silently
+    taking the standard rate.
     """
-    without_params = _BRACKET_PARAMS_RE.sub("", model)
+    bracket_match = _BRACKET_PARAMS_RE.search(model)
+    if bracket_match is None:
+        return _EFFORT_SUFFIX_RE.sub("", model)
+    if _enables_fast_mode(bracket_match.group(1)):
+        return model
+    without_params = model[: bracket_match.start()]
     return _EFFORT_SUFFIX_RE.sub("", without_params)
 
 
@@ -180,6 +188,11 @@ def resolve_pricing_layers(project_dir: Path | None = None) -> list[PricingLayer
     layers = [PricingLayer(name="bundled", path=None, present=True, models=dict(load_pricing()))]
     layers.extend(_override_layers(project_dir))
     return layers
+
+
+def _enables_fast_mode(bracket_params: str) -> bool:
+    options = (option.strip().lower() for option in bracket_params.split(","))
+    return "fast=true" in options
 
 
 def _catalog_key_candidates(model: str) -> list[str]:

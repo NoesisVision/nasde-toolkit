@@ -700,3 +700,28 @@ def test_plugin_skills_route_sandbox_for_claude(tmp_path: Path) -> None:
 
     assert "/app/.claude/skills/plug-skill/SKILL.md" in _sandbox(harbor_path)
     assert _skills(harbor_path) == []
+
+
+def _cursor_variant(variant_dir: Path) -> Path:
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "AGENTS.md").write_text("# c")
+    (variant_dir / "variant.toml").write_text('agent = "cursor"\nmodel = "composer-2.5"\n')
+    return variant_dir
+
+
+def test_collect_native_skill_dirs_cursor_reads_agents_skills(tmp_path: Path) -> None:
+    variant_dir = _cursor_variant(tmp_path / "variants" / "v")
+    skill = _make_native_skill(variant_dir, "agents_skills", "tactical-ddd")
+
+    assert _collect_native_skill_dirs(variant_dir, "cursor") == [str(skill.resolve())]
+
+
+def test_extra_skill_dirs_go_to_native_skills_for_cursor(tmp_path: Path) -> None:
+    variant_dir = _cursor_variant(tmp_path / "variants" / "v")
+    referenced = _standalone_skill(tmp_path / "src", "tactical-ddd")
+    harbor_path = variant_dir / "harbor_config.json"
+    _generate_harbor_config(variant_dir, "v")
+
+    _ensure_harbor_config(variant_dir, "v", {}, [str(referenced)])
+
+    assert _skills(harbor_path) == [str(referenced)]

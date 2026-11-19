@@ -271,6 +271,11 @@ def _ensure_auth(agent_import_path: str | None = None) -> None:
             return
         console.print("[red]ERROR: Set GEMINI_API_KEY, GOOGLE_API_KEY, or run 'gemini login' for OAuth[/red]")
         raise SystemExit(1)
+    if _is_cursor_agent(agent_import_path):
+        if os.environ.get("CURSOR_API_KEY"):
+            return
+        console.print("[red]ERROR: Set CURSOR_API_KEY (create a User API key in the Cursor dashboard)[/red]")
+        raise SystemExit(1)
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
         return
     console.print("[red]ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN[/red]")
@@ -377,14 +382,14 @@ def _collect_claude_skills(variant_dir: Path, sandbox_files: dict[str, str]) -> 
             stage_skill_dir(skill_dir, sandbox_files)
 
 
-_AGENT_SKILLS_SUBDIR = {"codex": "agents_skills", "gemini": "gemini_skills"}
+_AGENT_SKILLS_SUBDIR = {"codex": "agents_skills", "cursor": "agents_skills", "gemini": "gemini_skills"}
 
 
 def _collect_native_skill_dirs(variant_dir: Path, agent_type: str) -> list[str]:
     """Return host skill-dir paths to hand to Harbor's native skill injection.
 
-    Codex and Gemini auto-discover skills only from a HOME-scoped location
-    (``$HOME/.agents/skills`` for Codex, ``~/.gemini/skills`` for Gemini), never
+    Codex, Cursor and Gemini auto-discover skills only from a HOME-scoped location
+    (``$HOME/.agents/skills`` for Codex, ``~/.cursor/skills`` for Cursor, ``~/.gemini/skills`` for Gemini), never
     from a ``.agents/skills`` / ``.gemini/skills`` dir sitting in the agent's
     ``/app`` cwd. Uploading skill files there via ``sandbox_files`` (the old
     path) put them where the CLI never scans, so they were never registered as
@@ -439,20 +444,20 @@ def _warn_if_skill_frontmatter_malformed(skill_md: Path, agent_type: str) -> Non
         return
     console.print(
         f"[yellow]WARNING ({agent_type}): {skill_md} does not start with a '---' YAML "
-        "frontmatter line. Codex/Gemini may refuse to register the skill "
+        "frontmatter line. Codex/Cursor/Gemini may refuse to register the skill "
         "('missing YAML frontmatter delimited by ---'). Move any leading comment "
         "below the closing '---'.[/yellow]"
     )
 
 
-_VALID_AGENT_TYPES = {"claude", "codex", "gemini"}
+_VALID_AGENT_TYPES = {"claude", "codex", "cursor", "gemini"}
 
 
 def load_variant_config(variant_dir: Path) -> dict:
     """Read variant.toml and return its contents as a dict.
 
     Every variant directory must contain a ``variant.toml`` with at least
-    an ``agent`` field set to ``"claude"`` or ``"codex"``.
+    an ``agent`` field set to one of ``_VALID_AGENT_TYPES``.
     """
     variant_toml = variant_dir / "variant.toml"
     if not variant_toml.exists():
@@ -524,6 +529,8 @@ def scope_tasks_for_variant(
 def _agent_import_path(agent_type: str) -> str:
     if agent_type == "codex":
         return "nasde_toolkit.agents.configurable_codex:ConfigurableCodex"
+    if agent_type == "cursor":
+        return "nasde_toolkit.agents.configurable_cursor:ConfigurableCursor"
     if agent_type == "gemini":
         return "nasde_toolkit.agents.configurable_gemini:ConfigurableGemini"
     return "nasde_toolkit.agents.configurable_claude:ConfigurableClaude"
@@ -531,6 +538,10 @@ def _agent_import_path(agent_type: str) -> str:
 
 def _is_codex_agent(agent_import_path: str | None) -> bool:
     return bool(agent_import_path and "codex" in agent_import_path.lower())
+
+
+def _is_cursor_agent(agent_import_path: str | None) -> bool:
+    return bool(agent_import_path and "cursor" in agent_import_path.lower())
 
 
 def _is_gemini_agent(agent_import_path: str | None) -> bool:
@@ -750,6 +761,8 @@ def _agent_type_from_import_path(import_path: str | None) -> str | None:
     """Map an agent import_path back to its ``agent`` type, or None if unknown."""
     if _is_codex_agent(import_path):
         return "codex"
+    if _is_cursor_agent(import_path):
+        return "cursor"
     if _is_gemini_agent(import_path):
         return "gemini"
     if import_path and "claude" in import_path.lower():
@@ -833,6 +846,7 @@ def _build_merged_config(
 
     for agent in variant.get("agents", []):
         agent.setdefault("model_name", model)
+        agent["model_name"] = _qualify_model_name(agent.get("import_path"), agent["model_name"])
         if timeout_sec is not None:
             agent.setdefault("override_timeout_sec", timeout_sec)
         if reasoning_effort is not None:
@@ -865,6 +879,18 @@ def _build_merged_config(
         merged["environment"] = {"type": harbor_env}
 
     return merged
+
+
+def _qualify_model_name(import_path: str | None, model_name: str) -> str:
+    """Prefix a bare Cursor slug with ``cursor/``.
+
+    ``cursor/<slug>`` is the ``provider/model`` form Harbor's CursorCli requires,
+    and it is what keys the harness-scoped ``cursor/`` price entries (ADR-015).
+    Other agents' model names pass through unchanged.
+    """
+    if _is_cursor_agent(import_path) and "/" not in model_name:
+        return f"cursor/{model_name}"
+    return model_name
 
 
 def _build_registry(config: ProjectConfig, tasks_filter: list[str] | None) -> list[dict]:
@@ -1287,9 +1313,9 @@ def _finalize_economics_row(label: tuple[str, str, str], agg: dict) -> dict:
 
 
 def _short_label(agent: str, model: str) -> str:
-    short_agent = agent.removeprefix("claude-").removeprefix("codex-").removeprefix("gemini-")
+    short_agent = agent.removeprefix("claude-").removeprefix("codex-").removeprefix("cursor-").removeprefix("gemini-")
     short_agent = short_agent.replace("ntcoding-tactical-ddd-", "").replace("ntcoding-tactical-ddd", "tactical-ddd")
-    short_model = model.removeprefix("claude-").removeprefix("google/")
+    short_model = model.removeprefix("cursor/").removeprefix("claude-").removeprefix("google/")
     return f"{short_agent} / {short_model}" if short_model else short_agent
 
 

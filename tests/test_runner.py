@@ -21,6 +21,7 @@ from nasde_toolkit.runner import (
     _ensure_auth,
     _generate_harbor_config,
     _is_codex_agent,
+    _is_cursor_agent,
     _is_gemini_agent,
     collect_available_variants,
     load_variant_agent_type,
@@ -547,3 +548,114 @@ def test_collect_sandbox_files_omits_claude_config_when_absent(tmp_path: Path) -
     result = _collect_sandbox_files(variant_dir)
 
     assert "/logs/agent/sessions/.claude.json" not in result
+
+
+# ---------------------------------------------------------------------------
+# Cursor agent
+# ---------------------------------------------------------------------------
+
+CURSOR_PATH = "nasde_toolkit.agents.configurable_cursor:ConfigurableCursor"
+
+
+def test_is_cursor_agent() -> None:
+    assert _is_cursor_agent(CURSOR_PATH)
+    assert not _is_cursor_agent("nasde_toolkit.agents.configurable_codex:ConfigurableCodex")
+    assert not _is_cursor_agent(None)
+    assert not _is_codex_agent(CURSOR_PATH)
+    assert not _is_gemini_agent(CURSOR_PATH)
+
+
+def test_load_variant_agent_type_accepts_cursor(tmp_path: Path) -> None:
+    (tmp_path / "variant.toml").write_text('agent = "cursor"\nmodel = "composer-2.5"\n')
+    assert load_variant_agent_type(tmp_path) == "cursor"
+
+
+def test_generate_harbor_config_cursor_variant(tmp_path: Path) -> None:
+    variant_dir = tmp_path / "variants" / "cursor-vanilla"
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "AGENTS.md").write_text("# Cursor")
+    (variant_dir / "variant.toml").write_text('agent = "cursor"\nmodel = "composer-2.5"\n')
+    skill_dir = variant_dir / "agents_skills" / "tactical-ddd"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\nname: tactical-ddd\n---\nbody")
+
+    _generate_harbor_config(variant_dir, "cursor-vanilla")
+
+    agent = json.loads((variant_dir / "harbor_config.json").read_text())["agents"][0]
+    assert agent["import_path"] == CURSOR_PATH
+    assert agent["kwargs"]["sandbox_files"] == {"/app/AGENTS.md": str(variant_dir / "AGENTS.md")}
+    assert agent["skills"] == [str(skill_dir.resolve())]
+
+
+def test_ensure_auth_cursor_with_api_key() -> None:
+    with patch.dict("os.environ", {"CURSOR_API_KEY": "key_test"}, clear=True):
+        _ensure_auth(CURSOR_PATH)
+
+
+def test_ensure_auth_cursor_missing_raises(capsys: pytest.CaptureFixture[str]) -> None:
+    with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant"}, clear=True), pytest.raises(SystemExit):
+        _ensure_auth(CURSOR_PATH)
+    assert "CURSOR_API_KEY" in capsys.readouterr().out
+
+
+def _write_cursor_variant(project_dir: Path, model_name: str | None = None) -> Path:
+    variant_dir = project_dir / "variants" / "cursor-vanilla"
+    variant_dir.mkdir(parents=True)
+    agent: dict = {"import_path": CURSOR_PATH, "name": "cursor-vanilla", "kwargs": {"sandbox_files": {}}}
+    if model_name is not None:
+        agent["model_name"] = model_name
+    path = variant_dir / "harbor_config.json"
+    path.write_text(json.dumps({"agents": [agent]}))
+    return path
+
+
+def test_build_merged_config_qualifies_bare_cursor_model(tmp_project: ProjectConfig) -> None:
+    variant_config_path = _write_cursor_variant(tmp_project.project_dir)
+    result = _build_merged_config(
+        config=tmp_project,
+        variant_config_path=variant_config_path,
+        variant_name="cursor-vanilla",
+        model="composer-2.5",
+        timeout_sec=None,
+        tasks_filter=None,
+    )
+    assert result["agents"][0]["model_name"] == "cursor/composer-2.5"
+
+
+def test_build_merged_config_keeps_qualified_cursor_model(tmp_project: ProjectConfig) -> None:
+    variant_config_path = _write_cursor_variant(tmp_project.project_dir)
+    result = _build_merged_config(
+        config=tmp_project,
+        variant_config_path=variant_config_path,
+        variant_name="cursor-vanilla",
+        model="cursor/claude-opus-5-5-high",
+        timeout_sec=None,
+        tasks_filter=None,
+    )
+    assert result["agents"][0]["model_name"] == "cursor/claude-opus-5-5-high"
+
+
+def test_build_merged_config_qualifies_handwritten_cursor_model(tmp_project: ProjectConfig) -> None:
+    variant_config_path = _write_cursor_variant(tmp_project.project_dir, model_name="composer-2.5")
+    result = _build_merged_config(
+        config=tmp_project,
+        variant_config_path=variant_config_path,
+        variant_name="cursor-vanilla",
+        model="ignored-because-handwritten",
+        timeout_sec=None,
+        tasks_filter=None,
+    )
+    assert result["agents"][0]["model_name"] == "cursor/composer-2.5"
+
+
+def test_build_merged_config_leaves_other_agents_models_alone(tmp_project: ProjectConfig) -> None:
+    variant_config_path = tmp_project.project_dir / "variants" / "vanilla" / "harbor_config.json"
+    result = _build_merged_config(
+        config=tmp_project,
+        variant_config_path=variant_config_path,
+        variant_name="vanilla",
+        model="claude-sonnet-5-5",
+        timeout_sec=None,
+        tasks_filter=None,
+    )
+    assert result["agents"][0]["model_name"] == "claude-sonnet-5-5"

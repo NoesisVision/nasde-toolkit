@@ -55,6 +55,8 @@ def test_short_label_strips_family_and_skill_prefixes() -> None:
     assert _short_label("claude-ntcoding-tactical-ddd-movie-tuned", "claude-sonnet-5-5") == "movie-tuned / sonnet-5-5"
     assert _short_label("claude-ntcoding-tactical-ddd", "claude-sonnet-5-5") == "tactical-ddd / sonnet-5-5"
     assert _short_label("codex-vanilla", "gpt-6.1-sol") == "vanilla / gpt-6.1-sol"
+    assert _short_label("cursor-vanilla", "cursor/composer-2.5") == "vanilla / composer-2.5"
+    assert _short_label("cursor-vanilla", "cursor/claude-opus-5-5-high") == "vanilla / opus-5-5-high"
 
 
 def test_sample_std_needs_two_points() -> None:

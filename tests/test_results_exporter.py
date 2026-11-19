@@ -399,6 +399,21 @@ def test_export_pricing_used_records_catalog_key(job_dir: Path, tmp_path: Path, 
     assert entry["input_per_1m"] == 4.0
 
 
+def test_export_metrics_include_agent_reported_cost(job_dir: Path, tmp_path: Path) -> None:
+    trajectory_path = job_dir / "demo-task__aaa111" / "agent" / "trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text())
+    trajectory["final_metrics"]["total_cost_usd"] = 1.23
+    trajectory["final_metrics"]["extra"]["cost_source"] = "litellm"
+    trajectory_path.write_text(json.dumps(trajectory))
+
+    dest = tmp_path / "export"
+    export_results([job_dir], dest)
+    metrics = json.loads((dest / "2026-06-03__demo-job__demo-task__aaa111" / "metrics.json").read_text())
+
+    assert metrics["agent_reported_cost_usd"] == pytest.approx(1.23)
+    assert metrics["agent_reported_cost_source"] == "litellm"
+
+
 def test_export_pricing_used_exact_match_catalog_key(job_dir: Path, tmp_path: Path, empty_user_layer: Path) -> None:
     dest = tmp_path / "export"
     export_results([job_dir], dest)

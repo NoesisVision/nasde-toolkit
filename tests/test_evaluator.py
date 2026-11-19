@@ -14,6 +14,7 @@ import pytest
 from nasde_toolkit import pricing as pricing_module
 from nasde_toolkit.config import EvaluationConfig
 from nasde_toolkit.evaluator import (
+    AssessmentSummary,
     DimensionScore,
     EvaluationResult,
     _aggregate_evaluations,
@@ -22,6 +23,7 @@ from nasde_toolkit.evaluator import (
     _build_opik_scores,
     _dimensions_fingerprint,
     _dominant_group,
+    _enrich_with_economics,
     _evaluate_and_record_trial,
     _evaluation_from_dict,
     _load_expected_dimensions,
@@ -357,6 +359,30 @@ def test_assessment_summary_reasoning_effort_empty_when_unset(tmp_path: Path) ->
     summary = _write_assessment_summary(tmp_path, load_pricing())
     assert summary is not None
     assert summary.reasoning_effort == ""  # no override → never synthesize a default
+
+
+def test_enrich_with_economics_stamps_agent_reported_cost(tmp_path: Path) -> None:
+    (tmp_path / "config.json").write_text(json.dumps({"agent": {"model_name": "cursor/composer-2.5"}}))
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent" / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "final_metrics": {
+                    "total_prompt_tokens": 1_000,
+                    "total_completion_tokens": 100,
+                    "total_cost_usd": 0.002,
+                    "extra": {"cost_source": "cursor_cli"},
+                }
+            }
+        )
+    )
+    summary = AssessmentSummary(task_name="t", trial_name="t__1", agent_name="cursor-vanilla")
+
+    _enrich_with_economics(summary, tmp_path, load_pricing())
+
+    assert summary.model_name == "cursor/composer-2.5"
+    assert summary.agent_reported_cost_usd == pytest.approx(0.002)
+    assert summary.agent_reported_cost_source == "cursor_cli"
 
 
 def test_eval_repetitions_writes_n_files(tmp_path: Path) -> None:

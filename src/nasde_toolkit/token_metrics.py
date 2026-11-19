@@ -8,7 +8,8 @@ Harbor for both Claude and Codex agents):
   input       = total_prompt_tokens            (full, cache included)
   output      = total_completion_tokens + extra.reasoning_output_tokens
   cached      = total_cached_tokens            (cache reads)
-  cache_write = extra.total_cache_creation_input_tokens
+  cache_write = extra.total_cache_creation_input_tokens   (Claude Code)
+                or extra.usage_totals.cacheWriteTokens   (Cursor)
   total       = input + output
 
 Cost is cache-aware (ADR-014): fresh input at the full rate, cache writes and
@@ -48,7 +49,7 @@ def extract_token_usage(trajectory: dict) -> TokenUsage | None:
     completion_tokens = final_metrics.get("total_completion_tokens", 0) or 0
     reasoning_tokens = extra.get("reasoning_output_tokens", 0) or 0
     cached_tokens = final_metrics.get("total_cached_tokens", 0) or 0
-    cache_write_tokens = extra.get("total_cache_creation_input_tokens", 0) or 0
+    cache_write_tokens = _cache_write_tokens(extra)
     output_tokens = completion_tokens + reasoning_tokens
     return TokenUsage(
         input_tokens=prompt_tokens,
@@ -90,6 +91,10 @@ def build_trial_economics(
     and the price catalog date. Quality-vs-cost comparison is a Pareto front over
     these raw axes (in the nasde-benchmark-runner skill), not a scalar
     score/cost ratio whose zero point is arbitrary. See ADR-011.
+
+    ``agent_reported_cost_*`` is the agent harness's own cost figure (Harbor's
+    ``final_metrics.total_cost_usd`` and its ``extra.cost_source``), recorded for
+    audit only; ``cost_usd`` from the nasde catalog stays the source of truth.
     """
     trajectory = read_trajectory(trial_dir)
     usage = extract_token_usage(trajectory) if trajectory is not None else None
@@ -103,12 +108,21 @@ def build_trial_economics(
         cache_read_tokens=usage.cached_tokens,
         cache_write_tokens=usage.cache_write_tokens,
     )
+    reported_cost_usd, reported_cost_source = _agent_reported_cost(trajectory)
     return {
         "model_name": model,
         "token_usage": asdict(usage),
         "cost_usd": cost_usd,
         "pricing_as_of": pricing_as_of(model, pricing) if cost_usd is not None else None,
+        "agent_reported_cost_usd": reported_cost_usd,
+        "agent_reported_cost_source": reported_cost_source,
     }
+
+
+def _agent_reported_cost(trajectory: dict | None) -> tuple[float | None, str | None]:
+    final_metrics = (trajectory or {}).get("final_metrics") or {}
+    extra = final_metrics.get("extra") or {}
+    return final_metrics.get("total_cost_usd"), extra.get("cost_source")
 
 
 def _empty_economics(model: str) -> dict:
@@ -117,4 +131,15 @@ def _empty_economics(model: str) -> dict:
         "token_usage": None,
         "cost_usd": None,
         "pricing_as_of": None,
+        "agent_reported_cost_usd": None,
+        "agent_reported_cost_source": None,
     }
+
+
+def _cache_write_tokens(extra: dict) -> int:
+    if "total_cache_creation_input_tokens" in extra:
+        claude_cache_writes: int = extra["total_cache_creation_input_tokens"] or 0
+        return claude_cache_writes
+    usage_totals = extra.get("usage_totals") or {}
+    cursor_cache_writes: int = usage_totals.get("cacheWriteTokens", 0) or 0
+    return cursor_cache_writes

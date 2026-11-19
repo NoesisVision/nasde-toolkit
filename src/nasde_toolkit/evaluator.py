@@ -123,6 +123,8 @@ class AssessmentSummary:
     token_usage: dict | None = None
     cost_usd: float | None = None
     pricing_as_of: str | None = None
+    agent_reported_cost_usd: float | None = None
+    agent_reported_cost_source: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -899,6 +901,8 @@ def _enrich_with_economics(summary: AssessmentSummary, trial_dir: Path, pricing:
     summary.token_usage = economics["token_usage"]
     summary.cost_usd = economics["cost_usd"]
     summary.pricing_as_of = economics["pricing_as_of"]
+    summary.agent_reported_cost_usd = economics["agent_reported_cost_usd"]
+    summary.agent_reported_cost_source = economics["agent_reported_cost_source"]
 
 
 def _resolve_model_name(trial_dir: Path) -> str:

@@ -128,3 +128,71 @@ def test_build_trial_economics_has_no_scalar_efficiency_keys(tmp_path: Path) -> 
     econ = build_trial_economics(tmp_path, "gpt-6.1-sol", load_pricing())
     assert "token_efficiency" not in econ  # removed: arbitrary zero → use Pareto front
     assert "cost_efficiency" not in econ
+
+
+CURSOR_TRAJ = {
+    "final_metrics": {
+        "total_prompt_tokens": 412_000,
+        "total_completion_tokens": 9_800,
+        "total_cached_tokens": 360_000,
+        "total_cost_usd": 0.31,
+        "extra": {
+            "usage_totals": {
+                "inputTokens": 40_000,
+                "outputTokens": 9_800,
+                "cacheReadTokens": 360_000,
+                "cacheWriteTokens": 12_000,
+            },
+            "cost_source": "cursor_cli",
+        },
+    }
+}
+
+
+def test_extract_cursor_reads_cache_writes_from_usage_totals() -> None:
+    usage = extract_token_usage(CURSOR_TRAJ)
+    assert usage is not None
+    assert usage.input_tokens == 412_000
+    assert usage.cached_tokens == 360_000
+    assert usage.cache_write_tokens == 12_000
+    assert usage.output_tokens == 9_800
+
+
+def test_extract_prefers_claude_cache_creation_counter() -> None:
+    trajectory = {
+        "final_metrics": {
+            "total_prompt_tokens": 100,
+            "extra": {"total_cache_creation_input_tokens": 7, "usage_totals": {"cacheWriteTokens": 99}},
+        }
+    }
+    usage = extract_token_usage(trajectory)
+    assert usage is not None
+    assert usage.cache_write_tokens == 7
+
+
+def test_build_trial_economics_cursor_composer(tmp_path: Path) -> None:
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent" / "trajectory.json").write_text(json.dumps(CURSOR_TRAJ))
+    econ = build_trial_economics(tmp_path, "cursor/composer-2.5", load_pricing())
+
+    expected = 40_000 / 1e6 * 0.5 + 12_000 / 1e6 * 0.5 + 360_000 / 1e6 * 0.2 + 9_800 / 1e6 * 2.5
+    assert econ["cost_usd"] == pytest.approx(expected)
+    assert econ["pricing_as_of"] == "2026-11-19"
+    assert econ["agent_reported_cost_usd"] == pytest.approx(0.31)
+    assert econ["agent_reported_cost_source"] == "cursor_cli"
+
+
+def test_build_trial_economics_without_reported_cost(tmp_path: Path) -> None:
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent" / "trajectory.json").write_text(json.dumps(CLAUDE_TRAJ))
+    econ = build_trial_economics(tmp_path, "claude-sonnet-4-6", load_pricing())
+
+    assert econ["agent_reported_cost_usd"] is None
+    assert econ["agent_reported_cost_source"] is None
+
+
+def test_build_trial_economics_empty_has_audit_keys(tmp_path: Path) -> None:
+    econ = build_trial_economics(tmp_path, "cursor/composer-2.5", load_pricing())
+
+    assert econ["agent_reported_cost_usd"] is None
+    assert econ["agent_reported_cost_source"] is None

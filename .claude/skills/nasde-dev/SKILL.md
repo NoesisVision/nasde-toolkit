@@ -102,7 +102,7 @@ Which auth each task needs (check before running, don't ask):
 - **Evaluator** (every run without `--without-eval`, and `nasde eval`) uses the
   `[evaluation] backend` from `nasde.toml` — **default `claude` → needs Claude OAuth
   even when the agent is codex/gemini.** So a codex-agent run with the default
-  evaluator needs BOTH Codex OAuth (agent) and Claude OAuth (eval).
+  evaluator needs BOTH Codex OAuth (agent) and Claude OAuth (eval). With `backend = "cursor"`, the judge needs `CURSOR_API_KEY` or a logged-in `cursor-agent` instead.
 - `--with-opik` → Opik config (see step 4 / `.env`).
 
 ```bash

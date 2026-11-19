@@ -9,6 +9,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- **Cursor judge backend.** `[evaluation] backend = "cursor"` (or
+  `nasde eval --eval-backend cursor`) scores trials with `cursor-agent` in
+  read-only `--mode ask`, run from a temporary workspace so nothing it writes
+  ends up in the agent's diff. It uses `CURSOR_API_KEY` or your
+  `cursor-agent login`, and defaults the judge model to `claude-opus-5-5-high`
+  when `[evaluation] model` is not set. `allowed_tools` and `max_turns` have no
+  Cursor equivalent (the former prints a warning). ([#NN])
+
 ### Changed
 - **Bundled Codex examples run on `gpt-6.1-sol`.** Every Codex variant in the
   examples moves from `gpt-5.4` (no longer offered to ChatGPT-plan accounts) to

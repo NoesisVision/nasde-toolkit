@@ -35,3 +35,9 @@ def test_scaffolded_models_have_bundled_prices(tmp_path: Path) -> None:
     assert judge_model in bundled
     assert agent_model in bundled
     assert EvaluationConfig().model in bundled
+
+
+def test_nasde_toml_template_mentions_cursor_backend() -> None:
+    from nasde_toolkit.scaffold import NASDE_TOML_TEMPLATE
+
+    assert '# backend = "claude"  # "claude" | "codex" | "cursor"' in NASDE_TOML_TEMPLATE

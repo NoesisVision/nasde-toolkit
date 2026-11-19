@@ -40,7 +40,7 @@ Below, `<SKILL_SCRIPTS>` is shorthand for whichever absolute path applies. Resol
 
 ### Step 2 — Run the right script per agent × OS
 
-Priority order: **Claude → Codex → Gemini.** Claude is required even for non-Claude variants when `[evaluation] backend = "claude"` (default), because the assessment evaluator spawns `claude` CLI as a subprocess.
+Priority order: **Claude → Codex → Gemini.** Claude is required even for non-Claude variants when `[evaluation] backend = "claude"` (default), because the assessment evaluator spawns `claude` CLI as a subprocess. With `backend = "cursor"`, the judge runs `cursor-agent` on the host instead and needs `CURSOR_API_KEY` or `cursor-agent login` rather than Claude auth.
 
 #### Claude Code
 

@@ -70,8 +70,9 @@ with a hint to `source scripts/export_cursor_api_key.sh`.
 `CursorSubprocessBackend`, selected by `[evaluation] backend = "cursor"`.
 
 Command: `cursor-agent -p --output-format json --trust --mode ask --model <m>`
-with the prompt on stdin; `<m>` is `eval_config.model` with a leading
-`cursor/` stripped. Result text parsed from the JSON `result` field.
+with the prompt as a positional argument after `--` (how Harbor invokes
+`cursor-agent`; stdin support is unverified); `<m>` is `eval_config.model`
+with a leading `cursor/` stripped. Result text parsed from the JSON `result` field.
 
 | Claude judge option | Cursor judge |
 |---|---|

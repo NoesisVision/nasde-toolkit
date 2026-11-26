@@ -4,7 +4,7 @@
 
 **Goal:** Add Cursor (`cursor-agent`) as a fourth agent family and a third judge backend, as close as possible to Claude support.
 
-**Architecture:** A thin `ConfigurableCursor` subclass of Harbor's `CursorCli` (sandbox files, DNS fix, per-step metrics for Opik), runner wiring that mirrors the Gemini/Codex families, a `cursor` judge backend mirroring `claude_subprocess.py`, and Cursor-aware pricing (bundled list prices, rates fed into Harbor's `pricing` kwarg, Harbor-cost fallback with `cost_source` provenance).
+**Architecture:** A thin `ConfigurableCursor` subclass of Harbor's `CursorCli` (sandbox files, DNS fix, per-step metrics for Opik), runner wiring that mirrors the Gemini/Codex families, a `cursor` judge backend mirroring `claude_subprocess.py`, and Cursor-aware pricing (bundled list prices, no rates passed into Harbor — same as Claude, Harbor-cost fallback for unpriced `cursor/*` models with `cost_source` provenance).
 
 **Tech Stack:** Python 3.12+, Harbor 0.24 (`harbor.agents.installed.cursor_cli`), Typer/Rich, pytest, ruff, mypy.
 
@@ -20,6 +20,7 @@
 - Bundled prices: `as_of = "2026-11-23"`, `source = "https://cursor.com/docs/models-and-pricing"`, no Teams surcharge.
 - `cost_source` values: `"pricing.toml"`, `"harbor:<extra.cost_source>"`, or `null`.
 - Harbor-cost fallback applies only to models starting with `cursor/`.
+- nasde never sets Harbor's `CursorCli` `pricing` kwarg — same as Claude (ADR-015 §7).
 - No LLM calls in unit tests. Every e2e run requires explicit user authorization.
 - Quality gates before every commit: `uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/ && uv run mypy src/nasde_toolkit/ && uv run pytest -q`.
 
@@ -32,7 +33,7 @@
 | `src/nasde_toolkit/results_exporter.py` | Modify | `metrics.json` `cost_source` |
 | `src/nasde_toolkit/pricing.toml` | Modify | 3 `cursor/*` entries + header note |
 | `src/nasde_toolkit/agents/configurable_cursor.py` | Create | Harbor `CursorCli` subclass |
-| `src/nasde_toolkit/runner.py` | Modify | `cursor` agent family wiring, auth, `pricing` kwarg injection |
+| `src/nasde_toolkit/runner.py` | Modify | `cursor` agent family wiring, auth |
 | `src/nasde_toolkit/cli.py` | Modify | Agent label, `--effort` help, `--eval-backend cursor` |
 | `src/nasde_toolkit/evaluator_backends/cursor_subprocess.py` | Create | `cursor-agent -p` judge |
 | `src/nasde_toolkit/evaluator_backends/__init__.py` | Modify | Register `cursor` backend |
@@ -377,7 +378,7 @@ git commit -m "feat(pricing): bundle Cursor list prices for composer-2.5 and Cla
 
 **Interfaces:**
 - Consumes: Harbor `CursorCli` (`_build_agent_step`, `_apply_tool_call_event`, `_convert_events_to_trajectory`, `_resolve_pricing_rates`, `_cost_from_token_rates`).
-- Produces: `nasde_toolkit.agents.configurable_cursor:ConfigurableCursor`, `name() == "configurable-cursor-cli"`, kwargs `sandbox_files`, `pricing`, `reasoning_effort`.
+- Produces: `nasde_toolkit.agents.configurable_cursor:ConfigurableCursor`, `name() == "configurable-cursor-cli"`, kwargs `sandbox_files`, `pricing` (inherited from `CursorCli`; nasde never sets it), `reasoning_effort`.
 
 - [ ] **Step 1: Write the failing tests** — create `tests/test_configurable_cursor.py`:
 
@@ -701,13 +702,13 @@ git commit -m "feat(agents): ConfigurableCursor with sandbox_files and per-step 
 ### Task 4: Runner + CLI wiring for the `cursor` agent family
 
 **Files:**
-- Modify: `src/nasde_toolkit/runner.py` — `_ensure_auth` (:253), `_collect_native_skill_dirs` docstring (:383), `_warn_if_skill_frontmatter_malformed` message (:440), `_AGENT_SKILLS_SUBDIR` (:380), `_VALID_AGENT_TYPES` (:448), `load_variant_config` docstring (:455), `_agent_import_path` (:524), new `_is_cursor_agent` (after :537), `_agent_type_from_import_path` (:749), `_build_merged_config` (:834-839), new `_inject_cursor_pricing` + `_cursor_pricing_rates` (after `_build_merged_config`), `_short_label` (:1285)
+- Modify: `src/nasde_toolkit/runner.py` — `_ensure_auth` (:253), `_collect_native_skill_dirs` docstring (:383), `_warn_if_skill_frontmatter_malformed` message (:440), `_AGENT_SKILLS_SUBDIR` (:380), `_VALID_AGENT_TYPES` (:448), `load_variant_config` docstring (:455), `_agent_import_path` (:524), new `_is_cursor_agent` (after :537), `_agent_type_from_import_path` (:749), `_short_label` (:1285)
 - Modify: `src/nasde_toolkit/cli.py:198-202` (`--effort` help), `:770` (agent labels)
 - Test: `tests/test_runner.py`
 
 **Interfaces:**
-- Consumes: `pricing.effective_pricing_with_source(project_dir) -> dict[str, tuple[ModelPrice, str]]`; `ConfigurableCursor` import path.
-- Produces: `runner._is_cursor_agent(import_path: str | None) -> bool`; agent kwargs `pricing: {"input", "output", "cache_read"?, "cache_write"?}` in the merged Harbor config for Cursor agents with a catalog price.
+- Consumes: `ConfigurableCursor` import path.
+- Produces: `runner._is_cursor_agent(import_path: str | None) -> bool`. The merged Harbor config carries no `pricing` kwarg for Cursor agents (same as Claude).
 
 - [ ] **Step 1: Write the failing tests** — append to `tests/test_runner.py` (add `_is_cursor_agent` to the `from nasde_toolkit.runner import (...)` list):
 
@@ -757,7 +758,10 @@ def test_ensure_auth_cursor_with_api_key() -> None:
 def test_ensure_auth_cursor_missing_raises(capsys: pytest.CaptureFixture[str]) -> None:
     with patch.dict("os.environ", {}, clear=True), pytest.raises(SystemExit):
         _ensure_auth(CURSOR_PATH)
-    assert "CURSOR_API_KEY" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "CURSOR_API_KEY" in out
+    assert ".env" in out
+    assert "export_cursor_api_key.sh" in out
 
 
 def _cursor_project(tmp_project: ProjectConfig) -> Path:
@@ -768,7 +772,7 @@ def _cursor_project(tmp_project: ProjectConfig) -> Path:
     return variant_config_path
 
 
-def test_build_merged_config_injects_catalog_pricing_for_cursor(tmp_project: ProjectConfig) -> None:
+def test_build_merged_config_passes_no_pricing_kwarg_for_cursor(tmp_project: ProjectConfig) -> None:
     result = _build_merged_config(
         config=tmp_project,
         variant_config_path=_cursor_project(tmp_project),
@@ -777,33 +781,12 @@ def test_build_merged_config_injects_catalog_pricing_for_cursor(tmp_project: Pro
         timeout_sec=None,
         tasks_filter=None,
     )
-    assert result["agents"][0]["kwargs"]["pricing"] == {"input": 0.5, "output": 2.5, "cache_read": 0.2}
-
-
-def test_build_merged_config_no_pricing_for_unpriced_cursor_model(tmp_project: ProjectConfig) -> None:
-    result = _build_merged_config(
-        config=tmp_project,
-        variant_config_path=_cursor_project(tmp_project),
-        variant_name="vanilla",
-        model="cursor/some-new-model",
-        timeout_sec=None,
-        tasks_filter=None,
-    )
-    assert "pricing" not in result["agents"][0]["kwargs"]
-
-
-def test_build_merged_config_no_pricing_kwarg_for_claude(tmp_project: ProjectConfig) -> None:
-    variant_config_path = tmp_project.project_dir / "variants" / "vanilla" / "harbor_config.json"
-    result = _build_merged_config(
-        config=tmp_project,
-        variant_config_path=variant_config_path,
-        variant_name="vanilla",
-        model="claude-sonnet-5-5",
-        timeout_sec=None,
-        tasks_filter=None,
-    )
-    assert "pricing" not in result["agents"][0]["kwargs"]
+    agent = result["agents"][0]
+    assert agent["import_path"] == CURSOR_PATH
+    assert "pricing" not in agent.get("kwargs", {})
 ```
+
+The last test pins ADR-015 §7: nasde passes no catalog rates into Harbor for Cursor, as for Claude.
 
 - [ ] **Step 2: Run to verify they fail**
 
@@ -819,10 +802,13 @@ Expected: FAIL — `ImportError: cannot import name '_is_cursor_agent'`.
         if os.environ.get("CURSOR_API_KEY"):
             return
         console.print(
-            "[red]ERROR: Set CURSOR_API_KEY (or run 'source scripts/export_cursor_api_key.sh')[/red]"
+            "[red]ERROR: CURSOR_API_KEY is not set. Export it, add it to .env in the benchmark "
+            "project dir (or its parent), or run 'source scripts/export_cursor_api_key.sh'[/red]"
         )
         raise SystemExit(1)
 ```
+
+`_load_env_file` runs before `_ensure_auth` (`runner.py:75`, `:83`), so a key kept in `.env` passes this check without the script.
 
 Constants:
 
@@ -853,45 +839,7 @@ def _is_cursor_agent(agent_import_path: str | None) -> bool:
         return "cursor"
 ```
 
-`_build_merged_config` — inside the `for agent in variant.get("agents", []):` loop, after the `reasoning_effort` block:
-
-```python
-        _inject_cursor_pricing(agent, config.project_dir)
-```
-
-New helpers right after `_build_merged_config`:
-
-```python
-def _inject_cursor_pricing(agent: dict, project_dir: Path) -> None:
-    """Feed nasde's catalog rate into Harbor's CursorCli ``pricing`` kwarg.
-
-    One rate source for Harbor's trajectory cost, the per-step Opik costs and
-    nasde's ``cost_usd`` (ADR-015). A hand-written ``pricing`` kwarg is kept; an
-    unpriced model gets none, so Harbor falls back to its own estimate.
-    """
-    if not _is_cursor_agent(agent.get("import_path")):
-        return
-    kwargs = agent.setdefault("kwargs", {})
-    if "pricing" in kwargs:
-        return
-    from nasde_toolkit.pricing import effective_pricing_with_source
-
-    entry = effective_pricing_with_source(project_dir).get(str(agent.get("model_name", "")))
-    if entry is None:
-        return
-    kwargs["pricing"] = _cursor_pricing_rates(entry[0])
-
-
-def _cursor_pricing_rates(price: ModelPrice) -> dict[str, float]:
-    rates = {"input": price.input_per_1m, "output": price.output_per_1m}
-    if price.cached_input_per_1m is not None:
-        rates["cache_read"] = price.cached_input_per_1m
-    if price.cache_write_per_1m is not None:
-        rates["cache_write"] = price.cache_write_per_1m
-    return rates
-```
-
-Add `from nasde_toolkit.pricing import ModelPrice` inside the existing `if TYPE_CHECKING:` block (`runner.py:39`).
+`_build_merged_config` is not changed: no `pricing` kwarg for Cursor (ADR-015 §7). Harbor's trajectory cost comes from Harbor's own resolution; nasde's `cost_usd` comes from the catalog (Task 1).
 
 Docstring/message updates (text only):
 - `load_variant_config`: `an ``agent`` field set to ``"claude"``, ``"codex"``, ``"gemini"`` or ``"cursor"``.`
@@ -934,7 +882,7 @@ Expected: PASS
 
 ```bash
 git add src/nasde_toolkit/runner.py src/nasde_toolkit/cli.py tests/test_runner.py
-git commit -m "feat(runner): cursor agent family — auth, native skills, catalog pricing into Harbor"
+git commit -m "feat(runner): cursor agent family — auth, native skills"
 ```
 
 ---
@@ -1235,6 +1183,8 @@ def _stage_system_prompt_rule(eval_config: EvaluationConfig, cursor_dir: Path) -
     (rules_dir / "nasde-judge.mdc").write_text(_JUDGE_RULE_TEMPLATE.format(prompt=eval_config.append_system_prompt))
 ```
 
+The rule route is confirmed by the marker check in Task 9 Step 5. If that check fails, replace `_stage_system_prompt_rule` with a prompt prefix: `run_evaluation` sends `f"{eval_config.append_system_prompt}\n\n{prompt}"` and no `.cursor/rules/` dir is staged; update the docstring, the `..._carries_skills_mcp_and_rule` test and ADR-015 §6 to match. Hooks are not an option (ADR-015 §6).
+
 `src/nasde_toolkit/evaluator_backends/__init__.py` — add before `else:` and update the error:
 
 ```python
@@ -1297,7 +1247,9 @@ git commit -m "feat(evaluator): cursor judge backend (cursor-agent -p --mode ask
 #   1. An already-exported CURSOR_API_KEY is kept.
 #   2. macOS: Keychain entry "cursor-api-key" (stored by the cursor-agent CLI).
 # Otherwise create a key in the Cursor dashboard (Integrations → API keys) and
-# export it yourself. Windows users: see scripts/export_cursor_api_key.ps1.
+# export it yourself, or put CURSOR_API_KEY=<key> in .env in the benchmark
+# project dir (or its parent) — `nasde run` reads that file itself, so this
+# script is then not needed. Windows users: see scripts/export_cursor_api_key.ps1.
 
 # NOTE: Do NOT use `set -e` here -- this script is sourced into the user's
 # shell, so errexit would persist and kill the terminal on any later non-zero
@@ -1316,8 +1268,9 @@ fi
 if [ -z "$_cursor_key" ]; then
     echo "ERROR: Could not find a Cursor API key." >&2
     echo "  - macOS: keychain entry 'cursor-api-key' missing" >&2
-    echo "Create one in the Cursor dashboard (Integrations → API keys) and run:" >&2
+    echo "Create one in the Cursor dashboard (Integrations → API keys), then either:" >&2
     echo "  export CURSOR_API_KEY=<your-key>" >&2
+    echo "  or add CURSOR_API_KEY=<your-key> to .env in the benchmark project dir (or its parent)" >&2
     unset _cursor_key
     return 1 2>/dev/null || exit 1
 fi
@@ -1349,7 +1302,7 @@ if (-not [string]::IsNullOrEmpty($env:CURSOR_API_KEY)) {
     return
 }
 
-Write-Error "CURSOR_API_KEY is not set. Create a key in the Cursor dashboard (Integrations -> API keys), then run: `$env:CURSOR_API_KEY = '<your-key>'"
+Write-Error "CURSOR_API_KEY is not set. Create a key in the Cursor dashboard (Integrations -> API keys), then run: `$env:CURSOR_API_KEY = '<your-key>' -- or add CURSOR_API_KEY=<your-key> to .env in the benchmark project dir (or its parent); nasde run reads it itself."
 ```
 
 - [ ] **Step 3: Verify (requires user approval — reads keychain)**
@@ -1522,24 +1475,54 @@ Expected: version prints; `--effort` help mentions cursor; three `cursor/*` rows
 
 - [ ] **Step 3: E2E agent run — ASK USER FIRST (spends tokens)**
 
+The agent needs `CURSOR_API_KEY`; the default Claude judge needs Claude auth. `_ensure_auth` checks only the agent's family, so source both (skip the Cursor script if the key is already in the shell or in `.env`):
+
 ```bash
-source scripts/export_oauth_token.sh && \
+source scripts/export_oauth_token.sh && source scripts/export_cursor_api_key.sh && \
   uv run nasde run --variant cursor-vanilla --tasks <smallest-task> \
   -C examples/refactoring-skill --with-opik --eval-repetitions 1
 ```
 
-Check: trial completes; `agent/trajectory.json` has per-step `metrics` with `cost_usd`; `assessment_summary.json` has `token_usage` (non-zero `cache_write_tokens` if any), `cost_usd`, `cost_source == "pricing.toml"`; Opik trace shows agent spans with tokens and cost (verify via the nasde-dev skill's Opik REST snippet).
+Check: trial completes; `agent/trajectory.json` has per-step `metrics` with `cost_usd`; `assessment_summary.json` has `token_usage` (non-zero `cache_write_tokens` if any), `cost_usd`, `cost_source == "pricing.toml"`; Opik trace shows agent spans with tokens and cost (verify via the nasde-dev skill's Opik REST snippet). Harbor's `final_metrics.total_cost_usd` and nasde's `cost_usd` come from separate rate sources (ADR-015 §7); with no pricing override they should be close — report a large gap to the user, do not force them equal.
 
 - [ ] **Step 4: E2E judge run — ASK USER FIRST**
 
+No auth script needed: the Cursor judge uses `CURSOR_API_KEY` if set, else the `cursor-agent login` session.
+
 `uv run nasde eval <job_dir> --eval-backend cursor --eval-model cursor/claude-opus-5-5 --eval-repetitions 1 -C examples/refactoring-skill`.
-Check: `assessment_eval_<N>.json` written with scores; trial workspace has no `.cursor/` dir added.
+Check: `assessment_eval_<N>.json` written with scores; trial workspace has no `.cursor/` dir added. Without context options the judge runs in the trial workspace, which holds the variant's `AGENTS.md`; note in the report whether the judge's reasoning shows it read that file as a rule (ADR-015 §6 open point).
 
-- [ ] **Step 5: Bare-slug check — ASK USER FIRST**
+- [ ] **Step 5: Judge rule-loading marker check — ASK USER FIRST (spends tokens)**
 
-In the e2e run with `cursor/claude-opus-5-5` (via `--model cursor/claude-opus-5-5 --effort high`), confirm `cursor-agent` accepts `claude-opus-5-5[effort=high]`. If rejected, stop and ask the user how to key pricing.
+Confirms that headless `cursor-agent -p --mode ask` loads the always-apply rule from the temp cwd (ADR-015 §6):
 
-- [ ] **Step 6: Native skill discovery — ASK USER FIRST (spends tokens)**
+```bash
+uv run python - <<'EOF'
+import asyncio, tempfile
+from pathlib import Path
+from nasde_toolkit.config import EvaluationConfig
+from nasde_toolkit.evaluator_backends.cursor_subprocess import CursorSubprocessBackend
+
+workspace = Path(tempfile.mkdtemp())
+config = EvaluationConfig(
+    backend="cursor",
+    model="cursor/claude-opus-5-5",
+    append_system_prompt="Always start your answer with the exact text MARKER-7F3A.",
+)
+reply = asyncio.run(CursorSubprocessBackend().run_evaluation("Say hello.", workspace, config, workspace))
+print("RULE LOADED" if reply.strip().startswith("MARKER-7F3A") else f"RULE NOT LOADED: {reply[:200]!r}")
+EOF
+```
+
+Expected: `RULE LOADED`. On `RULE NOT LOADED`, switch to the prompt-prefix fallback described in Task 5 (after `_stage_system_prompt_rule`), rerun this check (it must then pass), and amend the Task 5 commit.
+
+- [ ] **Step 6: Bare-slug check — ASK USER FIRST**
+
+Same auth as Step 3 (`source scripts/export_oauth_token.sh && source scripts/export_cursor_api_key.sh`). In the e2e run with `cursor/claude-opus-5-5` (via `--model cursor/claude-opus-5-5 --effort high`), confirm `cursor-agent` accepts `claude-opus-5-5[effort=high]`. If rejected, stop and ask the user how to key pricing.
+
+- [ ] **Step 7: Native skill discovery — ASK USER FIRST (spends tokens)**
+
+Needs `CURSOR_API_KEY` only (`--without-eval` skips the Claude judge): `source scripts/export_cursor_api_key.sh` unless the key is already in the shell or `.env`.
 
 Create a throwaway, uncommitted variant `examples/refactoring-skill/variants/cursor-refactoring-skill/`: `variant.toml` (`agent = "cursor"`, `model = "cursor/composer-2.5"`), `AGENTS.md` and `agents_skills/` copied from `codex-refactoring-skill/`, with `agents_skills/` renamed to `cursor_skills/`. Run it on one task with `--without-eval`.
 Check: `agent/trajectory.json` shows the agent reading `~/.cursor/skills/refactor/SKILL.md` (`rg -n '\.cursor/skills/refactor' <trial>/agent/trajectory.json`). No hit → stop and report to the user; do not switch to a cwd route without a decision (ADR-015 §3). Delete the throwaway variant afterwards.

@@ -808,7 +808,7 @@ Expected: FAIL — `ImportError: cannot import name '_is_cursor_agent'`.
         raise SystemExit(1)
 ```
 
-`_load_env_file` runs before `_ensure_auth` (`runner.py:75`, `:83`), so a key kept in `.env` passes this check without the script.
+`_load_env_file` runs before `_ensure_auth` (`runner.py:75`, `:83`), so a key kept in `.env` passes this check without the script. It reads only the first `.env` found (project dir, else parent), so a parent key is ignored when the project dir has its own `.env`.
 
 Constants:
 
@@ -1490,7 +1490,7 @@ Check: trial completes; `agent/trajectory.json` has per-step `metrics` with `cos
 No auth script needed: the Cursor judge uses `CURSOR_API_KEY` if set, else the `cursor-agent login` session.
 
 `uv run nasde eval <job_dir> --eval-backend cursor --eval-model cursor/claude-opus-5-5 --eval-repetitions 1 -C examples/refactoring-skill`.
-Check: `assessment_eval_<N>.json` written with scores; trial workspace has no `.cursor/` dir added. Without context options the judge runs in the trial workspace, which holds the variant's `AGENTS.md`; note in the report whether the judge's reasoning shows it read that file as a rule (ADR-015 §6 open point).
+Check: `assessment_eval_<N>.json` written with scores; trial workspace has no `.cursor/` dir added. Without context options the judge loads the variant's `AGENTS.md` as a rule; that is a known, accepted limitation shared with the Codex/Claude judges (ADR-015 §6), not a check.
 
 - [ ] **Step 5: Judge rule-loading marker check — ASK USER FIRST (spends tokens)**
 

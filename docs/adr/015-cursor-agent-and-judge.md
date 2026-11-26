@@ -46,9 +46,11 @@ flags.
    documented convention: they would hide effort inside the model name and
    break per-`(agent, model, effort)` grouping and exact-match pricing.
 5. **Auth.** `CURSOR_API_KEY` (Harbor's only mechanism), required by
-   `_ensure_auth`. nasde loads the benchmark's `.env` (project dir, then its
-   parent) before that check, so the key can come from the shell, from `.env`,
-   or from `scripts/export_cursor_api_key.sh`, which mirrors the Claude token
+   `_ensure_auth`. Before that check nasde reads one `.env`: the project dir's
+   if it exists, else its parent's (never both; shell values win). A key in
+   the parent `.env` is therefore ignored when the project dir has its own
+   `.env`. The key can come from the shell, from that `.env`, or from
+   `scripts/export_cursor_api_key.sh`, which mirrors the Claude token
    export script. The `_ensure_auth` error and the script's error name both
    routes. A Cursor agent run with the default Claude judge needs the Cursor
    key as well as Claude auth: `_ensure_auth` checks only the agent's family.
@@ -85,11 +87,18 @@ flags.
      may replace nasde's text.
    - The docs do not say `sessionStart` fires in the CLI.
 
-   Open point (unverified): the CLI also reads `AGENTS.md` / `CLAUDE.md` at the
-   project root as rules. With no context options the judge runs in the trial
-   workspace, which holds the variant's injected `/app/AGENTS.md`, so the
-   agent's instructions may reach the judge. The temp cwd avoids this; the
-   e2e judge run should check whether it happens without one.
+   Known limitation, accepted: with no context options the judge runs in the
+   trial workspace, which holds the variant's injected `/app/AGENTS.md`.
+   `cursor-agent` 2026.11.22 loads `AGENTS.md` and `.cursor/rules` as rules
+   from cwd and every parent up to `/` (plus nested `**/AGENTS.md`;
+   `CLAUDE.md` too behind the third-party setting), so the agent's
+   instructions reach the judge. The existing judges share this: the Codex
+   judge always runs in the workspace and loads its `AGENTS.md`; the Claude
+   judge does the same for `CLAUDE.md` (and parent folders) unless
+   `skills_dir` is set. The Cursor judge matches them; isolating all judges
+   from variant instruction files is out of scope for this ADR. Whether
+   `--add-dir` roots also load rules is not verified, so the temp cwd is not
+   claimed to avoid this.
 7. **Pricing.** Bundled `cursor/*` entries at Cursor's published list rates
    (no Teams/Enterprise Cursor Token Rate — a plan property, documented as an
    ADR-013 override). As for Claude, nasde computes `cost_usd` from the catalog

@@ -23,8 +23,9 @@ docs, tests.
 - Harbor uploads injected skills before `agent.setup()`, so Cursor's
   `install()`-time skill copy has correct timing.
 - `--yolo` implies MCP auto-approval in `cursor-agent` (`force || approveMcps`).
-- `cursor-agent` loads `AGENTS.md` from cwd unconditionally; `CLAUDE.md` only
-  behind a third-party setting.
+- `cursor-agent` loads `AGENTS.md` and `.cursor/rules` from cwd and every
+  parent up to `/`, plus nested `**/AGENTS.md`, unconditionally; `CLAUDE.md`
+  only behind a third-party setting.
 - `cursor-agent` 2026.11.22 skill roots: project `.cursor/skills`,
   `.agents/skills` and home `~/.cursor/skills`, `~/.agents/skills` always;
   `.claude/skills`, `.codex/skills` (project and home) only with third-party
@@ -74,9 +75,9 @@ Add `cursor` to: `_VALID_AGENT_TYPES`, `_agent_import_path`, new
 (`"cursor": "cursor_skills"`), job-summary short-name prefix strip, `--effort`
 help text, agent label map in `cli.py`, `--eval-backend` validation.
 
-`_ensure_auth`: Cursor agent requires `CURSOR_API_KEY`. `run_benchmark` loads
-the benchmark's `.env` (project dir, then its parent) first, so a key there
-passes. Otherwise SystemExit, with a hint naming `.env` and
+`_ensure_auth`: Cursor agent requires `CURSOR_API_KEY`. `run_benchmark` first
+reads one `.env` (the project dir's if present, else its parent's; never both;
+shell values win), so a key in that file passes. Otherwise SystemExit, with a hint naming `.env` and
 `source scripts/export_cursor_api_key.sh`.
 
 ### 3. Judge — `evaluator_backends/cursor_subprocess.py`
@@ -101,7 +102,9 @@ with a leading `cursor/` stripped. Result text parsed from the JSON `result` fie
 
 The temp cwd is created only when `skills_dir`, `mcp_config` or
 `append_system_prompt` is set; otherwise cwd = workspace, as for Claude. The
-trial workspace is never written to.
+trial workspace is never written to. With cwd = workspace the judge loads the
+variant's injected `AGENTS.md` as a rule, as the Codex judge does (Claude:
+`CLAUDE.md`); accepted as a known limitation (ADR-015 §6).
 
 ### 4. Pricing
 
@@ -149,8 +152,8 @@ the trace total — same path as Claude.
 `scripts/export_cursor_api_key.sh` (+ `.ps1`), mirroring
 `export_oauth_token.sh`: keep an existing `CURSOR_API_KEY`; else read the
 macOS keychain entry `cursor-api-key`; export `CURSOR_API_KEY`. The error
-message also points to `.env` in the benchmark project dir (or its parent),
-which `nasde run` reads itself. Verified with user approval during
+message also points to `.env` in the benchmark project dir (or its parent if
+the project dir has none), which `nasde run` reads itself. Verified with user approval during
 implementation.
 
 ### 7. Examples, docs

@@ -28,7 +28,19 @@ flags.
    `config.agent.skills` → `~/.cursor/skills` (ADR-012), so `[[skill]]` and
    `[nasde.plugin]` skills reuse the Codex/Gemini channel. Harbor uploads
    injected skills before `agent.setup()`, and `CursorCli.install()` copies
-   them, so timing is correct.
+   them, so timing is correct. Cursor support costs one
+   `_AGENT_SKILLS_SUBDIR` entry, and Harbor owns the copy command.
+
+   Alternatives considered (the Claude-style route, `sandbox_files` into a
+   cwd skills dir). `cursor-agent` 2026.11.22 always loads the project
+   roots `.cursor/skills` and `.agents/skills`; it loads `.claude/skills` and
+   `.codex/skills` only when its third-party extensibility setting is on.
+   - `cursor_skills/` → `sandbox_files` → `/app/.cursor/skills/`: workable,
+     but needs a Cursor target in `stage_skill_dir` (hard-wired to
+     `/app/.claude/skills`), a second `[[skill]]`/plugin staging pass and a
+     third skill-routing style. Rejected: more code than one dict entry.
+   - Reuse Claude's `skills/` → `/app/.claude/skills/`: no new code, but
+     discovery depends on Cursor's third-party setting. Rejected.
 4. **Effort.** Base model slug + `reasoning_effort`, as for every other
    family. Cursor's effort-suffixed slugs (`claude-opus-5-5-high`) are not the
    documented convention: they would hide effort inside the model name and
@@ -68,6 +80,12 @@ flags.
   turn cap, system prompt delivered as a rule file, chats persisted locally.
 - `cost_source` is a new economics field (all agents; `"pricing.toml"` for
   catalog-priced trials).
+- `[[skill]]`/`[nasde.plugin]` skills also reach every agent's
+  `/app/.claude/skills/` through `sandbox_files` (ADR-009). Codex and Gemini
+  never read that dir; Cursor does when third-party extensibility is on. It
+  de-duplicates by real file path, not skill name, so such a skill can be
+  listed twice (no error, slightly more context). Not filtered; revisit if
+  observed.
 - Cursor's prices change often; the three bundled entries need re-verification
   like every other catalog entry. Unbundled or effort-suffixed slugs fall back
   to Harbor's estimate, flagged by `cost_source`.

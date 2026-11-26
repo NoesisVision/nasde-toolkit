@@ -25,6 +25,10 @@ docs, tests.
 - `--yolo` implies MCP auto-approval in `cursor-agent` (`force || approveMcps`).
 - `cursor-agent` loads `AGENTS.md` from cwd unconditionally; `CLAUDE.md` only
   behind a third-party setting.
+- `cursor-agent` 2026.11.22 skill roots: project `.cursor/skills`,
+  `.agents/skills` and home `~/.cursor/skills`, `~/.agents/skills` always;
+  `.claude/skills`, `.codex/skills` (project and home) only with third-party
+  extensibility on. Skills are de-duplicated by real file path, not by name.
 - `cursor-agent`'s stream-json `result.usage` carries tokens only
   (`inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`,
   `reasoningTokens`) — **no dollar cost**. It also emits per-model-call
@@ -51,7 +55,7 @@ Variant contract:
 |---|---|
 | `variant.toml` | `agent = "cursor"`, `model = "cursor/<base-slug>"` (e.g. `cursor/composer-2.5`) |
 | Instructions | `AGENTS.md` → `/app/AGENTS.md` (existing collection, no new code). No rules support — Claude has none either. |
-| Skills | `cursor_skills/<name>/` → Harbor-native `config.agent.skills` → `~/.cursor/skills` (ADR-012 machinery). `[[skill]]` and `[nasde.plugin]` skills follow automatically. |
+| Skills | `cursor_skills/<name>/` → Harbor-native `config.agent.skills` → `~/.cursor/skills` (ADR-012 machinery). `[[skill]]` and `[nasde.plugin]` skills follow automatically. The Claude-style `sandbox_files` route was considered and rejected (ADR-015 §3). Known caveat: `[[skill]]`/plugin skills also land in `/app/.claude/skills` for every agent, so with Cursor's third-party setting on they can be listed twice; not filtered. |
 | Effort | `reasoning_effort` / `--effort`, passed straight through; Harbor validates. Use base slugs (`cursor/claude-opus-5-5`), not Cursor's effort-suffixed slugs (`-high`), so `config.json` `model_name` and the `reasoning_effort` stamp stay separate — same as Claude/Codex/Gemini. |
 | MCP | Task-level `mcp_servers` work via Harbor (`~/.cursor/mcp.json` + `--yolo`). No Cursor equivalent of `claude_config.json` (unused in examples). |
 
@@ -169,6 +173,9 @@ E2E (each run individually authorized — spends tokens):
 2. `nasde eval <job> --eval-backend cursor`.
 3. Verify `cursor-agent` accepts a bare base slug (`claude-opus-5-5` with and
    without `[effort=...]`); if not, revisit pricing keys with the user.
+4. Skill discovery: a throwaway variant with a `cursor_skills/` skill; confirm
+   in headless `--yolo --print` mode that the agent reads it from
+   `~/.cursor/skills/`. ADR-012 exists because a cwd route silently failed.
 
 ## Out of scope
 

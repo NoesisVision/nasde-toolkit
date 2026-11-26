@@ -1538,3 +1538,8 @@ Check: `assessment_eval_<N>.json` written with scores; trial workspace has no `.
 - [ ] **Step 5: Bare-slug check — ASK USER FIRST**
 
 In the e2e run with `cursor/claude-opus-5-5` (via `--model cursor/claude-opus-5-5 --effort high`), confirm `cursor-agent` accepts `claude-opus-5-5[effort=high]`. If rejected, stop and ask the user how to key pricing.
+
+- [ ] **Step 6: Native skill discovery — ASK USER FIRST (spends tokens)**
+
+Create a throwaway, uncommitted variant `examples/refactoring-skill/variants/cursor-refactoring-skill/`: `variant.toml` (`agent = "cursor"`, `model = "cursor/composer-2.5"`), `AGENTS.md` and `agents_skills/` copied from `codex-refactoring-skill/`, with `agents_skills/` renamed to `cursor_skills/`. Run it on one task with `--without-eval`.
+Check: `agent/trajectory.json` shows the agent reading `~/.cursor/skills/refactor/SKILL.md` (`rg -n '\.cursor/skills/refactor' <trial>/agent/trajectory.json`). No hit → stop and report to the user; do not switch to a cwd route without a decision (ADR-015 §3). Delete the throwaway variant afterwards.

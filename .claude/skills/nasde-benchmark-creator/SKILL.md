@@ -268,10 +268,11 @@ model = "gpt-6.1-sol"     # Required for Codex — use an OpenAI model ID
 ```
 
 **Codex models** (recommended first, as of 2026-10):
-- `gpt-6.1-sol` — latest workhorse model for coding and everyday work (default choice)
-- `gpt-6-astra` — frontier intelligence for the most demanding work
+- `gpt-6.2-sol` — latest go-to model for coding and everyday work (default choice)
+- `gpt-6.2-astra` — most capable model for complex coding and professional work
+- `gpt-6.1-terra` — efficient model, strong at visual understanding and computer use
 - `gpt-6-luna` — fast and affordable, for easier tasks
-- Older: `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
+- Older: `gpt-6.1-sol` (the bundled examples' model), `gpt-6-astra`, `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
 
 The models your account can actually use are listed in `~/.codex/models_cache.json` (written by the Codex CLI) — a model missing there fails at run time.
 

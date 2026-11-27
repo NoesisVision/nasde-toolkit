@@ -9,7 +9,17 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+- Bundled prices for `claude-fable-5-2` ($8/$40 per 1M tokens; cache read
+  $0.20 = 0.025x input), `gpt-6.2-astra` ($8/$40), `gpt-6.2-sol` ($2/$10),
+  `gpt-6.1-terra` ($1/$5) and `gpt-5.4-nano` ($0.20/$1.25). Every existing
+  entry was re-verified against the official pricing pages on 2026-11-27
+  (rates unchanged, `as_of` moved to that date). ([#NN])
+
 ### Changed
+- **Harbor 0.24 → 0.27.** No change to `nasde.toml`, `variant.toml`, the
+  benchmark layout or trial artifacts; native skill injection (ADR-012),
+  `reasoning_effort` and the agent kwargs nasde passes keep working. ([#NN])
 - **Bundled Codex examples run on `gpt-6.1-sol`.** Every Codex variant in the
   examples moves from `gpt-5.4` (no longer offered to ChatGPT-plan accounts) to
   OpenAI's current coding workhorse; the authoring skills list the current
@@ -39,6 +49,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   which doubled the token totals Opik shows for Codex runs; nasde's own
   `assessment_summary.json` / `metrics.json` economics were not affected.
   ([#88])
+
+### Security
+- Pinned `aiohttp>=3.14.4`, `certifi>=2026.10.18`, `filelock>=4.2.1`,
+  `opentelemetry-api>=1.45.1`, `oauthlib>=4.0.1` and `wcmatch>=11.2`
+  (all transitive) for the November-2026 advisory batch, incl.
+  CVE-2026-111063..111066, CVE-2026-112907..112940, CVE-2026-114603,
+  CVE-2026-49272 and CVE-2026-132276. ([#91], [#NN])
 
 ## [0.7.0] — 2026-10-15
 

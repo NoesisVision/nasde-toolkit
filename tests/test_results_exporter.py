@@ -174,7 +174,7 @@ def test_export_includes_token_cost_economics(job_dir: Path, tmp_path: Path) -> 
     assert usage["total_tokens"] == 1_060_000
     # sonnet-5-5 $2/$10/$0.10 cached (ADR-014): fresh 0.2M*2 + cached 0.8M*0.10 + 0.06M*10 = 1.08
     assert metrics["cost_usd"] == pytest.approx(1.08)
-    assert metrics["pricing_as_of"] == "2026-10-14"
+    assert metrics["pricing_as_of"] == "2026-11-27"
     assert "cost_efficiency" not in metrics  # removed: arbitrary zero → use Pareto front
     assert "token_efficiency" not in metrics
     assert metrics["reasoning_effort"] == ""  # fixture set no override

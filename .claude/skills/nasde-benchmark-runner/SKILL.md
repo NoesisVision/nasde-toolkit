@@ -196,11 +196,12 @@ nasde run --variant codex-vanilla --model gpt-6.1-sol -C path/to/benchmark
 ```
 
 **Codex models** (recommended first, as of 2026-10):
-- `gpt-6.1-sol` — latest workhorse model for coding and everyday work (default choice)
-- `gpt-6-astra` — frontier intelligence for the most demanding work
+- `gpt-6.2-sol` — latest go-to model for coding and everyday work (default choice)
+- `gpt-6.2-astra` — most capable model for complex coding and professional work
+- `gpt-6.1-terra` — efficient model, strong at visual understanding and computer use
 - `gpt-6-luna` — fast and affordable, for easier tasks
 
-Older: `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
+Older: `gpt-6.1-sol` (the bundled examples' model), `gpt-6-astra`, `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
 
 The models your account can actually use are listed in `~/.codex/models_cache.json` (written by the Codex CLI) — a model missing there fails at run time.
 
@@ -493,7 +494,7 @@ head -20 jobs/<ts>/<trial>/agent/codex.txt
 
 Common causes:
 - **`Incorrect API key provided: ''`** — no auth configured. Either run `codex login` (ChatGPT subscription) or set `CODEX_API_KEY`: `export $(grep CODEX_API_KEY .env)`
-- **`model 'X' does not exist`** — wrong model name. Use one listed in `~/.codex/models_cache.json`, e.g. `gpt-6.1-sol`, `gpt-6-astra` or `gpt-6-luna`
+- **`model 'X' does not exist`** — wrong model name. Use one listed in `~/.codex/models_cache.json`, e.g. `gpt-6.2-sol`, `gpt-6.2-astra` or `gpt-6-luna`
 - **0% pass rate, low scores, but trials completed** — likely inherited Claude model name (e.g. `claude-sonnet-5-5`) instead of OpenAI model. Check `config.json` in the job dir for `model_name`. Fix by adding `model = "gpt-6.1-sol"` to `variant.toml` or using `--model gpt-6.1-sol`
 - **`Tool 'web_search_preview' is not supported`** — model doesn't support Codex tools
 - **`Model metadata for 'X' not found`** — warning only, usually followed by the real error

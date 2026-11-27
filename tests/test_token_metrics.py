@@ -103,7 +103,7 @@ def test_build_trial_economics_priced_model(tmp_path: Path) -> None:
     # rate, the 2_646_272 cached reads at the cached rate, no write premium.
     fresh = 2_817_494 - 2_646_272
     assert econ["cost_usd"] == pytest.approx(fresh / 1e6 * 2.0 + 2_646_272 / 1e6 * 0.10 + 37_322 / 1e6 * 10)
-    assert econ["pricing_as_of"] == "2026-10-14"
+    assert econ["pricing_as_of"] == "2026-11-27"
 
 
 def test_build_trial_economics_no_trajectory_is_empty(tmp_path: Path) -> None:

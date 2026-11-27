@@ -34,7 +34,7 @@ dependencies = [
     # novita-sandbox==2.0.0a3 (no stable 2.x exists) and breaks `uv lock`. We
     # list only the providers nasde documents and supports. Add a provider here
     # if README's harbor-env table grows.
-    "harbor[daytona,modal,e2b,runloop,gke]>=0.24,<0.25",
+    "harbor[daytona,modal,e2b,runloop,gke]>=0.27,<0.28",
     "opik>=2.2,<3",
     # Transitive via harbor/opik. Lower bound satisfies both GHSA-xqmj-j6mv-4862
     # (litellm <1.83.7), harbor's own floor (>=1.83.14) and PYSEC-2026-4066
@@ -93,8 +93,12 @@ dependencies = [
     # CVE-2026-104851 (fsspec <2026.6.0).
     "fsspec>=2026.6.0",
     # Transitive via harbor → requests-oauthlib. Pinned to fix PYSEC-2026-4114
-    # (oauthlib <4.0.0) — a major release of a dep nasde never calls directly.
-    "oauthlib>=4.0.0",
+    # (oauthlib <4.0.0) — a major release of a dep nasde never calls directly —
+    # and CVE-2026-49272 (oauthlib <4.0.1).
+    "oauthlib>=4.0.1",
+    # Transitive via harbor → e2b. Pinned to fix CVE-2026-132276
+    # (wcmatch <11.2) — a major release of a dep nasde never calls directly.
+    "wcmatch>=11.2",
     # Transitive via harbor/httpx/requests. Pinned to fix PYSEC-2026-4320
     # (certifi <2026.10.18).
     "certifi>=2026.10.18",

@@ -95,7 +95,7 @@ with a leading `cursor/` stripped. Result text parsed from the JSON `result` fie
 | `max_turns` | Ignored silently (always set via default 60); documented. |
 | `skills_dir` | Temp cwd `.cursor/skills/` + `--add-dir <workspace>` (same as Claude's temp-dir trick). |
 | `mcp_config` | Copied to temp cwd `.cursor/mcp.json` + `--approve-mcps` + `--add-dir <workspace>`. |
-| `append_system_prompt` | Always-apply rule `.cursor/rules/nasde-judge.mdc` in temp cwd. An e2e marker check confirms that `-p --mode ask` loads it; if not, the text goes at the start of the judge prompt instead. Hooks rejected (ADR-015 §6). |
+| `append_system_prompt` | Always-apply rule `.cursor/rules/nasde-judge.mdc` in temp cwd. PENDING: the e2e marker check that `-p --mode ask` loads it has not been run; the prompt-prefix fallback is not implemented. Hooks rejected (ADR-015 §6). |
 | trial dir (`include_trajectory` / diff) | `--add-dir <trial_dir>` |
 | `--no-session-persistence` | No equivalent; Cursor keeps the chat locally. Accepted. |
 | Auth | Non-fatal like Claude: dim note when `CURSOR_API_KEY` unset (relies on `cursor-agent login`). |
@@ -130,6 +130,11 @@ variant's injected `AGENTS.md` as a rule, as the Codex judge does (Claude:
 - **Provenance:** economics gain `cost_source`: `"pricing.toml"`,
   `"harbor:<extra.cost_source>"` (e.g. `harbor:cursor_pricing`,
   `harbor:litellm`), or `null`. Yellow warning on fallback.
+- **Run summary:** the `nasde run` economics table marks a row whose trials
+  used the Harbor estimate (`cost_source` starting `harbor:`) with `*` after the
+  cost, plus a footnote. Catalog-priced rows and other agents are unchanged.
+  `pricing_used.json` and the "Pricing used" table stay catalog-only; per-trial
+  provenance is in `assessment_summary.json` / `metrics.json`.
 - **Token fix:** `extract_token_usage` reads cache writes from
   `extra.total_cache_creation_input_tokens`, falling back to
   `extra.usage_totals.cacheWriteTokens` (Cursor).
@@ -203,6 +208,22 @@ E2E (each run individually authorized — spends tokens):
    throwaway variant with a `cursor_skills/` skill; confirm
    in headless `--yolo --print` mode that the agent reads it from
    `~/.cursor/skills/`. ADR-012 exists because a cwd route silently failed.
+
+## Deliberately not done
+
+Reviewed after implementation; recorded in ADR-015 §9.
+
+- **No model-name preflight or normalization.** A Cursor model must be written
+  `cursor/<slug>`. A bare slug fails per trial in Harbor (`provider/model`
+  rule), exactly like Gemini, and nasde adds no check or rewrite so the
+  families stay consistent. A wrong provider (`anthropic/...`) runs but gets a
+  null `cost_usd`. Revisit together with a per-family normalizer
+  (Codex strips the prefix, Gemini needs `google/`) if it bites.
+- **No judge-model stamp change.** `evaluator_model` stays the raw
+  `[evaluation] model`. A Cursor judge and the Claude judge serving the same
+  model name can share a cluster; do not mix judge backends in one job. Judge
+  execution is moving to Harbor, which will own judge identity, so a nasde-side
+  stamp or grouping change is not worth building.
 
 ## Out of scope
 

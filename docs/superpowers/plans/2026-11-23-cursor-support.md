@@ -1526,3 +1526,13 @@ Needs `CURSOR_API_KEY` only (`--without-eval` skips the Claude judge): `source s
 
 Create a throwaway, uncommitted variant `examples/refactoring-skill/variants/cursor-refactoring-skill/`: `variant.toml` (`agent = "cursor"`, `model = "cursor/composer-2.5"`), `AGENTS.md` and `agents_skills/` copied from `codex-refactoring-skill/`, with `agents_skills/` renamed to `cursor_skills/`. Run it on one task with `--without-eval`.
 Check: `agent/trajectory.json` shows the agent reading `~/.cursor/skills/refactor/SKILL.md` (`rg -n '\.cursor/skills/refactor' <trial>/agent/trajectory.json`). No hit → stop and report to the user; do not switch to a cwd route without a decision (ADR-015 §3). Delete the throwaway variant afterwards.
+
+---
+
+### Task 10: Post-review follow-ups (as built)
+
+Raised by the final whole-branch review; decisions recorded in ADR-015 §9 and the design's "Deliberately not done".
+
+- [x] **Run summary marks Harbor-estimated costs.** `runner._accumulate_economics` records whether any trial's `cost_source` starts with `harbor:`; `_finalize_economics_row` exposes `harbor_estimated`; `_print_economics_table` appends `*` to the cost; `_print_harbor_estimate_note` prints the footnote. Tests in `tests/test_runner_economics.py`. CHANGELOG entry updated.
+- [x] **Not done — model-name preflight/normalization.** Kept consistent with Gemini (Harbor's `provider/model` rule, no nasde check). Documented as a known limitation.
+- [x] **Not done — judge-model stamp.** Judge execution is moving to Harbor, which will own judge identity; documented as a known limitation (do not mix judge backends in one job).

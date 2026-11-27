@@ -14,12 +14,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   $0.20 = 0.025x input), `gpt-6.2-astra` ($8/$40), `gpt-6.2-sol` ($2/$10),
   `gpt-6.1-terra` ($1/$5) and `gpt-5.4-nano` ($0.20/$1.25). Every existing
   entry was re-verified against the official pricing pages on 2026-11-27
-  (rates unchanged, `as_of` moved to that date). ([#NN])
+  (rates unchanged, `as_of` moved to that date). ([#97])
 
 ### Changed
 - **Harbor 0.24 → 0.27.** No change to `nasde.toml`, `variant.toml`, the
   benchmark layout or trial artifacts; native skill injection (ADR-012),
-  `reasoning_effort` and the agent kwargs nasde passes keep working. ([#NN])
+  `reasoning_effort` and the agent kwargs nasde passes keep working. ([#97])
 - **Bundled Codex examples run on `gpt-6.1-sol`.** Every Codex variant in the
   examples moves from `gpt-5.4` (no longer offered to ChatGPT-plan accounts) to
   OpenAI's current coding workhorse; the authoring skills list the current
@@ -55,7 +55,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for the release procedure.
   `opentelemetry-api>=1.45.1`, `oauthlib>=4.0.1` and `wcmatch>=11.2`
   (all transitive) for the November-2026 advisory batch, incl.
   CVE-2026-111063..111066, CVE-2026-112907..112940, CVE-2026-114603,
-  CVE-2026-49272 and CVE-2026-132276. ([#91], [#NN])
+  CVE-2026-49272 and CVE-2026-132276. ([#91], [#97])
 
 ## [0.7.0] — 2026-10-15
 
@@ -755,4 +755,5 @@ Initial release under the **nasde-toolkit** name (rebrand from
 [#89]: https://github.com/NoesisVision/nasde-toolkit/pull/89
 [#90]: https://github.com/NoesisVision/nasde-toolkit/pull/90
 [#91]: https://github.com/NoesisVision/nasde-toolkit/pull/91
+[#97]: https://github.com/NoesisVision/nasde-toolkit/pull/97
 [gh-litellm-2026-04]: https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862

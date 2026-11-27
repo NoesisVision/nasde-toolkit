@@ -22,12 +22,13 @@
 # input, 1.5x output) that ModelPrice cannot express — same limitation as the
 # Haiku 5.5 tiers below. Codex compacts well under that, so the short rate is
 # the right one for our trials; a run that does cross it is understated.
-# gpt-5.6-sol is on promotional pricing "at least through November 21, 2026" —
-# re-verify after that date.
+# gpt-5.6-sol is on promotional pricing "until November 30, 2026"; the page
+# does not publish the post-promo rate — re-verify after that date.
 #
 # Cache reads are 0.1x the base input rate on MOST Claude models, but there are
 # two published per-model exceptions — neither is a typo, do NOT "unify" them:
-#   * Claude Fable 5.1 (and Mythos 5.1): 0.025x — $0.25/MTok on $10/MTok input
+#   * Claude Fable 5.2 / 5.1 (and Mythos 5.2 / 5.1): 0.025x — $0.20/MTok on
+#     $8/MTok input (5.2), $0.25/MTok on $10/MTok input (5.1)
 #   * Claude Opus 5.5 and Claude Sonnet 5.5: 0.05x — $0.20 on $4, $0.10 on $2
 # Both are stated in footnotes on the official pricing page. Our runs are
 # cache-read heavy (93–98% of input), so a wrong multiplier here moves the
@@ -40,26 +41,54 @@
 # claude-haiku-5-5 reports cost_usd = null plus a warning rather than a wrong
 # number. Add it only together with tier support.
 #
-# Claude Mythos 5 / 5.1 are limited-availability and publish no Claude API ID,
-# so they are not listed; add them via a project pricing.toml if you have access.
-# There is no "Claude Fable 5.5" — the Fable line is 5 and 5.1.
+# Claude Mythos 5 / 5.1 / 5.2 are limited-availability and publish no Claude API
+# ID, so they are not listed; add them via a project pricing.toml if you have
+# access. There is no "Claude Fable 5.5" — the Fable line is 5, 5.1 and 5.2.
 #
 # Lookup is an exact model-name match. Claude 4.5-generation entries
 # (claude-opus-4-5, claude-sonnet-4-5, claude-haiku-4-5) are the aliases; a
 # variant pinned to a dated snapshot ID needs its own entry in a project
 # pricing.toml. From 4.6 on, the dateless ID is the pinned snapshot.
 #
-# All entries re-verified 2026-10-14 against the official Anthropic and OpenAI
-# pricing pages (every pre-existing rate unchanged; Opus 5.5, Sonnet 5.5, the
-# Claude 4.x legacy models and the GPT-5.6 / GPT-6 families added) — CONFIRM
-# before publishing any cost figures.
+# OpenAI cache_write_per_1m is the 30-minute cache write rate (1.25x base
+# input); the page also lists a 12-hour write rate (2.5x) that ModelPrice
+# cannot express separately.
+#
+# All entries re-verified 2026-11-27 against the official Anthropic and OpenAI
+# pricing pages (every pre-existing rate unchanged; Claude Fable 5.2, GPT-6.2
+# Astra / Sol, GPT-6.1 Terra and GPT-5.4 nano added) — CONFIRM before
+# publishing any cost figures.
+
+[models."gpt-6.2-astra"]
+input_per_1m = 8.0
+output_per_1m = 40.0
+cached_input_per_1m = 0.40
+cache_write_per_1m = 10.0
+as_of = "2026-11-27"
+source = "https://developers.openai.com/api/docs/pricing"
+
+[models."gpt-6.2-sol"]
+input_per_1m = 2.0
+output_per_1m = 10.0
+cached_input_per_1m = 0.10
+cache_write_per_1m = 2.50
+as_of = "2026-11-27"
+source = "https://developers.openai.com/api/docs/pricing"
+
+[models."gpt-6.1-terra"]
+input_per_1m = 1.0
+output_per_1m = 5.0
+cached_input_per_1m = 0.05
+cache_write_per_1m = 1.25
+as_of = "2026-11-27"
+source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-6-astra"]
 input_per_1m = 10.0
 output_per_1m = 50.0
 cached_input_per_1m = 1.0
 cache_write_per_1m = 12.50
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-6.1-sol"]
@@ -67,7 +96,7 @@ input_per_1m = 2.0
 output_per_1m = 10.0
 cached_input_per_1m = 0.10
 cache_write_per_1m = 2.50
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-6-sol"]
@@ -75,7 +104,7 @@ input_per_1m = 2.0
 output_per_1m = 10.0
 cached_input_per_1m = 0.20
 cache_write_per_1m = 2.50
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-6-luna"]
@@ -83,7 +112,7 @@ input_per_1m = 0.10
 output_per_1m = 0.50
 cached_input_per_1m = 0.01
 cache_write_per_1m = 0.125
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-5.6-sol"]
@@ -91,7 +120,7 @@ input_per_1m = 4.0
 output_per_1m = 20.0
 cached_input_per_1m = 0.40
 cache_write_per_1m = 5.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-5.6-terra"]
@@ -99,7 +128,7 @@ input_per_1m = 2.0
 output_per_1m = 12.0
 cached_input_per_1m = 0.20
 cache_write_per_1m = 2.50
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-5.6-luna"]
@@ -107,35 +136,42 @@ input_per_1m = 0.20
 output_per_1m = 1.20
 cached_input_per_1m = 0.02
 cache_write_per_1m = 0.25
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-5.5"]
 input_per_1m = 5.0
 output_per_1m = 30.0
 cached_input_per_1m = 0.50
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-5.4"]
 input_per_1m = 2.50
 output_per_1m = 15.0
 cached_input_per_1m = 0.25
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-5.4-mini"]
 input_per_1m = 0.75
 output_per_1m = 4.50
 cached_input_per_1m = 0.075
-as_of = "2026-10-14"
+as_of = "2026-11-27"
+source = "https://developers.openai.com/api/docs/pricing"
+
+[models."gpt-5.4-nano"]
+input_per_1m = 0.20
+output_per_1m = 1.25
+cached_input_per_1m = 0.02
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."gpt-5.3-codex"]
 input_per_1m = 1.75
 output_per_1m = 14.0
 cached_input_per_1m = 0.175
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://developers.openai.com/api/docs/pricing"
 
 [models."claude-opus-5-5"]
@@ -143,7 +179,7 @@ input_per_1m = 4.0
 output_per_1m = 20.0
 cached_input_per_1m = 0.20
 cache_write_per_1m = 8.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-opus-5"]
@@ -151,7 +187,7 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-opus-4-8"]
@@ -159,7 +195,7 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-opus-4-7"]
@@ -167,7 +203,7 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-opus-4-6"]
@@ -175,7 +211,7 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-opus-4-5"]
@@ -183,7 +219,15 @@ input_per_1m = 5.0
 output_per_1m = 25.0
 cached_input_per_1m = 0.50
 cache_write_per_1m = 10.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"
+
+[models."claude-fable-5-2"]
+input_per_1m = 8.0
+output_per_1m = 40.0
+cached_input_per_1m = 0.20
+cache_write_per_1m = 16.0
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-fable-5-1"]
@@ -191,7 +235,7 @@ input_per_1m = 10.0
 output_per_1m = 50.0
 cached_input_per_1m = 0.25
 cache_write_per_1m = 20.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-fable-5"]
@@ -199,7 +243,7 @@ input_per_1m = 10.0
 output_per_1m = 50.0
 cached_input_per_1m = 1.0
 cache_write_per_1m = 20.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-5-5"]
@@ -207,7 +251,7 @@ input_per_1m = 2.0
 output_per_1m = 10.0
 cached_input_per_1m = 0.10
 cache_write_per_1m = 4.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-5"]
@@ -215,7 +259,7 @@ input_per_1m = 2.0
 output_per_1m = 10.0
 cached_input_per_1m = 0.20
 cache_write_per_1m = 4.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-4-6"]
@@ -223,7 +267,7 @@ input_per_1m = 3.0
 output_per_1m = 15.0
 cached_input_per_1m = 0.30
 cache_write_per_1m = 6.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-sonnet-4-5"]
@@ -231,7 +275,7 @@ input_per_1m = 3.0
 output_per_1m = 15.0
 cached_input_per_1m = 0.30
 cache_write_per_1m = 6.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"
 
 [models."claude-haiku-4-5"]
@@ -239,5 +283,5 @@ input_per_1m = 1.0
 output_per_1m = 5.0
 cached_input_per_1m = 0.10
 cache_write_per_1m = 2.0
-as_of = "2026-10-14"
+as_of = "2026-11-27"
 source = "https://platform.claude.com/docs/en/about-claude/pricing"

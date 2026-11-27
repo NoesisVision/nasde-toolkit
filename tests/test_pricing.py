@@ -162,7 +162,7 @@ def test_compute_cost_unknown_model_returns_none() -> None:
 
 def test_pricing_as_of_unknown_model_is_none() -> None:
     assert pricing_as_of("nonexistent-model", load_pricing()) is None
-    assert pricing_as_of("gpt-5.4", load_pricing()) == "2026-10-14"
+    assert pricing_as_of("gpt-5.4", load_pricing()) == "2026-11-27"
 
 
 def test_layered_no_overrides_returns_bundled(tmp_path: Path, empty_user_layer: Path) -> None:

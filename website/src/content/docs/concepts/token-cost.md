@@ -87,7 +87,7 @@ The precedence is **project > user > bundled**, merged **per model**: each overr
 [models."claude-opus-5-5"]
 input_per_1m = 3.5      # prices use a decimal point (3.5), not a comma
 output_per_1m = 17.0
-as_of = "2026-10-15"    # optional — when you confirmed this rate
+as_of = "2026-11-28"    # optional — when you confirmed this rate
 source = "internal contract"   # optional — where it came from
 ```
 
@@ -112,10 +112,10 @@ With a project override of `claude-sonnet-5-5` (to $1.5 / $8), you'll see it win
 ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
 ┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━┩
-│ claude-opus-5-5   │      $4 │      $20 │ bundled │ 2026-10-14 │
-│ claude-sonnet-5-5 │    $1.5 │       $8 │ project │ 2026-10-15 │
-│ gpt-6-astra       │     $10 │      $50 │ bundled │ 2026-10-14 │
-│ gpt-6.1-sol       │      $2 │      $10 │ bundled │ 2026-10-14 │
+│ claude-opus-5-5   │      $4 │      $20 │ bundled │ 2026-11-27 │
+│ claude-sonnet-5-5 │    $1.5 │       $8 │ project │ 2026-11-28 │
+│ gpt-6-astra       │     $10 │      $50 │ bundled │ 2026-11-27 │
+│ gpt-6.1-sol       │      $2 │      $10 │ bundled │ 2026-11-27 │
 └───────────────────┴─────────┴──────────┴─────────┴────────────┘
 ```
 
@@ -125,7 +125,7 @@ This is the failure mode to watch for. Suppose you typo'd the key as `claude-son
 
 ```
 ┃ Model             ┃ In / 1M ┃ Out / 1M ┃ Layer   ┃ as_of      ┃
-│ claude-sonnet-5-5 │      $2 │      $10 │ bundled │ 2026-10-14 │   ← the model you run: NOT overridden
+│ claude-sonnet-5-5 │      $2 │      $10 │ bundled │ 2026-11-27 │   ← the model you run: NOT overridden
 │ claude-sonnet-5.5 │    $1.5 │       $8 │ project │ —          │   ← your typo: a dead, unused entry
 ```
 
@@ -159,7 +159,7 @@ Every `nasde results-export` also writes a `pricing_used.json` next to the expor
   "claude-sonnet-5-5": {
     "input_per_1m": 1.5,
     "output_per_1m": 8.0,
-    "as_of": "2026-10-15",
+    "as_of": "2026-11-28",
     "layer": "project"
   }
 }
